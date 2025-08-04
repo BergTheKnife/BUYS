@@ -1,0 +1,207 @@
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { insertVenditaSchema } from "@shared/schema";
+import type { InsertVendita, Inventario } from "@shared/schema";
+import { z } from "zod";
+
+interface AddSaleModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const saleFormSchema = insertVenditaSchema.extend({
+  data: z.string().min(1, "Data richiesta"),
+});
+
+type SaleFormData = z.infer<typeof saleFormSchema>;
+
+export function AddSaleModal({ isOpen, onClose }: AddSaleModalProps) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data: inventory = [] } = useQuery<Inventario[]>({
+    queryKey: ["/api/inventario"],
+    enabled: isOpen,
+  });
+
+  const form = useForm<SaleFormData>({
+    resolver: zodResolver(saleFormSchema),
+    defaultValues: {
+      inventarioId: "",
+      prezzoVendita: "",
+      incassatoDa: "",
+      data: new Date().toISOString().split('T')[0],
+    },
+  });
+
+  const selectedItem = inventory.find((item: Inventario) => item.id === form.watch("inventarioId"));
+
+  const mutation = useMutation({
+    mutationFn: async (data: SaleFormData) => {
+      const response = await apiRequest("POST", "/api/vendite", {
+        ...data,
+        data: new Date(data.data).toISOString(),
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/vendite"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      toast({
+        title: "Successo",
+        description: "Vendita registrata con successo",
+      });
+      onClose();
+      form.reset();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore nella registrazione della vendita",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const onSubmit = (data: SaleFormData) => {
+    mutation.mutate(data);
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>Registra Vendita</DialogTitle>
+        </DialogHeader>
+
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="inventarioId">Articolo</Label>
+            <Select 
+              value={form.watch("inventarioId")} 
+              onValueChange={(value) => form.setValue("inventarioId", value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Seleziona articolo" />
+              </SelectTrigger>
+              <SelectContent>
+                {inventory
+                  .filter((item: Inventario) => item.quantita > 0)
+                  .map((item: Inventario) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.nomeArticolo} - {item.taglia} (Qta: {item.quantita})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {form.formState.errors.inventarioId && (
+              <p className="text-sm text-destructive">
+                {form.formState.errors.inventarioId.message}
+              </p>
+            )}
+          </div>
+
+          {selectedItem && (
+            <div className="p-4 bg-muted rounded-lg">
+              <p className="text-sm">
+                <strong>Costo articolo:</strong> {new Intl.NumberFormat("it-IT", {
+                  style: "currency",
+                  currency: "EUR",
+                }).format(Number(selectedItem.costo))}
+              </p>
+              <p className="text-sm">
+                <strong>Quantità disponibile:</strong> {selectedItem.quantita}
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="prezzoVendita">Prezzo Vendita (€)</Label>
+            <Input
+              id="prezzoVendita"
+              type="number"
+              step="0.01"
+              placeholder="25.00"
+              {...form.register("prezzoVendita")}
+            />
+            {form.formState.errors.prezzoVendita && (
+              <p className="text-sm text-destructive">
+                {form.formState.errors.prezzoVendita.message}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="incassatoDa">Incassato Da</Label>
+            <Select 
+              value={form.watch("incassatoDa")} 
+              onValueChange={(value) => form.setValue("incassatoDa", value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Seleziona metodo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Contanti">Contanti</SelectItem>
+                <SelectItem value="Carta">Carta</SelectItem>
+                <SelectItem value="Bonifico">Bonifico</SelectItem>
+                <SelectItem value="PayPal">PayPal</SelectItem>
+              </SelectContent>
+            </Select>
+            {form.formState.errors.incassatoDa && (
+              <p className="text-sm text-destructive">
+                {form.formState.errors.incassatoDa.message}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="data">Data</Label>
+            <Input
+              id="data"
+              type="date"
+              {...form.register("data")}
+            />
+            {form.formState.errors.data && (
+              <p className="text-sm text-destructive">
+                {form.formState.errors.data.message}
+              </p>
+            )}
+          </div>
+
+          <div className="flex justify-end space-x-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Annulla
+            </Button>
+            <Button 
+              type="submit" 
+              disabled={mutation.isPending}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {mutation.isPending ? "Registrando..." : "Registra Vendita"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
