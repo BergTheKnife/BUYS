@@ -2,7 +2,15 @@
 
 ## Overview
 
-DAVALB is a comprehensive business management system designed for small businesses to manage inventory, sales, expenses, and financial tracking. The application provides a complete solution for business owners to track their products, record sales transactions, monitor expenses, and analyze their financial performance through an intuitive dashboard interface.
+DAVALB is a comprehensive business management system designed for small clothing retailers to manage inventory, sales, expenses, and financial tracking. The application provides a complete solution for business owners to track their products with sizes and images, record sales transactions with quantity control, monitor expenses with automatic inventory cost tracking, and analyze their financial performance through an intuitive dashboard interface.
+
+## Recent Changes (August 5, 2025)
+
+- **Enhanced Sales Module**: Added quantity field, separate "Incassato Da" (Alberto/Davide) and "Incassato Su" (payment methods) dropdowns
+- **Automatic Expense Tracking**: Inventory purchases now automatically generate expenses in the "Inventario" category
+- **Inventory Restock Feature**: Added restock functionality with automatic expense generation for additional quantities
+- **Improved Form Validation**: Fixed all TypeScript validation errors and database schema mismatches
+- **User Experience**: Added dialog descriptions for better accessibility, removed console warnings
 
 ## User Preferences
 

@@ -25,13 +25,25 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Package, Plus, Edit, Trash2, ImageIcon } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Package, Plus, Edit, Trash2, ImageIcon, PackagePlus } from "lucide-react";
 import type { Inventario } from "@shared/schema";
 
 export default function Inventory() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Inventario | null>(null);
   const [itemToDelete, setItemToDelete] = useState<Inventario | null>(null);
+  const [restockItem, setRestockItem] = useState<Inventario | null>(null);
+  const [restockQuantity, setRestockQuantity] = useState("1");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -60,6 +72,40 @@ export default function Inventory() {
       });
     },
   });
+
+  const restockMutation = useMutation({
+    mutationFn: async ({ id, quantita }: { id: string; quantita: number }) => {
+      const response = await apiRequest("POST", `/api/inventario/${id}/restock`, { quantita });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/spese"] });
+      toast({
+        title: "Successo",
+        description: "Rifornimento completato con successo",
+      });
+      setRestockItem(null);
+      setRestockQuantity("1");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore nel rifornimento",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleRestock = () => {
+    if (restockItem && restockQuantity) {
+      restockMutation.mutate({ 
+        id: restockItem.id, 
+        quantita: parseInt(restockQuantity) 
+      });
+    }
+  };
 
   const formatCurrency = (amount: string | number) => {
     return new Intl.NumberFormat("it-IT", {
@@ -172,6 +218,14 @@ export default function Inventory() {
                             <Button
                               size="sm"
                               variant="outline"
+                              onClick={() => setRestockItem(item)}
+                              title="Rifornisci"
+                            >
+                              <PackagePlus className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
                               onClick={() => setEditingItem(item)}
                             >
                               <Edit className="h-4 w-4" />
@@ -223,6 +277,52 @@ export default function Inventory() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <Dialog open={!!restockItem} onOpenChange={() => setRestockItem(null)}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Rifornisci Articolo</DialogTitle>
+              <DialogDescription>
+                Aggiungi quantità per "{restockItem?.nomeArticolo} - {restockItem?.taglia}".
+                <br />
+                Costo per pezzo: {restockItem && formatCurrency(restockItem.costo)}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="quantity" className="text-right">
+                  Quantità
+                </Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  min="1"
+                  value={restockQuantity}
+                  onChange={(e) => setRestockQuantity(e.target.value)}
+                  className="col-span-3"
+                />
+              </div>
+              {restockItem && (
+                <div className="text-sm text-muted-foreground">
+                  <p>Quantità attuale: {restockItem.quantita}</p>
+                  <p>Nuova quantità: {restockItem.quantita + parseInt(restockQuantity || "0")}</p>
+                  <p>Costo rifornimento: {formatCurrency(Number(restockItem.costo) * parseInt(restockQuantity || "0"))}</p>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setRestockItem(null)}>
+                Annulla
+              </Button>
+              <Button 
+                onClick={handleRestock}
+                disabled={restockMutation.isPending || !restockQuantity || parseInt(restockQuantity) <= 0}
+              >
+                {restockMutation.isPending ? "Rifornendo..." : "Rifornisci"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

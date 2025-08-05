@@ -313,6 +313,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         immagineUrl: immagineUrl,
       } as any);
 
+      // Create automatic expense for inventory purchase
+      const totalCost = Number(itemData.costo) * itemData.quantita;
+      await storage.createExpense({
+        userId: req.session.userId!,
+        voce: `Acquisto inventario: ${itemData.nomeArticolo} - ${itemData.taglia}`,
+        importo: totalCost.toString(),
+        categoria: "Inventario",
+        data: new Date(),
+      });
+
       res.json(item);
     } catch (error: any) {
       console.error('Inventory creation error:', error);
@@ -355,6 +365,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "Articolo eliminato con successo" });
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nell'eliminazione dell'articolo" });
+    }
+  });
+
+  app.post('/api/inventario/:id/restock', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { quantita } = req.body;
+      
+      if (!quantita || quantita <= 0) {
+        return res.status(400).json({ message: "Quantità non valida" });
+      }
+
+      const item = await storage.getInventoryItem(id, req.session.userId!);
+      if (!item) {
+        return res.status(404).json({ message: "Articolo non trovato" });
+      }
+
+      // Update inventory quantity
+      const newQuantity = item.quantita + parseInt(quantita);
+      await storage.updateInventoryQuantity(id, newQuantity);
+
+      // Create expense for restock
+      const totalCost = Number(item.costo) * parseInt(quantita);
+      await storage.createExpense({
+        userId: req.session.userId!,
+        voce: `Rifornimento: ${item.nomeArticolo} - ${item.taglia} (${quantita} pz)`,
+        importo: totalCost.toString(),
+        categoria: "Inventario",
+        data: new Date(),
+      });
+
+      // Get updated item
+      const updatedItem = await storage.getInventoryItem(id, req.session.userId!);
+      res.json(updatedItem);
+    } catch (error: any) {
+      console.error('Restock error:', error);
+      res.status(500).json({ message: error.message || "Errore nel rifornimento" });
     }
   });
 
