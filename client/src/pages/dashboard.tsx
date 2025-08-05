@@ -116,7 +116,7 @@ export default function Dashboard() {
                 Ciao, {user?.nome}!
               </h1>
               <p className="text-blue-100">
-                Build Up Your Store - Ecco il riassunto della tua attività
+                Ecco il riassunto della tua attività
               </p>
             </CardContent>
           </Card>
