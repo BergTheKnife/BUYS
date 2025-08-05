@@ -6,7 +6,7 @@ import bcrypt from "bcrypt";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { insertUserSchema, loginUserSchema, insertInventarioSchema, insertVenditaSchema, insertSpesaSchema, updateProfileSchema, changePasswordSchema } from "@shared/schema";
+import { insertUserSchema, loginUserSchema, insertInventarioSchema, insertVenditaSchema, insertSpesaSchema, updateProfileSchema, changePasswordSchema, updateUsernameSchema } from "@shared/schema";
 
 declare module "express-session" {
   interface SessionData {
@@ -158,6 +158,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore del server" });
+    }
+  });
+
+  // Check username availability
+  app.get('/api/auth/check-username/:username', async (req, res) => {
+    try {
+      const { username } = req.params;
+      
+      if (!username || username.length < 3) {
+        return res.json({ available: false, message: "Username deve essere di almeno 3 caratteri" });
+      }
+
+      const existingUser = await storage.getUserByUsername(username);
+      
+      res.json({ 
+        available: !existingUser,
+        message: existingUser ? "Username già in uso" : "Username disponibile"
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore del server" });
+    }
+  });
+
+  // Update username
+  app.put('/api/auth/username', requireAuth, async (req, res) => {
+    try {
+      const { username } = updateUsernameSchema.parse(req.body);
+      
+      // Check if username is already in use by another user
+      const existingUser = await storage.getUserByUsername(username);
+      if (existingUser && existingUser.id !== req.session.userId) {
+        return res.status(400).json({ message: "Username già in uso" });
+      }
+
+      const updatedUser = await storage.updateUser(req.session.userId!, { username });
+      if (!updatedUser) {
+        return res.status(404).json({ message: "Utente non trovato" });
+      }
+
+      res.json({
+        user: {
+          id: updatedUser.id,
+          nome: updatedUser.nome,
+          cognome: updatedUser.cognome,
+          email: updatedUser.email,
+          username: updatedUser.username,
+          createdAt: updatedUser.createdAt
+        }
+      });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Errore nell'aggiornamento dell'username" });
     }
   });
 

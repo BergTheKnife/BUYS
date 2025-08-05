@@ -42,21 +42,34 @@ const updateProfileSchema = z.object({
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, "Password attuale richiesta"),
-  newPassword: z.string().min(6, "La nuova password deve essere di almeno 6 caratteri"),
+  newPassword: z.string()
+    .min(6, "La nuova password deve essere di almeno 6 caratteri")
+    .regex(/(?=.*[A-Z])/, "La password deve contenere almeno una lettera maiuscola")
+    .regex(/(?=.*\d)/, "La password deve contenere almeno un numero"),
   confirmPassword: z.string().min(1, "Conferma password richiesta"),
 }).refine(data => data.newPassword === data.confirmPassword, {
   message: "Le password non coincidono",
   path: ["confirmPassword"],
 });
 
+const updateUsernameSchema = z.object({
+  username: z.string().min(3, "Username deve essere di almeno 3 caratteri"),
+});
+
 type UpdateProfileData = z.infer<typeof updateProfileSchema>;
 type ChangePasswordData = z.infer<typeof changePasswordSchema>;
+type UpdateUsernameData = z.infer<typeof updateUsernameSchema>;
 
 export default function Profile() {
   const { user, logout } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [usernameStatus, setUsernameStatus] = useState<{
+    checking: boolean;
+    available: boolean | null;
+    message: string;
+  }>({ checking: false, available: null, message: "" });
 
   const profileForm = useForm<UpdateProfileData>({
     resolver: zodResolver(updateProfileSchema),

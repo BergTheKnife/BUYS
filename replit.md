@@ -6,11 +6,12 @@ DAVALB is a comprehensive business management system designed for small clothing
 
 ## Recent Changes (August 5, 2025)
 
-- **Enhanced Sales Module**: Added quantity field, separate "Incassato Da" (Alberto/Davide) and "Incassato Su" (payment methods) dropdowns
-- **Automatic Expense Tracking**: Inventory purchases now automatically generate expenses in the "Inventario" category
-- **Inventory Restock Feature**: Added restock functionality with automatic expense generation for additional quantities
-- **Improved Form Validation**: Fixed all TypeScript validation errors and database schema mismatches
-- **User Experience**: Added dialog descriptions for better accessibility, removed console warnings
+- **Enhanced Authentication System**: Real-time username validation, password requirements (6+ chars, uppercase, number), Google OAuth integration placeholder
+- **Username Management**: Added ability to change username within the app with uniqueness validation
+- **Advanced UI Improvements**: Comprehensive filters for expenses page, chart view toggles for balance section, enhanced sales filtering
+- **Password Security**: Strengthened password requirements with visual hints and validation feedback
+- **User Experience**: Real-time feedback for username availability, improved form validation across all modules
+- **Cross-module Integration**: Enhanced filtering and data display capabilities across dashboard, sales, expenses, and balance modules
 
 ## User Preferences
 

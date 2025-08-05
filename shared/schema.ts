@@ -82,7 +82,14 @@ export const speseRelations = relations(spese, ({ one }) => ({
   }),
 }));
 
-export const insertUserSchema = createInsertSchema(users).omit({
+export const insertUserSchema = createInsertSchema(users, {
+  email: z.string().email("Email non valida"),
+  password: z.string()
+    .min(6, "La password deve essere di almeno 6 caratteri")
+    .regex(/(?=.*[A-Z])/, "La password deve contenere almeno una lettera maiuscola")
+    .regex(/(?=.*\d)/, "La password deve contenere almeno un numero"),
+  username: z.string().min(3, "Username deve essere di almeno 3 caratteri"),
+}).omit({
   id: true,
   createdAt: true,
 });
@@ -100,7 +107,14 @@ export const updateProfileSchema = z.object({
 
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, "Password attuale richiesta"),
-  newPassword: z.string().min(6, "La nuova password deve essere di almeno 6 caratteri"),
+  newPassword: z.string()
+    .min(6, "La nuova password deve essere di almeno 6 caratteri")
+    .regex(/(?=.*[A-Z])/, "La password deve contenere almeno una lettera maiuscola")
+    .regex(/(?=.*\d)/, "La password deve contenere almeno un numero"),
+});
+
+export const updateUsernameSchema = z.object({
+  username: z.string().min(3, "Username deve essere di almeno 3 caratteri"),
 });
 
 export const insertInventarioSchema = createInsertSchema(inventario).omit({
@@ -129,6 +143,7 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type LoginUser = z.infer<typeof loginUserSchema>;
 export type UpdateProfile = z.infer<typeof updateProfileSchema>;
 export type ChangePassword = z.infer<typeof changePasswordSchema>;
+export type UpdateUsername = z.infer<typeof updateUsernameSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertInventario = z.infer<typeof insertInventarioSchema>;
 export type Inventario = typeof inventario.$inferSelect;

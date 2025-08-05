@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,12 +8,19 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { Store, User, Lock, Mail, UserPlus, LogIn } from "lucide-react";
+import { Store, User, Lock, Mail, UserPlus, LogIn, Check, X, AlertCircle } from "lucide-react";
 import { insertUserSchema, loginUserSchema } from "@shared/schema";
 import type { InsertUser, LoginUser } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
+import { useMutation } from "@tanstack/react-query";
 
 export default function Welcome() {
   const [isLogin, setIsLogin] = useState(true);
+  const [usernameStatus, setUsernameStatus] = useState<{
+    checking: boolean;
+    available: boolean | null;
+    message: string;
+  }>({ checking: false, available: null, message: "" });
   const { login, register } = useAuth();
   const { toast } = useToast();
 
@@ -52,8 +59,45 @@ export default function Welcome() {
     }
   };
 
+  const checkUsernameMutation = useMutation({
+    mutationFn: async (username: string) => {
+      const response = await apiRequest("GET", `/api/auth/check-username/${username}`);
+      return response.json();
+    },
+  });
+
+  const checkUsernameAvailability = async (username: string) => {
+    if (!username || username.length < 3) {
+      setUsernameStatus({ checking: false, available: false, message: "Username deve essere di almeno 3 caratteri" });
+      return;
+    }
+
+    setUsernameStatus({ checking: true, available: null, message: "Controllo disponibilità..." });
+    
+    try {
+      const result = await checkUsernameMutation.mutateAsync(username);
+      setUsernameStatus({
+        checking: false,
+        available: result.available,
+        message: result.message
+      });
+    } catch (error) {
+      setUsernameStatus({ checking: false, available: false, message: "Errore nel controllo" });
+    }
+  };
+
   const onRegister = async (data: InsertUser) => {
     try {
+      // Final username check before registration
+      if (!usernameStatus.available) {
+        toast({
+          title: "Errore",
+          description: "Username non disponibile",
+          variant: "destructive",
+        });
+        return;
+      }
+
       await register(data);
       toast({
         title: "Registrazione completata",
@@ -66,6 +110,14 @@ export default function Welcome() {
         variant: "destructive",
       });
     }
+  };
+
+  const handleGoogleAuth = () => {
+    // For now, show a message that Google OAuth will be implemented
+    toast({
+      title: "Funzionalità in arrivo",
+      description: "L'autenticazione con Google sarà disponibile a breve",
+    });
   };
 
   return (
@@ -132,6 +184,42 @@ export default function Welcome() {
                 <Button type="submit" className="w-full" disabled={loginForm.formState.isSubmitting}>
                   <LogIn className="mr-2 h-4 w-4" />
                   Accedi
+                </Button>
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">Oppure</span>
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleGoogleAuth}
+                >
+                  <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
+                    <path
+                      fill="currentColor"
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    />
+                    <path
+                      fill="currentColor"
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    />
+                    <path
+                      fill="currentColor"
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                    />
+                    <path
+                      fill="currentColor"
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                    />
+                  </svg>
+                  Continua con Google
                 </Button>
 
                 <div className="text-center">
@@ -202,11 +290,36 @@ export default function Welcome() {
                     <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="username"
-                      className="pl-10"
+                      className="pl-10 pr-10"
                       placeholder="Username univoco"
-                      {...registerForm.register("username")}
+                      {...registerForm.register("username", {
+                        onChange: (e) => {
+                          const value = e.target.value;
+                          if (value.length >= 3) {
+                            checkUsernameAvailability(value);
+                          } else {
+                            setUsernameStatus({ checking: false, available: false, message: "Username deve essere di almeno 3 caratteri" });
+                          }
+                        }
+                      })}
                     />
+                    <div className="absolute right-3 top-3">
+                      {usernameStatus.checking && (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                      )}
+                      {!usernameStatus.checking && usernameStatus.available === true && (
+                        <Check className="h-4 w-4 text-green-600" />
+                      )}
+                      {!usernameStatus.checking && usernameStatus.available === false && usernameStatus.message && (
+                        <X className="h-4 w-4 text-red-600" />
+                      )}
+                    </div>
                   </div>
+                  {usernameStatus.message && (
+                    <p className={`text-sm ${usernameStatus.available ? 'text-green-600' : 'text-destructive'}`}>
+                      {usernameStatus.message}
+                    </p>
+                  )}
                   {registerForm.formState.errors.username && (
                     <p className="text-sm text-destructive">
                       {registerForm.formState.errors.username.message}
@@ -226,6 +339,17 @@ export default function Welcome() {
                       {...registerForm.register("password")}
                     />
                   </div>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p className="flex items-center gap-2">
+                      <AlertCircle className="h-3 w-3" />
+                      Requisiti password:
+                    </p>
+                    <ul className="ml-5 space-y-1">
+                      <li>• Almeno 6 caratteri</li>
+                      <li>• Almeno una lettera maiuscola</li>
+                      <li>• Almeno un numero</li>
+                    </ul>
+                  </div>
                   {registerForm.formState.errors.password && (
                     <p className="text-sm text-destructive">
                       {registerForm.formState.errors.password.message}
@@ -233,9 +357,49 @@ export default function Welcome() {
                   )}
                 </div>
 
-                <Button type="submit" className="w-full bg-green-600 hover:bg-green-700" disabled={registerForm.formState.isSubmitting}>
+                <Button 
+                  type="submit" 
+                  className="w-full bg-green-600 hover:bg-green-700" 
+                  disabled={registerForm.formState.isSubmitting || !usernameStatus.available}
+                >
                   <UserPlus className="mr-2 h-4 w-4" />
                   Registrati
+                </Button>
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">Oppure</span>
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleGoogleAuth}
+                >
+                  <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
+                    <path
+                      fill="currentColor"
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    />
+                    <path
+                      fill="currentColor"
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    />
+                    <path
+                      fill="currentColor"
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                    />
+                    <path
+                      fill="currentColor"
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                    />
+                  </svg>
+                  Continua con Google
                 </Button>
 
                 <div className="text-center">
@@ -244,7 +408,10 @@ export default function Welcome() {
                     type="button"
                     variant="link"
                     className="p-0"
-                    onClick={() => setIsLogin(true)}
+                    onClick={() => {
+                      setIsLogin(true);
+                      setUsernameStatus({ checking: false, available: null, message: "" });
+                    }}
                   >
                     Accedi
                   </Button>
