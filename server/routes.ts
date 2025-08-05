@@ -370,7 +370,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/vendite', requireAuth, async (req, res) => {
     try {
-      const saleData = insertVenditaSchema.parse(req.body);
+      // Convert form data types
+      const formData = {
+        inventarioId: req.body.inventarioId,
+        prezzoVendita: req.body.prezzoVendita,
+        incassatoDa: req.body.incassatoDa,
+        data: new Date(req.body.data)
+      };
+      
+      const saleData = insertVenditaSchema.parse(formData);
       
       // Get inventory item to calculate margin and update quantity
       const inventoryItem = await storage.getInventoryItem(saleData.inventarioId, req.session.userId!);
@@ -399,6 +407,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(sale);
     } catch (error: any) {
+      console.error('Sale creation error:', error);
       res.status(400).json({ message: error.message || "Errore nella registrazione della vendita" });
     }
   });

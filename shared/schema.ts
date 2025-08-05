@@ -115,10 +115,7 @@ export const insertVenditaSchema = createInsertSchema(vendite).omit({
   taglia: true,
   margine: true,
   createdAt: true,
-}).extend({
-  prezzoVendita: z.string().min(1, "Prezzo vendita richiesto"),
-  incassatoDa: z.string().min(1, "Metodo di pagamento richiesto"),
-  inventarioId: z.string().min(1, "Articolo richiesto"),
+  data: true,
 });
 
 export const insertSpesaSchema = createInsertSchema(spese).omit({

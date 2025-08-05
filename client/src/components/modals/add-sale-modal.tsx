@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -47,7 +48,7 @@ export function AddSaleModal({ isOpen, onClose }: AddSaleModalProps) {
     resolver: zodResolver(saleFormSchema),
     defaultValues: {
       inventarioId: "",
-      prezzoVendita: "",
+      prezzoVendita: "0",
       incassatoDa: "",
       data: new Date().toISOString().split('T')[0],
     },
@@ -58,8 +59,10 @@ export function AddSaleModal({ isOpen, onClose }: AddSaleModalProps) {
   const mutation = useMutation({
     mutationFn: async (data: SaleFormData) => {
       const response = await apiRequest("POST", "/api/vendite", {
-        ...data,
-        data: new Date(data.data).toISOString(),
+        inventarioId: data.inventarioId,
+        prezzoVendita: data.prezzoVendita,
+        incassatoDa: data.incassatoDa,
+        data: data.data,
       });
       return response.json();
     },
@@ -92,6 +95,9 @@ export function AddSaleModal({ isOpen, onClose }: AddSaleModalProps) {
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Registra Vendita</DialogTitle>
+          <DialogDescription>
+            Seleziona un articolo e inserisci i dettagli della vendita.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
