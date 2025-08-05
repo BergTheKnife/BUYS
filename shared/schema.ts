@@ -105,9 +105,7 @@ export const insertInventarioSchema = createInsertSchema(inventario).omit({
   id: true,
   userId: true,
   createdAt: true,
-}).extend({
-  costo: z.string().min(1, "Costo richiesto"),
-  quantita: z.number().min(0, "Quantità deve essere almeno 0"),
+  immagineUrl: true,
 });
 
 export const insertVenditaSchema = createInsertSchema(vendite).omit({

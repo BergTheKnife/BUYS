@@ -41,7 +41,7 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
     defaultValues: {
       nomeArticolo: "",
       taglia: "",
-      costo: "",
+      costo: "0",
       quantita: 1,
     },
   });
@@ -51,14 +51,14 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
       form.reset({
         nomeArticolo: editingItem.nomeArticolo,
         taglia: editingItem.taglia,
-        costo: editingItem.costo,
+        costo: editingItem.costo.toString(),
         quantita: editingItem.quantita,
       });
     } else {
       form.reset({
         nomeArticolo: "",
         taglia: "",
-        costo: "",
+        costo: "0",
         quantita: 1,
       });
     }

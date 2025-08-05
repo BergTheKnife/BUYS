@@ -289,7 +289,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/inventario', requireAuth, upload.single('immagine'), async (req, res) => {
     try {
-      const itemData = insertInventarioSchema.parse(req.body);
+      // Convert form data types
+      const formData = {
+        nomeArticolo: req.body.nomeArticolo,
+        taglia: req.body.taglia,
+        costo: req.body.costo,
+        quantita: parseInt(req.body.quantita)
+      };
+      
+      const itemData = insertInventarioSchema.parse(formData);
       
       let immagineUrl = null;
       if (req.file) {
@@ -302,11 +310,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const item = await storage.createInventoryItem({
         ...itemData,
         userId: req.session.userId!,
-        immagineUrl,
-      });
+        immagineUrl: immagineUrl,
+      } as any);
 
       res.json(item);
     } catch (error: any) {
+      console.error('Inventory creation error:', error);
       res.status(400).json({ message: error.message || "Errore nell'aggiunta dell'articolo" });
     }
   });
@@ -320,7 +329,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const filename = `${Date.now()}-${req.file.originalname}`;
         const filepath = path.join(uploadDir, filename);
         fs.renameSync(req.file.path, filepath);
-        updates.immagineUrl = `/uploads/${filename}`;
+        (updates as any).immagineUrl = `/uploads/${filename}`;
       }
 
       const item = await storage.updateInventoryItem(id, req.session.userId!, updates);
