@@ -20,6 +20,7 @@ import {
   Menu,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { BuysLogo } from "@/components/ui/buys-logo";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
@@ -79,11 +80,14 @@ export function Navbar() {
           {/* Logo */}
           <Button
             variant="ghost"
-            className="text-white hover:bg-white/10 font-bold text-xl"
+            className="text-white hover:bg-white/10 font-bold text-xl p-2"
             onClick={() => setLocation("/dashboard")}
           >
-            <Store className="h-6 w-6 mr-2" />
-            DAVALB
+            <BuysLogo size="sm" className="text-white mr-2" />
+            <div className="flex flex-col items-start">
+              <span>BUYS</span>
+              <span className="text-xs opacity-80 font-normal">Build Up Your Store</span>
+            </div>
           </Button>
 
           {/* Desktop Navigation */}
@@ -123,9 +127,12 @@ export function Navbar() {
               <SheetContent side="right" className="w-[300px] sm:w-[400px] bg-white dark:bg-gray-900">
                 <div className="flex flex-col h-full">
                   {/* Header */}
-                  <div className="flex items-center space-x-2 mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
-                    <Store className="h-6 w-6 text-blue-600" />
-                    <span className="text-lg font-semibold text-gray-900 dark:text-white">DAVALB</span>
+                  <div className="flex items-center space-x-3 mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
+                    <BuysLogo size="sm" className="text-blue-600" />
+                    <div>
+                      <div className="text-lg font-semibold text-gray-900 dark:text-white">BUYS</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">Build Up Your Store</div>
+                    </div>
                   </div>
                   
                   {/* Navigation */}

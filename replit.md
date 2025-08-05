@@ -1,10 +1,18 @@
-# DAVALB - Business Management System
+# BUYS - Build Up Your Store
 
 ## Overview
 
-DAVALB is a comprehensive business management system designed for small clothing retailers to manage inventory, sales, expenses, and financial tracking. The application provides a complete solution for business owners to track their products with sizes and images, record sales transactions with quantity control, monitor expenses with automatic inventory cost tracking, and analyze their financial performance through an intuitive dashboard interface.
+BUYS (Build Up Your Store) is a comprehensive business management system designed for small clothing retailers to manage inventory, sales, expenses, and financial tracking. The application provides a complete solution for business owners to track their products with sizes and images, record sales transactions with quantity control, monitor expenses with automatic inventory cost tracking, and analyze their financial performance through an intuitive dashboard interface.
 
 ## Recent Changes (August 5, 2025)
+
+### Latest Update - BUYS Rebranding
+- **Complete Visual Rebrand**: Updated from "DAVALB" to "BUYS - Build Up Your Store"
+- **New Logo Design**: Created modern gradient logo with brand messaging integration
+- **Comprehensive UI Updates**: Updated all navigation, welcome pages, and dashboard branding
+- **Brand Consistency**: Applied new branding across login, registration, mobile menu, and main interface
+
+### Previous Updates
 
 - **Enhanced Authentication System**: Real-time username validation, password requirements (6+ chars, uppercase, number), Google OAuth integration placeholder
 - **Username Management**: Added ability to change username within the app with uniqueness validation
