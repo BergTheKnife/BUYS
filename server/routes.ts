@@ -373,8 +373,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Convert form data types
       const formData = {
         inventarioId: req.body.inventarioId,
+        quantita: parseInt(req.body.quantita) || 1,
         prezzoVendita: req.body.prezzoVendita,
         incassatoDa: req.body.incassatoDa,
+        incassatoSu: req.body.incassatoSu,
         data: new Date(req.body.data)
       };
       
@@ -386,12 +388,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Articolo non trovato nell'inventario" });
       }
 
-      if (inventoryItem.quantita <= 0) {
+      const quantitaVenduta = saleData.quantita || 1;
+      
+      if (inventoryItem.quantita < quantitaVenduta) {
         return res.status(400).json({ message: "Quantità insufficiente in magazzino" });
       }
 
-      // Calculate margin
-      const margine = Number(saleData.prezzoVendita) - Number(inventoryItem.costo);
+      // Calculate margin (per unit * quantity sold)
+      const marginePerUnit = Number(saleData.prezzoVendita) - Number(inventoryItem.costo);
+      const margineTotal = marginePerUnit * quantitaVenduta;
 
       // Create sale
       const sale = await storage.createSale({
@@ -399,11 +404,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId: req.session.userId!,
         nomeArticolo: inventoryItem.nomeArticolo,
         taglia: inventoryItem.taglia,
-        margine: margine.toString(),
+        margine: margineTotal.toString(),
       });
 
       // Update inventory quantity
-      await storage.updateInventoryQuantity(saleData.inventarioId, inventoryItem.quantita - 1);
+      await storage.updateInventoryQuantity(saleData.inventarioId, inventoryItem.quantita - quantitaVenduta);
 
       res.json(sale);
     } catch (error: any) {
@@ -424,7 +429,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/spese', requireAuth, async (req, res) => {
     try {
-      const expenseData = insertSpesaSchema.parse(req.body);
+      // Convert form data types
+      const formData = {
+        voce: req.body.voce,
+        importo: req.body.importo,
+        categoria: req.body.categoria,
+        data: new Date(req.body.data)
+      };
+      
+      const expenseData = insertSpesaSchema.parse(formData);
       
       const expense = await storage.createExpense({
         ...expenseData,
@@ -433,6 +446,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(expense);
     } catch (error: any) {
+      console.error('Expense creation error:', error);
       res.status(400).json({ message: error.message || "Errore nell'aggiunta della spesa" });
     }
   });

@@ -31,8 +31,10 @@ export const vendite = pgTable("vendite", {
   inventarioId: uuid("inventario_id").notNull().references(() => inventario.id),
   nomeArticolo: text("nome_articolo").notNull(),
   taglia: text("taglia").notNull(),
+  quantita: integer("quantita").notNull().default(1),
   prezzoVendita: decimal("prezzo_vendita", { precision: 10, scale: 2 }).notNull(),
   incassatoDa: text("incassato_da").notNull(),
+  incassatoSu: text("incassato_su").notNull(),
   data: timestamp("data").notNull(),
   margine: decimal("margine", { precision: 10, scale: 2 }).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
@@ -115,17 +117,12 @@ export const insertVenditaSchema = createInsertSchema(vendite).omit({
   taglia: true,
   margine: true,
   createdAt: true,
-  data: true,
 });
 
 export const insertSpesaSchema = createInsertSchema(spese).omit({
   id: true,
   userId: true,
   createdAt: true,
-}).extend({
-  voce: z.string().min(1, "Voce richiesta"),
-  importo: z.string().min(1, "Importo richiesto"),
-  categoria: z.string().min(1, "Categoria richiesta"),
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;

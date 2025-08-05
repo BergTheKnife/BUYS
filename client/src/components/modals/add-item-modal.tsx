@@ -5,6 +5,7 @@ import { z } from "zod";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -122,6 +123,9 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
           <DialogTitle>
             {editingItem ? "Modifica Articolo" : "Aggiungi Articolo"}
           </DialogTitle>
+          <DialogDescription>
+            Inserisci i dettagli dell'articolo da aggiungere all'inventario.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">

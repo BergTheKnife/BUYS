@@ -48,8 +48,10 @@ export function AddSaleModal({ isOpen, onClose }: AddSaleModalProps) {
     resolver: zodResolver(saleFormSchema),
     defaultValues: {
       inventarioId: "",
+      quantita: 1,
       prezzoVendita: "0",
       incassatoDa: "",
+      incassatoSu: "",
       data: new Date().toISOString().split('T')[0],
     },
   });
@@ -60,8 +62,10 @@ export function AddSaleModal({ isOpen, onClose }: AddSaleModalProps) {
     mutationFn: async (data: SaleFormData) => {
       const response = await apiRequest("POST", "/api/vendite", {
         inventarioId: data.inventarioId,
+        quantita: data.quantita,
         prezzoVendita: data.prezzoVendita,
         incassatoDa: data.incassatoDa,
+        incassatoSu: data.incassatoSu,
         data: data.data,
       });
       return response.json();
@@ -142,6 +146,22 @@ export function AddSaleModal({ isOpen, onClose }: AddSaleModalProps) {
           )}
 
           <div className="space-y-2">
+            <Label htmlFor="quantita">Quantità Venduta</Label>
+            <Input
+              id="quantita"
+              type="number"
+              min="1"
+              max={selectedItem?.quantita || 1}
+              {...form.register("quantita", { valueAsNumber: true })}
+            />
+            {form.formState.errors.quantita && (
+              <p className="text-sm text-destructive">
+                {form.formState.errors.quantita.message}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="prezzoVendita">Prezzo Vendita (€)</Label>
             <Input
               id="prezzoVendita"
@@ -164,6 +184,27 @@ export function AddSaleModal({ isOpen, onClose }: AddSaleModalProps) {
               onValueChange={(value) => form.setValue("incassatoDa", value)}
             >
               <SelectTrigger>
+                <SelectValue placeholder="Seleziona persona" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Alberto">Alberto</SelectItem>
+                <SelectItem value="Davide">Davide</SelectItem>
+              </SelectContent>
+            </Select>
+            {form.formState.errors.incassatoDa && (
+              <p className="text-sm text-destructive">
+                {form.formState.errors.incassatoDa.message}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="incassatoSu">Incassato Su</Label>
+            <Select 
+              value={form.watch("incassatoSu")} 
+              onValueChange={(value) => form.setValue("incassatoSu", value)}
+            >
+              <SelectTrigger>
                 <SelectValue placeholder="Seleziona metodo" />
               </SelectTrigger>
               <SelectContent>
@@ -173,9 +214,9 @@ export function AddSaleModal({ isOpen, onClose }: AddSaleModalProps) {
                 <SelectItem value="PayPal">PayPal</SelectItem>
               </SelectContent>
             </Select>
-            {form.formState.errors.incassatoDa && (
+            {form.formState.errors.incassatoSu && (
               <p className="text-sm text-destructive">
-                {form.formState.errors.incassatoDa.message}
+                {form.formState.errors.incassatoSu.message}
               </p>
             )}
           </div>

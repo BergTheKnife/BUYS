@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -44,7 +45,7 @@ export function AddExpenseModal({ isOpen, onClose, editingExpense }: AddExpenseM
     resolver: zodResolver(expenseFormSchema),
     defaultValues: {
       voce: "",
-      importo: "",
+      importo: "0",
       categoria: "",
       data: new Date().toISOString().split('T')[0],
     },
@@ -54,14 +55,14 @@ export function AddExpenseModal({ isOpen, onClose, editingExpense }: AddExpenseM
     if (editingExpense) {
       form.reset({
         voce: editingExpense.voce,
-        importo: editingExpense.importo,
+        importo: editingExpense.importo.toString(),
         categoria: editingExpense.categoria,
         data: new Date(editingExpense.data).toISOString().split('T')[0],
       });
     } else {
       form.reset({
         voce: "",
-        importo: "",
+        importo: "0",
         categoria: "",
         data: new Date().toISOString().split('T')[0],
       });
@@ -109,6 +110,9 @@ export function AddExpenseModal({ isOpen, onClose, editingExpense }: AddExpenseM
           <DialogTitle>
             {editingExpense ? "Modifica Spesa" : "Aggiungi Spesa"}
           </DialogTitle>
+          <DialogDescription>
+            Inserisci i dettagli della spesa da registrare.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
