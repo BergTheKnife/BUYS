@@ -63,7 +63,7 @@ export default function Sales() {
     if (filters.articolo && !sale.nomeArticolo.toLowerCase().includes(filters.articolo.toLowerCase())) {
       return false;
     }
-    if (filters.incassatoDa && sale.incassatoDa !== filters.incassatoDa) {
+    if (filters.incassatoDa && filters.incassatoDa !== "tutti" && sale.incassatoDa !== filters.incassatoDa) {
       return false;
     }
     if (filters.dataInizio && new Date(sale.data) < new Date(filters.dataInizio)) {
@@ -177,7 +177,7 @@ export default function Sales() {
                     <SelectValue placeholder="Tutti" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Tutti</SelectItem>
+                    <SelectItem value="tutti">Tutti</SelectItem>
                     <SelectItem value="Contanti">Contanti</SelectItem>
                     <SelectItem value="Carta">Carta</SelectItem>
                     <SelectItem value="Bonifico">Bonifico</SelectItem>

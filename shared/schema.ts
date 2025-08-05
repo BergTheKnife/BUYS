@@ -105,6 +105,9 @@ export const insertInventarioSchema = createInsertSchema(inventario).omit({
   id: true,
   userId: true,
   createdAt: true,
+}).extend({
+  costo: z.string().min(1, "Costo richiesto"),
+  quantita: z.number().min(0, "Quantità deve essere almeno 0"),
 });
 
 export const insertVenditaSchema = createInsertSchema(vendite).omit({
@@ -114,12 +117,20 @@ export const insertVenditaSchema = createInsertSchema(vendite).omit({
   taglia: true,
   margine: true,
   createdAt: true,
+}).extend({
+  prezzoVendita: z.string().min(1, "Prezzo vendita richiesto"),
+  incassatoDa: z.string().min(1, "Metodo di pagamento richiesto"),
+  inventarioId: z.string().min(1, "Articolo richiesto"),
 });
 
 export const insertSpesaSchema = createInsertSchema(spese).omit({
   id: true,
   userId: true,
   createdAt: true,
+}).extend({
+  voce: z.string().min(1, "Voce richiesta"),
+  importo: z.string().min(1, "Importo richiesto"),
+  categoria: z.string().min(1, "Categoria richiesta"),
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
