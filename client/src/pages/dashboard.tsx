@@ -61,25 +61,25 @@ export default function Dashboard() {
       title: "Articoli in Magazzino",
       value: stats?.inventoryCount || 0,
       icon: Package,
-      color: "bg-blue-500",
+      color: "bg-primary",
     },
     {
       title: "Vendite Totali",
       value: formatCurrency(stats?.totalSales || 0),
       icon: Euro,
-      color: "bg-green-500",
+      color: "bg-secondary",
     },
     {
       title: "Spese Totali",
       value: formatCurrency(stats?.totalExpenses || 0),
       icon: Receipt,
-      color: "bg-yellow-500",
+      color: "bg-accent",
     },
     {
       title: "Margine Netto",
       value: formatCurrency(stats?.netMargin || 0),
       icon: TrendingUp,
-      color: "bg-purple-500",
+      color: "bg-gradient-to-r from-secondary to-accent",
     },
   ];
 
@@ -110,13 +110,13 @@ export default function Dashboard() {
       <div className="container mx-auto py-8 px-4">
         {/* Welcome Header */}
         <div className="mb-8">
-          <Card className="bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0">
+          <Card className="bg-gradient-to-r from-primary via-accent to-secondary text-white border-0">
             <CardContent className="py-8 text-center">
               <h1 className="text-3xl font-bold mb-2">
                 Ciao, {user?.nome}!
               </h1>
-              <p className="text-blue-100">
-                Ecco il riassunto della tua attività
+              <p className="text-white/80">
+                Benvenuto in BUYS - Build Up Your Store
               </p>
             </CardContent>
           </Card>
