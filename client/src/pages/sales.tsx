@@ -22,7 +22,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ShoppingCart, Plus, Filter } from "lucide-react";
+import { ShoppingCart, Plus, Filter, Repeat } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import type { Vendita } from "@shared/schema";
 
 export default function Sales() {
@@ -32,7 +43,12 @@ export default function Sales() {
     dataInizio: "",
     dataFine: "",
     incassatoDa: "",
+    incassatoSu: "",
+    taglia: "",
   });
+  const [repeatSale, setRepeatSale] = useState<Vendita | null>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: sales = [], isLoading } = useQuery<Vendita[]>({
     queryKey: ["/api/vendite"],
@@ -66,6 +82,12 @@ export default function Sales() {
     if (filters.incassatoDa && filters.incassatoDa !== "tutti" && sale.incassatoDa !== filters.incassatoDa) {
       return false;
     }
+    if (filters.incassatoSu && filters.incassatoSu !== "tutti" && sale.incassatoSu !== filters.incassatoSu) {
+      return false;
+    }
+    if (filters.taglia && !sale.taglia.toLowerCase().includes(filters.taglia.toLowerCase())) {
+      return false;
+    }
     if (filters.dataInizio && new Date(sale.data) < new Date(filters.dataInizio)) {
       return false;
     }
@@ -77,6 +99,45 @@ export default function Sales() {
 
   const totalSales = filteredSales.reduce((sum: number, sale: Vendita) => sum + Number(sale.prezzoVendita), 0);
   const totalMargin = filteredSales.reduce((sum: number, sale: Vendita) => sum + Number(sale.margine), 0);
+
+  // Repeat sale mutation
+  const repeatSaleMutation = useMutation({
+    mutationFn: async (saleData: any) => {
+      const response = await apiRequest("POST", "/api/vendite", saleData);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/vendite"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      toast({
+        title: "Successo",
+        description: "Vendita ripetuta con successo",
+      });
+      setRepeatSale(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore nella ripetizione della vendita",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleRepeatSale = () => {
+    if (repeatSale) {
+      repeatSaleMutation.mutate({
+        nomeArticolo: repeatSale.nomeArticolo,
+        taglia: repeatSale.taglia,
+        prezzoVendita: repeatSale.prezzoVendita,
+        quantita: repeatSale.quantita,
+        incassatoDa: repeatSale.incassatoDa,
+        incassatoSu: repeatSale.incassatoSu,
+        data: new Date().toISOString()
+      });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -145,7 +206,7 @@ export default function Sales() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
               <div className="space-y-2">
                 <Label>Articolo</Label>
                 <Input
@@ -171,6 +232,14 @@ export default function Sales() {
                 />
               </div>
               <div className="space-y-2">
+                <Label>Taglia</Label>
+                <Input
+                  placeholder="Cerca per taglia..."
+                  value={filters.taglia}
+                  onChange={(e) => setFilters(prev => ({ ...prev, taglia: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
                 <Label>Incassato Da</Label>
                 <Select value={filters.incassatoDa} onValueChange={(value) => setFilters(prev => ({ ...prev, incassatoDa: value }))}>
                   <SelectTrigger>
@@ -178,10 +247,23 @@ export default function Sales() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="tutti">Tutti</SelectItem>
-                    <SelectItem value="Contanti">Contanti</SelectItem>
-                    <SelectItem value="Carta">Carta</SelectItem>
-                    <SelectItem value="Bonifico">Bonifico</SelectItem>
-                    <SelectItem value="PayPal">PayPal</SelectItem>
+                    <SelectItem value="Alberto">Alberto</SelectItem>
+                    <SelectItem value="Davide">Davide</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Incassato Su</Label>
+                <Select value={filters.incassatoSu} onValueChange={(value) => setFilters(prev => ({ ...prev, incassatoSu: value }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Tutti" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="tutti">Tutti</SelectItem>
+                    <SelectItem value="bonifico">Bonifico</SelectItem>
+                    <SelectItem value="contanti">Contanti</SelectItem>
+                    <SelectItem value="carta">Carta</SelectItem>
+                    <SelectItem value="paypal">PayPal</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -215,9 +297,12 @@ export default function Sales() {
                       <TableHead>Data</TableHead>
                       <TableHead>Articolo</TableHead>
                       <TableHead>Taglia</TableHead>
+                      <TableHead>Quantità</TableHead>
                       <TableHead>Prezzo Vendita</TableHead>
                       <TableHead>Incassato Da</TableHead>
+                      <TableHead>Incassato Su</TableHead>
                       <TableHead>Margine</TableHead>
+                      <TableHead>Azioni</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -230,16 +315,32 @@ export default function Sales() {
                         <TableCell>
                           <Badge variant="secondary">{sale.taglia}</Badge>
                         </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{sale.quantita}</Badge>
+                        </TableCell>
                         <TableCell className="font-semibold text-green-600">
                           {formatCurrency(sale.prezzoVendita)}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={getPaymentMethodVariant(sale.incassatoDa)}>
-                            {sale.incassatoDa}
+                          <Badge variant="default">{sale.incassatoDa}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getPaymentMethodVariant(sale.incassatoSu)}>
+                            {sale.incassatoSu}
                           </Badge>
                         </TableCell>
                         <TableCell className="font-semibold text-blue-600">
                           {formatCurrency(sale.margine)}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setRepeatSale(sale)}
+                            title="Ripeti vendita"
+                          >
+                            <Repeat className="h-4 w-4" />
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -254,6 +355,53 @@ export default function Sales() {
           isOpen={isAddModalOpen}
           onClose={() => setIsAddModalOpen(false)}
         />
+
+        {/* Repeat Sale Dialog */}
+        <Dialog open={!!repeatSale} onOpenChange={() => setRepeatSale(null)}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Ripeti Vendita</DialogTitle>
+              <DialogDescription>
+                Conferma per ripetere questa vendita con i dati originali.
+              </DialogDescription>
+            </DialogHeader>
+            {repeatSale && (
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="font-medium">Articolo:</span> {repeatSale.nomeArticolo}
+                  </div>
+                  <div>
+                    <span className="font-medium">Taglia:</span> {repeatSale.taglia}
+                  </div>
+                  <div>
+                    <span className="font-medium">Quantità:</span> {repeatSale.quantita}
+                  </div>
+                  <div>
+                    <span className="font-medium">Prezzo:</span> {formatCurrency(repeatSale.prezzoVendita)}
+                  </div>
+                  <div>
+                    <span className="font-medium">Incassato Da:</span> {repeatSale.incassatoDa}
+                  </div>
+                  <div>
+                    <span className="font-medium">Incassato Su:</span> {repeatSale.incassatoSu}
+                  </div>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setRepeatSale(null)}>
+                Annulla
+              </Button>
+              <Button 
+                onClick={handleRepeatSale}
+                disabled={repeatSaleMutation.isPending}
+              >
+                {repeatSaleMutation.isPending ? "Ripetendo..." : "Conferma Ripetizione"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

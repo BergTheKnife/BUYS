@@ -9,11 +9,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { TrendingUp, TrendingDown, Calculator, Download, FileText, Mail } from "lucide-react";
+import { TrendingUp, TrendingDown, Calculator, Download, FileText, Mail, BarChart3, LineChart } from "lucide-react";
 import { useState } from "react";
 
 export default function Balance() {
   const [period, setPeriod] = useState("month");
+  const [chartView, setChartView] = useState("line");
 
   const { data: stats, isLoading } = useQuery<{
     inventoryCount: number;
@@ -126,8 +127,22 @@ export default function Balance() {
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Andamento Finanziario</CardTitle>
                 <div className="flex space-x-2">
-                  <Button variant="outline" size="sm">Mese</Button>
-                  <Button variant="ghost" size="sm">Anno</Button>
+                  <Button 
+                    variant={chartView === "line" ? "default" : "outline"} 
+                    size="sm"
+                    onClick={() => setChartView("line")}
+                  >
+                    <LineChart className="h-4 w-4 mr-1" />
+                    Linea
+                  </Button>
+                  <Button 
+                    variant={chartView === "bar" ? "default" : "outline"} 
+                    size="sm"
+                    onClick={() => setChartView("bar")}
+                  >
+                    <BarChart3 className="h-4 w-4 mr-1" />
+                    Barre
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent>
@@ -174,18 +189,33 @@ export default function Balance() {
               <CardHeader>
                 <CardTitle>Periodo Report</CardTitle>
               </CardHeader>
-              <CardContent>
-                <Select value={period} onValueChange={setPeriod}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="month">Questo mese</SelectItem>
-                    <SelectItem value="quarter">Ultimi 3 mesi</SelectItem>
-                    <SelectItem value="semester">Ultimi 6 mesi</SelectItem>
-                    <SelectItem value="year">Quest'anno</SelectItem>
-                  </SelectContent>
-                </Select>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Seleziona Periodo</label>
+                  <Select value={period} onValueChange={setPeriod}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="month">Questo mese</SelectItem>
+                      <SelectItem value="quarter">Ultimi 3 mesi</SelectItem>
+                      <SelectItem value="semester">Ultimi 6 mesi</SelectItem>
+                      <SelectItem value="year">Quest'anno</SelectItem>
+                      <SelectItem value="total">Totale</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="pt-2 space-y-2">
+                  <div className="text-sm text-muted-foreground">
+                    Periodo selezionato: <span className="font-medium">
+                      {period === "month" && "Questo mese"}
+                      {period === "quarter" && "Ultimi 3 mesi"}
+                      {period === "semester" && "Ultimi 6 mesi"}
+                      {period === "year" && "Quest'anno"}
+                      {period === "total" && "Dall'inizio"}
+                    </span>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 

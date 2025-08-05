@@ -28,6 +28,27 @@ export default function Dashboard() {
     queryKey: ["/api/stats"],
   });
 
+  // Fetch recent activities
+  const { data: recentActivities = [] } = useQuery<Array<{
+    id: string;
+    type: 'sale' | 'expense' | 'inventory';
+    description: string;
+    amount?: number;
+    data: string;
+  }>>({
+    queryKey: ["/api/recent-activities"],
+  });
+
+  // Fetch top selling items
+  const { data: topSellingItems = [] } = useQuery<Array<{
+    nomeArticolo: string;
+    taglia: string;
+    totalQuantity: number;
+    totalRevenue: number;
+  }>>({
+    queryKey: ["/api/top-selling-items"],
+  });
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("it-IT", {
       style: "currency",
@@ -62,29 +83,7 @@ export default function Dashboard() {
     },
   ];
 
-  const quickActions = [
-    {
-      title: "Aggiungi Articolo",
-      description: "Inserisci un nuovo capo nel magazzino",
-      icon: PlusCircle,
-      action: () => setLocation("/inventario"),
-      color: "bg-blue-600 hover:bg-blue-700",
-    },
-    {
-      title: "Registra Vendita",
-      description: "Registra una vendita e aggiorna l'inventario",
-      icon: ShoppingCart,
-      action: () => setLocation("/vendite"),
-      color: "bg-green-600 hover:bg-green-700",
-    },
-    {
-      title: "Aggiungi Spesa",
-      description: "Inserisci una nuova spesa aziendale",
-      icon: Receipt,
-      action: () => setLocation("/spese"),
-      color: "bg-yellow-600 hover:bg-yellow-700",
-    },
-  ];
+
 
   if (isLoading) {
     return (
@@ -147,47 +146,85 @@ export default function Dashboard() {
           })}
         </div>
 
-        {/* Quick Actions */}
+        {/* Activity and Top Items */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <Card>
-            <CardHeader>
-              <CardTitle>Azioni Rapide</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4">
-                {quickActions.map((action, index) => {
-                  const Icon = action.icon;
-                  return (
-                    <Button
-                      key={index}
-                      onClick={action.action}
-                      className={`${action.color} text-white p-6 h-auto flex flex-col items-center justify-center space-y-2`}
-                    >
-                      <Icon className="h-8 w-8" />
-                      <div className="text-center">
-                        <div className="font-semibold">{action.title}</div>
-                        <div className="text-sm opacity-90">{action.description}</div>
-                      </div>
-                    </Button>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-
           <Card>
             <CardHeader>
               <CardTitle>Attività Recente</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="text-center py-8 text-muted-foreground">
-                  <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Nessuna attività recente</p>
-                  <p className="text-sm">
-                    Inizia aggiungendo articoli al magazzino o registrando vendite
-                  </p>
-                </div>
+                {recentActivities.length > 0 ? (
+                  recentActivities.slice(0, 5).map((activity) => (
+                    <div key={activity.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                      <div className={`p-2 rounded-full ${
+                        activity.type === 'sale' ? 'bg-green-100 text-green-600' :
+                        activity.type === 'expense' ? 'bg-red-100 text-red-600' :
+                        'bg-blue-100 text-blue-600'
+                      }`}>
+                        {activity.type === 'sale' ? <ShoppingCart className="h-4 w-4" /> :
+                         activity.type === 'expense' ? <Receipt className="h-4 w-4" /> :
+                         <Package className="h-4 w-4" />}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{activity.description}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(activity.data).toLocaleDateString("it-IT")}
+                        </p>
+                      </div>
+                      {activity.amount && (
+                        <div className="text-sm font-semibold">
+                          {formatCurrency(activity.amount)}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>Nessuna attività recente</p>
+                    <p className="text-sm">
+                      Inizia aggiungendo articoli al magazzino o registrando vendite
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Articoli Più Venduti</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {topSellingItems.length > 0 ? (
+                  topSellingItems.slice(0, 5).map((item, index) => (
+                    <div key={`${item.nomeArticolo}-${item.taglia}`} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                      <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-bold">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{item.nomeArticolo}</p>
+                        <p className="text-xs text-muted-foreground">Taglia: {item.taglia}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold">{item.totalQuantity} venduti</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatCurrency(item.totalRevenue)}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>Nessuna vendita ancora</p>
+                    <p className="text-sm">
+                      Le statistiche di vendita appariranno qui dopo le prime vendite
+                    </p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

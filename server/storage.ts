@@ -51,6 +51,19 @@ export interface IStorage {
     totalExpenses: number;
     netMargin: number;
   }>;
+  getRecentActivities(userId: string): Promise<Array<{
+    id: string;
+    type: 'sale' | 'expense' | 'inventory';
+    description: string;
+    amount?: number;
+    data: string;
+  }>>;
+  getTopSellingItems(userId: string): Promise<Array<{
+    nomeArticolo: string;
+    taglia: string;
+    totalQuantity: number;
+    totalRevenue: number;
+  }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -214,6 +227,113 @@ export class DatabaseStorage implements IStorage {
       totalExpenses,
       netMargin,
     };
+  }
+
+  async getRecentActivities(userId: string): Promise<Array<{
+    id: string;
+    type: 'sale' | 'expense' | 'inventory';
+    description: string;
+    amount?: number;
+    data: string;
+  }>> {
+    // Get recent sales
+    const recentSales = await db
+      .select({
+        id: vendite.id,
+        description: sql<string>`'Vendita: ' || ${vendite.nomeArticolo} || ' - ' || ${vendite.taglia}`,
+        amount: vendite.prezzoVendita,
+        data: vendite.data,
+        type: sql<string>`'sale'`
+      })
+      .from(vendite)
+      .where(eq(vendite.userId, userId))
+      .orderBy(desc(vendite.data))
+      .limit(5);
+
+    // Get recent expenses
+    const recentExpenses = await db
+      .select({
+        id: spese.id,
+        description: sql<string>`'Spesa: ' || ${spese.voce}`,
+        amount: spese.importo,
+        data: spese.data,
+        type: sql<string>`'expense'`
+      })
+      .from(spese)
+      .where(eq(spese.userId, userId))
+      .orderBy(desc(spese.data))
+      .limit(5);
+
+    // Get recent inventory additions
+    const recentInventory = await db
+      .select({
+        id: inventario.id,
+        description: sql<string>`'Inventario: ' || ${inventario.nomeArticolo} || ' - ' || ${inventario.taglia}`,
+        amount: sql<number>`${inventario.costo} * ${inventario.quantita}`,
+        data: inventario.createdAt,
+        type: sql<string>`'inventory'`
+      })
+      .from(inventario)
+      .where(eq(inventario.userId, userId))
+      .orderBy(desc(inventario.createdAt))
+      .limit(5);
+
+    // Combine and sort all activities
+    const allActivities = [
+      ...recentSales.map(item => ({
+        id: item.id,
+        type: item.type as 'sale' | 'expense' | 'inventory',
+        description: item.description,
+        amount: Number(item.amount),
+        data: item.data.toISOString()
+      })),
+      ...recentExpenses.map(item => ({
+        id: item.id,
+        type: item.type as 'sale' | 'expense' | 'inventory',
+        description: item.description,
+        amount: Number(item.amount),
+        data: item.data.toISOString()
+      })),
+      ...recentInventory.map(item => ({
+        id: item.id,
+        type: item.type as 'sale' | 'expense' | 'inventory',
+        description: item.description,
+        amount: Number(item.amount),
+        data: item.data?.toISOString() || new Date().toISOString()
+      }))
+    ];
+
+    // Sort by date and return top 10
+    return allActivities
+      .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
+      .slice(0, 10);
+  }
+
+  async getTopSellingItems(userId: string): Promise<Array<{
+    nomeArticolo: string;
+    taglia: string;
+    totalQuantity: number;
+    totalRevenue: number;
+  }>> {
+    const topItems = await db
+      .select({
+        nomeArticolo: vendite.nomeArticolo,
+        taglia: vendite.taglia,
+        totalQuantity: sql<number>`sum(${vendite.quantita})`,
+        totalRevenue: sql<number>`sum(${vendite.prezzoVendita})`
+      })
+      .from(vendite)
+      .where(eq(vendite.userId, userId))
+      .groupBy(vendite.nomeArticolo, vendite.taglia)
+      .orderBy(desc(sql`sum(${vendite.quantita})`))
+      .limit(10);
+
+    return topItems.map(item => ({
+      nomeArticolo: item.nomeArticolo,
+      taglia: item.taglia,
+      totalQuantity: Number(item.totalQuantity),
+      totalRevenue: Number(item.totalRevenue)
+    }));
   }
 }
 

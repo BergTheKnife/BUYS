@@ -277,6 +277,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Recent activities route
+  app.get('/api/recent-activities', requireAuth, async (req, res) => {
+    try {
+      const activities = await storage.getRecentActivities(req.session.userId!);
+      res.json(activities);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nel recupero delle attività recenti" });
+    }
+  });
+
+  // Top selling items route
+  app.get('/api/top-selling-items', requireAuth, async (req, res) => {
+    try {
+      const topItems = await storage.getTopSellingItems(req.session.userId!);
+      res.json(topItems);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nel recupero degli articoli più venduti" });
+    }
+  });
+
   // Inventory routes
   app.get('/api/inventario', requireAuth, async (req, res) => {
     try {

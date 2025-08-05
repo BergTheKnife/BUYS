@@ -13,7 +13,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Receipt, Plus, Edit, Trash2 } from "lucide-react";
+import { Receipt, Plus, Edit, Trash2, Filter } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { Spesa } from "@shared/schema";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -33,6 +42,14 @@ export default function Expenses() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Spesa | null>(null);
   const [expenseToDelete, setExpenseToDelete] = useState<Spesa | null>(null);
+  const [filters, setFilters] = useState({
+    voce: "",
+    categoria: "",
+    dataInizio: "",
+    dataFine: "",
+    importoMin: "",
+    importoMax: "",
+  });
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -83,7 +100,30 @@ export default function Expenses() {
     }
   };
 
-  const totalExpenses = expenses.reduce((sum: number, expense: Spesa) => sum + Number(expense.importo), 0);
+  // Filter expenses based on filter criteria
+  const filteredExpenses = expenses.filter((expense: Spesa) => {
+    if (filters.voce && !expense.voce.toLowerCase().includes(filters.voce.toLowerCase())) {
+      return false;
+    }
+    if (filters.categoria && filters.categoria !== "tutti" && expense.categoria !== filters.categoria) {
+      return false;
+    }
+    if (filters.dataInizio && new Date(expense.data) < new Date(filters.dataInizio)) {
+      return false;
+    }
+    if (filters.dataFine && new Date(expense.data) > new Date(filters.dataFine)) {
+      return false;
+    }
+    if (filters.importoMin && Number(expense.importo) < Number(filters.importoMin)) {
+      return false;
+    }
+    if (filters.importoMax && Number(expense.importo) > Number(filters.importoMax)) {
+      return false;
+    }
+    return true;
+  });
+
+  const totalExpenses = filteredExpenses.reduce((sum: number, expense: Spesa) => sum + Number(expense.importo), 0);
 
   if (isLoading) {
     return (
@@ -129,7 +169,7 @@ export default function Expenses() {
             <CardContent className="p-6">
               <div className="text-center">
                 <p className="text-sm font-medium text-muted-foreground">Numero Spese</p>
-                <p className="text-2xl font-bold">{expenses.length}</p>
+                <p className="text-2xl font-bold">{filteredExpenses.length}</p>
               </div>
             </CardContent>
           </Card>
@@ -143,13 +183,85 @@ export default function Expenses() {
           </Card>
         </div>
 
+        {/* Filters */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Filter className="h-5 w-5" />
+              Filtri
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+              <div className="space-y-2">
+                <Label>Voce</Label>
+                <Input
+                  placeholder="Cerca per voce..."
+                  value={filters.voce}
+                  onChange={(e) => setFilters(prev => ({ ...prev, voce: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Categoria</Label>
+                <Select value={filters.categoria} onValueChange={(value) => setFilters(prev => ({ ...prev, categoria: value }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Tutte" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="tutti">Tutte</SelectItem>
+                    <SelectItem value="Fisse">Fisse</SelectItem>
+                    <SelectItem value="Inventario">Inventario</SelectItem>
+                    <SelectItem value="Utenze">Utenze</SelectItem>
+                    <SelectItem value="Marketing">Marketing</SelectItem>
+                    <SelectItem value="Varie">Varie</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Data Inizio</Label>
+                <Input
+                  type="date"
+                  value={filters.dataInizio}
+                  onChange={(e) => setFilters(prev => ({ ...prev, dataInizio: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Data Fine</Label>
+                <Input
+                  type="date"
+                  value={filters.dataFine}
+                  onChange={(e) => setFilters(prev => ({ ...prev, dataFine: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Importo Min</Label>
+                <Input
+                  type="number"
+                  placeholder="€ 0"
+                  value={filters.importoMin}
+                  onChange={(e) => setFilters(prev => ({ ...prev, importoMin: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Importo Max</Label>
+                <Input
+                  type="number"
+                  placeholder="€ 1000"
+                  value={filters.importoMax}
+                  onChange={(e) => setFilters(prev => ({ ...prev, importoMax: e.target.value }))}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Expenses Table */}
         <Card>
           <CardHeader>
             <CardTitle>Elenco Spese</CardTitle>
           </CardHeader>
           <CardContent>
-            {expenses.length === 0 ? (
+            {filteredExpenses.length === 0 ? (
               <div className="text-center py-12">
                 <Receipt className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
                 <h3 className="text-lg font-semibold mb-2">Nessuna spesa registrata</h3>
@@ -174,7 +286,7 @@ export default function Expenses() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {expenses.map((expense: Spesa) => (
+                    {filteredExpenses.map((expense: Spesa) => (
                       <TableRow key={expense.id}>
                         <TableCell>{formatDate(expense.data.toString())}</TableCell>
                         <TableCell className="font-semibold">
