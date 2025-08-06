@@ -6,7 +6,7 @@ import bcrypt from "bcrypt";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { insertUserSchema, loginUserSchema, insertAttivitaSchema, joinAttivitaSchema, insertInventarioSchema, insertVenditaSchema, insertSpesaSchema, updateProfileSchema, changePasswordSchema, updateUsernameSchema } from "@shared/schema";
+import { insertUserSchema, loginUserSchema, insertInventarioSchema, insertVenditaSchema, insertSpesaSchema, updateProfileSchema, changePasswordSchema, updateUsernameSchema } from "@shared/schema";
 
 declare module "express-session" {
   interface SessionData {
@@ -271,14 +271,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/export/data', requireAuth, async (req, res) => {
     try {
       const user = await storage.getUser(req.session.userId!);
-      if (!user?.ultimaAttivitaId) {
-        return res.status(400).json({ message: "Nessuna attività selezionata" });
-      }
-
-      const inventory = await storage.getInventoryByAttivita(user.ultimaAttivitaId);
-      const sales = await storage.getSalesByAttivita(user.ultimaAttivitaId);
-      const expenses = await storage.getExpensesByAttivita(user.ultimaAttivitaId);
-      const stats = await storage.getAttivitaStats(user.ultimaAttivitaId);
+      const inventory = await storage.getInventoryByUserId(req.session.userId!);
+      const sales = await storage.getSalesByUserId(req.session.userId!);
+      const expenses = await storage.getExpensesByUserId(req.session.userId!);
+      const stats = await storage.getUserStats(req.session.userId!);
 
       const exportData = {
         user: {
@@ -325,12 +321,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Stats routes
   app.get('/api/stats', requireAuth, async (req, res) => {
     try {
-      const user = await storage.getUser(req.session.userId!);
-      if (!user?.ultimaAttivitaId) {
-        return res.status(400).json({ message: "Nessuna attività selezionata" });
-      }
-
-      const stats = await storage.getAttivitaStats(user.ultimaAttivitaId);
+      const stats = await storage.getUserStats(req.session.userId!);
       res.json(stats);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nel recupero delle statistiche" });
@@ -360,12 +351,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Chart data route
   app.get('/api/chart-data', requireAuth, async (req, res) => {
     try {
-      const user = await storage.getUser(req.session.userId!);
-      if (!user?.ultimaAttivitaId) {
-        return res.status(400).json({ message: "Nessuna attività selezionata" });
-      }
-
-      const chartData = await storage.getChartData(user.ultimaAttivitaId);
+      const chartData = await storage.getChartData(req.session.userId!);
       res.json(chartData);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nel recupero dei dati del grafico" });
@@ -375,12 +361,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Inventory routes
   app.get('/api/inventario', requireAuth, async (req, res) => {
     try {
-      const user = await storage.getUser(req.session.userId!);
-      if (!user?.ultimaAttivitaId) {
-        return res.status(400).json({ message: "Nessuna attività selezionata" });
-      }
-
-      const inventory = await storage.getInventoryByAttivita(user.ultimaAttivitaId);
+      const inventory = await storage.getInventoryByUserId(req.session.userId!);
       res.json(inventory);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nel recupero dell'inventario" });
@@ -407,15 +388,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         immagineUrl = `/uploads/${filename}`;
       }
 
-      const user = await storage.getUser(req.session.userId!);
-      if (!user?.ultimaAttivitaId) {
-        return res.status(400).json({ message: "Nessuna attività selezionata" });
-      }
-
       const item = await storage.createInventoryItem({
         ...itemData,
         userId: req.session.userId!,
-        attivitaId: user.ultimaAttivitaId,
         immagineUrl: immagineUrl,
       } as any);
 
@@ -423,7 +398,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const totalCost = Number(itemData.costo) * itemData.quantita;
       await storage.createExpense({
         userId: req.session.userId!,
-        attivitaId: user.ultimaAttivitaId,
         voce: `Acquisto inventario: ${itemData.nomeArticolo} - ${itemData.taglia}`,
         importo: totalCost.toString(),
         categoria: "Inventario",
@@ -449,12 +423,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         (updates as any).immagineUrl = `/uploads/${filename}`;
       }
 
-      const user = await storage.getUser(req.session.userId!);
-      if (!user?.ultimaAttivitaId) {
-        return res.status(400).json({ message: "Nessuna attività selezionata" });
-      }
-
-      const item = await storage.updateInventoryItem(id, user.ultimaAttivitaId, updates);
+      const item = await storage.updateInventoryItem(id, req.session.userId!, updates);
       if (!item) {
         return res.status(404).json({ message: "Articolo non trovato" });
       }
@@ -468,12 +437,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/inventario/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
-      const user = await storage.getUser(req.session.userId!);
-      if (!user?.ultimaAttivitaId) {
-        return res.status(400).json({ message: "Nessuna attività selezionata" });
-      }
-
-      const deleted = await storage.deleteInventoryItem(id, user.ultimaAttivitaId);
+      const deleted = await storage.deleteInventoryItem(id, req.session.userId!);
       
       if (!deleted) {
         return res.status(404).json({ message: "Articolo non trovato" });
@@ -494,12 +458,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Quantità non valida" });
       }
 
-      const user = await storage.getUser(req.session.userId!);
-      if (!user?.ultimaAttivitaId) {
-        return res.status(400).json({ message: "Nessuna attività selezionata" });
-      }
-
-      const item = await storage.getInventoryItem(id, user.ultimaAttivitaId);
+      const item = await storage.getInventoryItem(id, req.session.userId!);
       if (!item) {
         return res.status(404).json({ message: "Articolo non trovato" });
       }
@@ -512,7 +471,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const totalCost = Number(item.costo) * parseInt(quantita);
       await storage.createExpense({
         userId: req.session.userId!,
-        attivitaId: user.ultimaAttivitaId,
         voce: `Rifornimento: ${item.nomeArticolo} - ${item.taglia} (${quantita} pz)`,
         importo: totalCost.toString(),
         categoria: "Inventario",
@@ -520,7 +478,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Get updated item
-      const updatedItem = await storage.getInventoryItem(id, user.ultimaAttivitaId);
+      const updatedItem = await storage.getInventoryItem(id, req.session.userId!);
       res.json(updatedItem);
     } catch (error: any) {
       console.error('Restock error:', error);
@@ -531,12 +489,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Sales routes
   app.get('/api/vendite', requireAuth, async (req, res) => {
     try {
-      const user = await storage.getUser(req.session.userId!);
-      if (!user?.ultimaAttivitaId) {
-        return res.status(400).json({ message: "Nessuna attività selezionata" });
-      }
-
-      const sales = await storage.getSalesByAttivita(user.ultimaAttivitaId);
+      const sales = await storage.getSalesByUserId(req.session.userId!);
       res.json(sales);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nel recupero delle vendite" });
@@ -557,13 +510,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const saleData = insertVenditaSchema.parse(formData);
       
-      const user = await storage.getUser(req.session.userId!);
-      if (!user?.ultimaAttivitaId) {
-        return res.status(400).json({ message: "Nessuna attività selezionata" });
-      }
-
       // Get inventory item to calculate margin and update quantity
-      const inventoryItem = await storage.getInventoryItem(saleData.inventarioId, user.ultimaAttivitaId);
+      const inventoryItem = await storage.getInventoryItem(saleData.inventarioId, req.session.userId!);
       if (!inventoryItem) {
         return res.status(404).json({ message: "Articolo non trovato nell'inventario" });
       }
@@ -582,10 +530,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sale = await storage.createSale({
         ...saleData,
         userId: req.session.userId!,
-        attivitaId: user.ultimaAttivitaId,
         nomeArticolo: inventoryItem.nomeArticolo,
         taglia: inventoryItem.taglia,
-        margine: margineTotal,
+        margine: margineTotal.toString(),
       });
 
       // Update inventory quantity
@@ -601,12 +548,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Expenses routes
   app.get('/api/spese', requireAuth, async (req, res) => {
     try {
-      const user = await storage.getUser(req.session.userId!);
-      if (!user?.ultimaAttivitaId) {
-        return res.status(400).json({ message: "Nessuna attività selezionata" });
-      }
-
-      const expenses = await storage.getExpensesByAttivita(user.ultimaAttivitaId);
+      const expenses = await storage.getExpensesByUserId(req.session.userId!);
       res.json(expenses);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nel recupero delle spese" });
@@ -625,15 +567,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const expenseData = insertSpesaSchema.parse(formData);
       
-      const user = await storage.getUser(req.session.userId!);
-      if (!user?.ultimaAttivitaId) {
-        return res.status(400).json({ message: "Nessuna attività selezionata" });
-      }
-
       const expense = await storage.createExpense({
         ...expenseData,
         userId: req.session.userId!,
-        attivitaId: user.ultimaAttivitaId,
       });
 
       res.json(expense);
@@ -648,12 +584,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const updates = insertSpesaSchema.partial().parse(req.body);
       
-      const user = await storage.getUser(req.session.userId!);
-      if (!user?.ultimaAttivitaId) {
-        return res.status(400).json({ message: "Nessuna attività selezionata" });
-      }
-
-      const expense = await storage.updateExpense(id, user.ultimaAttivitaId, updates);
+      const expense = await storage.updateExpense(id, req.session.userId!, updates);
       if (!expense) {
         return res.status(404).json({ message: "Spesa non trovata" });
       }
@@ -667,12 +598,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/spese/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
-      const user = await storage.getUser(req.session.userId!);
-      if (!user?.ultimaAttivitaId) {
-        return res.status(400).json({ message: "Nessuna attività selezionata" });
-      }
-
-      const deleted = await storage.deleteExpense(id, user.ultimaAttivitaId);
+      const deleted = await storage.deleteExpense(id, req.session.userId!);
       
       if (!deleted) {
         return res.status(404).json({ message: "Spesa non trovata" });
@@ -681,102 +607,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "Spesa eliminata con successo" });
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nell'eliminazione della spesa" });
-    }
-  });
-
-  // Business/Activity routes
-  app.get('/api/user-businesses', requireAuth, async (req, res) => {
-    try {
-      const businesses = await storage.getUserAttivita(req.session.userId!);
-      res.json(businesses);
-    } catch (error: any) {
-      res.status(500).json({ message: error.message || "Errore nel recupero delle attività" });
-    }
-  });
-
-  app.post('/api/businesses', requireAuth, async (req, res) => {
-    try {
-      const data = insertAttivitaSchema.extend({
-        password: insertAttivitaSchema.shape.passwordHash,
-      }).parse(req.body);
-      
-      // Check if business name already exists
-      const existingBusiness = await storage.getAttivitaByName(data.nome);
-      if (existingBusiness) {
-        return res.status(400).json({ message: "Nome attività già esistente" });
-      }
-
-      const business = await storage.createAttivita({
-        nome: data.nome,
-        passwordHash: data.password,
-        proprietarioId: req.session.userId!,
-      });
-
-      // Update user's last selected business
-      await storage.updateUser(req.session.userId!, {
-        ultimaAttivitaId: business.id,
-      });
-
-      res.json(business);
-    } catch (error: any) {
-      res.status(400).json({ message: error.message || "Errore nella creazione dell'attività" });
-    }
-  });
-
-  app.post('/api/businesses/join', requireAuth, async (req, res) => {
-    try {
-      const data = joinAttivitaSchema.parse(req.body);
-      
-      const business = await storage.getAttivitaByName(data.nome);
-      if (!business) {
-        return res.status(404).json({ message: "Attività non trovata" });
-      }
-
-      // Verify password
-      const isValidPassword = await bcrypt.compare(data.password, business.passwordHash);
-      if (!isValidPassword) {
-        return res.status(401).json({ message: "Password non corretta" });
-      }
-
-      // Add user as member
-      await storage.addMemberToAttivita(business.id, req.session.userId!);
-
-      // Update user's last selected business
-      await storage.updateUser(req.session.userId!, {
-        ultimaAttivitaId: business.id,
-      });
-
-      res.json(business);
-    } catch (error: any) {
-      res.status(400).json({ message: error.message || "Errore nell'accesso all'attività" });
-    }
-  });
-
-  app.post('/api/select-business', requireAuth, async (req, res) => {
-    try {
-      const { businessId } = req.body;
-      
-      const business = await storage.getAttivitaById(businessId);
-      if (!business) {
-        return res.status(404).json({ message: "Attività non trovata" });
-      }
-
-      // Verify user is member of this business
-      const userBusinesses = await storage.getUserAttivita(req.session.userId!);
-      const isMember = userBusinesses.some(b => b.id === businessId);
-      
-      if (!isMember) {
-        return res.status(403).json({ message: "Non sei membro di questa attività" });
-      }
-
-      // Update user's last selected business
-      await storage.updateUser(req.session.userId!, {
-        ultimaAttivitaId: businessId,
-      });
-
-      res.json({ message: "Attività selezionata con successo" });
-    } catch (error: any) {
-      res.status(400).json({ message: error.message || "Errore nella selezione dell'attività" });
     }
   });
 
