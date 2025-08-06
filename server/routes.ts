@@ -8,7 +8,7 @@ import { storage } from "./storage";
 import { db } from "./db";
 import bcrypt from "bcrypt";
 import { eq } from "drizzle-orm";
-import { activities, activityUsers, vendite, spese, inventario } from "@shared/schema";
+import { activities, activityUsers, vendite, spese, inventario, users } from "@shared/schema";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -829,6 +829,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "Hai abbandonato l'attività con successo" });
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nell'abbandono dell'attività" });
+    }
+  });
+
+  // Admin routes - only for development
+  const isAdmin = (req: any, res: any, next: any) => {
+    if (process.env.NODE_ENV !== 'development') {
+      return res.status(404).json({ message: "Not found" });
+    }
+    if (!req.session.userId) {
+      return res.status(401).json({ message: "Autenticazione richiesta" });
+    }
+    next();
+  };
+
+  app.get('/api/admin/users', isAdmin, async (req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      const usersWithActivities = await Promise.all(
+        users.map(async (user) => {
+          const activities = await storage.getUserActivities(user.id);
+          return {
+            ...user,
+            password: undefined, // Don't expose passwords
+            activities: activities
+          };
+        })
+      );
+      res.json(usersWithActivities);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore del server" });
+    }
+  });
+
+  app.get('/api/admin/activities', isAdmin, async (req, res) => {
+    try {
+      const activities = await storage.getAllActivities();
+      const activitiesWithMembers = await Promise.all(
+        activities.map(async (activity) => {
+          const members = await storage.getActivityMembers(activity.id);
+          return {
+            ...activity,
+            members: members
+          };
+        })
+      );
+      res.json(activitiesWithMembers);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore del server" });
+    }
+  });
+
+  app.delete('/api/admin/activities/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Delete activity (cascade will handle related data)
+      await db.delete(activities).where(eq(activities.id, id));
+      
+      res.json({ message: "Attività eliminata con successo" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nell'eliminazione dell'attività" });
+    }
+  });
+
+  app.delete('/api/admin/users/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Delete user (cascade will handle related data)  
+      await db.delete(users).where(eq(users.id, id));
+      
+      res.json({ message: "Utente eliminato con successo" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nell'eliminazione dell'utente" });
     }
   });
 

@@ -14,6 +14,7 @@ import Expenses from "@/pages/expenses";
 import Balance from "@/pages/balance";
 import Profile from "@/pages/profile";
 import ActivitySettings from "@/pages/activity-settings";
+import AdminPanel from "@/pages/admin";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
 
@@ -50,6 +51,7 @@ function Router() {
       <Route path="/bilancio" component={() => <ProtectedRoute><Balance /></ProtectedRoute>} />
       <Route path="/profilo" component={() => <UserOnlyRoute><Profile /></UserOnlyRoute>} />
       <Route path="/impostazioni-attivita" component={() => <ProtectedRoute><ActivitySettings /></ProtectedRoute>} />
+      <Route path="/admin" component={() => <UserOnlyRoute><AdminPanel /></UserOnlyRoute>} />
       <Route component={NotFound} />
     </Switch>
   );

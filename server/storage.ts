@@ -284,6 +284,59 @@ export class DatabaseStorage implements IStorage {
       ));
   }
 
+  // Admin methods
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users).orderBy(users.createdAt);
+  }
+
+  async getAllActivities() {
+    return await db
+      .select({
+        id: activities.id,
+        nome: activities.nome,
+        proprietarioId: activities.proprietarioId,
+        createdAt: activities.createdAt,
+        proprietarioNome: users.nome,
+        proprietarioCognome: users.cognome,
+        proprietarioEmail: users.email,
+        proprietarioUsername: users.username
+      })
+      .from(activities)
+      .leftJoin(users, eq(activities.proprietarioId, users.id))
+      .orderBy(activities.createdAt);
+  }
+
+  async getActivityMembers(activityId: string) {
+    return await db
+      .select({
+        userId: users.id,
+        nome: users.nome,
+        cognome: users.cognome,
+        email: users.email,
+        username: users.username,
+        joinedAt: activityUsers.joinedAt
+      })
+      .from(activityUsers)
+      .innerJoin(users, eq(activityUsers.userId, users.id))
+      .where(eq(activityUsers.activityId, activityId))
+      .orderBy(activityUsers.joinedAt);
+  }
+
+  async getUserActivities(userId: string) {
+    return await db
+      .select({
+        activityId: activities.id,
+        nome: activities.nome,
+        proprietarioId: activities.proprietarioId,
+        createdAt: activities.createdAt,
+        joinedAt: activityUsers.joinedAt
+      })
+      .from(activityUsers)
+      .innerJoin(activities, eq(activityUsers.activityId, activities.id))
+      .where(eq(activityUsers.userId, userId))
+      .orderBy(activityUsers.joinedAt);
+  }
+
 
 
   // Updated inventory methods with activity context
