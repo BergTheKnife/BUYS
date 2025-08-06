@@ -36,6 +36,7 @@ export interface IStorage {
   createActivity(activity: InsertActivity & { proprietarioId: string }): Promise<Activity>;
   getActivitiesByUserId(userId: string): Promise<Activity[]>;
   getActivityByName(nome: string): Promise<Activity | undefined>;
+  getActivityById(id: string): Promise<Activity | undefined>;
   joinActivity(activityId: string, userId: string): Promise<void>;
   
   // Inventory methods (now with activity context)
@@ -154,6 +155,14 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(activities)
       .where(eq(activities.nome, nome));
+    return activity || undefined;
+  }
+
+  async getActivityById(id: string): Promise<Activity | undefined> {
+    const [activity] = await db
+      .select()
+      .from(activities)
+      .where(eq(activities.id, id));
     return activity || undefined;
   }
 

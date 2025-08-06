@@ -181,6 +181,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         req.session.activityId = user.lastActivityId;
       }
 
+      // Get current activity details if user has one selected
+      let currentActivity = null;
+      if (req.session.activityId) {
+        try {
+          currentActivity = await storage.getActivityById(req.session.activityId);
+        } catch (error) {
+          // Activity might not exist anymore, clear from session
+          req.session.activityId = undefined;
+        }
+      }
+
       res.json({ 
         user: { 
           id: user.id, 
@@ -191,7 +202,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastActivityId: user.lastActivityId,
           currentActivityId: req.session.activityId,
           createdAt: user.createdAt
-        } 
+        },
+        currentActivity: currentActivity ? {
+          id: currentActivity.id,
+          nome: currentActivity.nome,
+          proprietarioId: currentActivity.proprietarioId,
+          createdAt: currentActivity.createdAt
+        } : null
       });
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore del server" });
