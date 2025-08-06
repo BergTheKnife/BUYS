@@ -197,6 +197,7 @@ export const joinActivitySchema = z.object({
 export const insertInventarioSchema = createInsertSchema(inventario).omit({
   id: true,
   userId: true,
+  activityId: true,  // Excluded because it's added server-side
   createdAt: true,
   immagineUrl: true,
 });
@@ -204,6 +205,7 @@ export const insertInventarioSchema = createInsertSchema(inventario).omit({
 export const insertVenditaSchema = createInsertSchema(vendite).omit({
   id: true,
   userId: true,
+  activityId: true,  // Excluded because it's added server-side
   nomeArticolo: true,
   taglia: true,
   margine: true,
@@ -213,6 +215,7 @@ export const insertVenditaSchema = createInsertSchema(vendite).omit({
 export const insertSpesaSchema = createInsertSchema(spese).omit({
   id: true,
   userId: true,
+  activityId: true,  // Excluded because it's added server-side
   createdAt: true,
 });
 

@@ -45,6 +45,7 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
       costo: "0",
       quantita: 1,
     },
+
   });
 
   useEffect(() => {
