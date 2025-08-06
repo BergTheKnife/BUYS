@@ -1,10 +1,14 @@
 import { 
   users, 
+  attivita,
   inventario, 
   vendite, 
   spese, 
   type User, 
   type InsertUser,
+  type Attivita,
+  type InsertAttivita,
+  type JoinAttivita,
   type Inventario,
   type InsertInventario,
   type Vendita,
@@ -15,6 +19,7 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sum, sql, gte, or, like, ilike } from "drizzle-orm";
+import bcrypt from "bcrypt";
 
 export interface IStorage {
   // User methods
@@ -23,47 +28,58 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserByEmailOrUsername(emailOrUsername: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  updateUser(id: string, updates: Partial<UpdateProfile & { password?: string; username?: string }>): Promise<User | undefined>;
+  updateUser(id: string, updates: Partial<UpdateProfile & { password?: string; username?: string; ultimaAttivitaId?: string }>): Promise<User | undefined>;
   deleteUser(id: string): Promise<boolean>;
   
+  // Attivita methods
+  getAttivitaById(id: string): Promise<Attivita | undefined>;
+  getAttivitaByName(nome: string): Promise<Attivita | undefined>;
+  getUserAttivita(userId: string): Promise<Attivita[]>;
+  createAttivita(attivita: InsertAttivita & { proprietarioId: string }): Promise<Attivita>;
+  addMemberToAttivita(attivitaId: string, userId: string): Promise<boolean>;
+  getAttivitaMembers(attivitaId: string): Promise<User[]>;
+  
   // Inventory methods
-  getInventoryByUserId(userId: string): Promise<Inventario[]>;
-  getInventoryItem(id: string, userId: string): Promise<Inventario | undefined>;
-  createInventoryItem(item: InsertInventario & { userId: string }): Promise<Inventario>;
-  updateInventoryItem(id: string, userId: string, updates: Partial<InsertInventario>): Promise<Inventario | undefined>;
-  deleteInventoryItem(id: string, userId: string): Promise<boolean>;
+  getInventoryByAttivita(attivitaId: string): Promise<Inventario[]>;
+  getInventoryItem(id: string, attivitaId: string): Promise<Inventario | undefined>;
+  createInventoryItem(item: InsertInventario & { userId: string; attivitaId: string }): Promise<Inventario>;
+  updateInventoryItem(id: string, attivitaId: string, updates: Partial<InsertInventario>): Promise<Inventario | undefined>;
+  deleteInventoryItem(id: string, attivitaId: string): Promise<boolean>;
   updateInventoryQuantity(id: string, newQuantity: number): Promise<void>;
   
   // Sales methods
-  getSalesByUserId(userId: string): Promise<Vendita[]>;
-  createSale(sale: InsertVendita & { userId: string }): Promise<Vendita>;
+  getSalesByAttivita(attivitaId: string): Promise<Vendita[]>;
+  getSalesByAttivitaWithFilters(attivitaId: string, filters: { search?: string; startDate?: string; endDate?: string }): Promise<Vendita[]>;
+  createSale(sale: InsertVendita & { userId: string; attivitaId: string; nomeArticolo: string; taglia: string; margine: number }): Promise<Vendita>;
+  getTopSellingItems(attivitaId: string): Promise<Array<{ nomeArticolo: string; taglia: string; totalQuantity: number; totalRevenue: number }>>;
   
   // Expenses methods
-  getExpensesByUserId(userId: string): Promise<Spesa[]>;
-  createExpense(expense: InsertSpesa & { userId: string }): Promise<Spesa>;
-  updateExpense(id: string, userId: string, updates: Partial<InsertSpesa>): Promise<Spesa | undefined>;
-  deleteExpense(id: string, userId: string): Promise<boolean>;
+  getExpensesByAttivita(attivitaId: string): Promise<Spesa[]>;
+  getExpensesByAttivitaWithFilters(attivitaId: string, filters: { search?: string; categoria?: string; startDate?: string; endDate?: string }): Promise<Spesa[]>;
+  createExpense(expense: InsertSpesa & { userId: string; attivitaId: string }): Promise<Spesa>;
+  updateExpense(id: string, attivitaId: string, updates: Partial<InsertSpesa>): Promise<Spesa | undefined>;
+  deleteExpense(id: string, attivitaId: string): Promise<boolean>;
   
   // Statistics methods
-  getUserStats(userId: string): Promise<{
+  getAttivitaStats(attivitaId: string): Promise<{
     inventoryCount: number;
     totalSales: number;
     totalExpenses: number;
     netMargin: number;
   }>;
-  getRecentActivities(userId: string): Promise<Array<{
+  getRecentActivities(attivitaId: string): Promise<Array<{
     id: string;
     type: 'sale' | 'expense' | 'inventory';
     description: string;
     amount?: number;
     data: string;
   }>>;
-  getTopSellingItems(userId: string): Promise<Array<{
-    nomeArticolo: string;
-    taglia: string;
-    totalQuantity: number;
-    totalRevenue: number;
-  }>>;
+  getChartData(attivitaId: string): Promise<{
+    salesData: Array<{date: string, amount: number}>;
+    expensesData: Array<{date: string, amount: number}>;
+    marginData: Array<{date: string, amount: number}>;
+    months: string[];
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -97,7 +113,7 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async updateUser(id: string, updates: Partial<UpdateProfile & { password?: string }>): Promise<User | undefined> {
+  async updateUser(id: string, updates: Partial<UpdateProfile & { password?: string; username?: string; ultimaAttivitaId?: string }>): Promise<User | undefined> {
     const [updatedUser] = await db
       .update(users)
       .set(updates)
@@ -113,18 +129,79 @@ export class DatabaseStorage implements IStorage {
     return (result.rowCount ?? 0) > 0;
   }
 
-  async getInventoryByUserId(userId: string): Promise<Inventario[]> {
-    return await db.select().from(inventario).where(eq(inventario.userId, userId)).orderBy(desc(inventario.createdAt));
+  // Attivita methods
+  async getAttivitaById(id: string): Promise<Attivita | undefined> {
+    const [attivitaRecord] = await db.select().from(attivita).where(eq(attivita.id, id));
+    return attivitaRecord || undefined;
   }
 
-  async getInventoryItem(id: string, userId: string): Promise<Inventario | undefined> {
+  async getAttivitaByName(nome: string): Promise<Attivita | undefined> {
+    const [attivitaRecord] = await db.select().from(attivita).where(eq(attivita.nome, nome));
+    return attivitaRecord || undefined;
+  }
+
+  async getUserAttivita(userId: string): Promise<Attivita[]> {
+    const result = await db.select().from(attivita).where(
+      or(
+        eq(attivita.proprietarioId, userId),
+        sql`${userId} = ANY(${attivita.membri})`
+      )
+    );
+    return result;
+  }
+
+  async createAttivita(data: InsertAttivita & { proprietarioId: string }): Promise<Attivita> {
+    const hashedPassword = await bcrypt.hash(data.passwordHash, 10);
+    const [newAttivita] = await db
+      .insert(attivita)
+      .values({
+        ...data,
+        passwordHash: hashedPassword,
+        membri: [data.proprietarioId],
+      })
+      .returning();
+    return newAttivita;
+  }
+
+  async addMemberToAttivita(attivitaId: string, userId: string): Promise<boolean> {
+    const [attivitaRecord] = await db.select().from(attivita).where(eq(attivita.id, attivitaId));
+    if (!attivitaRecord) return false;
+    
+    const currentMembers = attivitaRecord.membri || [];
+    if (currentMembers.includes(userId)) return true;
+    
+    const newMembers = [...currentMembers, userId];
+    await db
+      .update(attivita)
+      .set({ membri: newMembers })
+      .where(eq(attivita.id, attivitaId));
+    
+    return true;
+  }
+
+  async getAttivitaMembers(attivitaId: string): Promise<User[]> {
+    const [attivitaRecord] = await db.select().from(attivita).where(eq(attivita.id, attivitaId));
+    if (!attivitaRecord || !attivitaRecord.membri) return [];
+    
+    const members = await db.select().from(users).where(
+      sql`${users.id} = ANY(${attivitaRecord.membri})`
+    );
+    return members;
+  }
+
+  // Updated Inventory methods
+  async getInventoryByAttivita(attivitaId: string): Promise<Inventario[]> {
+    return await db.select().from(inventario).where(eq(inventario.attivitaId, attivitaId)).orderBy(desc(inventario.createdAt));
+  }
+
+  async getInventoryItem(id: string, attivitaId: string): Promise<Inventario | undefined> {
     const [item] = await db.select().from(inventario).where(
-      and(eq(inventario.id, id), eq(inventario.userId, userId))
+      and(eq(inventario.id, id), eq(inventario.attivitaId, attivitaId))
     );
     return item || undefined;
   }
 
-  async createInventoryItem(item: InsertInventario & { userId: string }): Promise<Inventario> {
+  async createInventoryItem(item: InsertInventario & { userId: string; attivitaId: string }): Promise<Inventario> {
     const [newItem] = await db
       .insert(inventario)
       .values(item)
@@ -132,19 +209,19 @@ export class DatabaseStorage implements IStorage {
     return newItem;
   }
 
-  async updateInventoryItem(id: string, userId: string, updates: Partial<InsertInventario>): Promise<Inventario | undefined> {
+  async updateInventoryItem(id: string, attivitaId: string, updates: Partial<InsertInventario>): Promise<Inventario | undefined> {
     const [updatedItem] = await db
       .update(inventario)
       .set(updates)
-      .where(and(eq(inventario.id, id), eq(inventario.userId, userId)))
+      .where(and(eq(inventario.id, id), eq(inventario.attivitaId, attivitaId)))
       .returning();
     return updatedItem || undefined;
   }
 
-  async deleteInventoryItem(id: string, userId: string): Promise<boolean> {
+  async deleteInventoryItem(id: string, attivitaId: string): Promise<boolean> {
     const result = await db
       .delete(inventario)
-      .where(and(eq(inventario.id, id), eq(inventario.userId, userId)));
+      .where(and(eq(inventario.id, id), eq(inventario.attivitaId, attivitaId)));
     return (result.rowCount ?? 0) > 0;
   }
 
@@ -155,11 +232,38 @@ export class DatabaseStorage implements IStorage {
       .where(eq(inventario.id, id));
   }
 
-  async getSalesByUserId(userId: string): Promise<Vendita[]> {
-    return await db.select().from(vendite).where(eq(vendite.userId, userId)).orderBy(desc(vendite.data));
+  // Sales methods
+  async getSalesByAttivita(attivitaId: string): Promise<Vendita[]> {
+    return await db.select().from(vendite).where(eq(vendite.attivitaId, attivitaId)).orderBy(desc(vendite.data));
   }
 
-  async createSale(saleData: InsertVendita & { userId: string; nomeArticolo: string; taglia: string; margine: string }): Promise<Vendita> {
+  async getSalesByAttivitaWithFilters(attivitaId: string, filters: { search?: string; startDate?: string; endDate?: string }): Promise<Vendita[]> {
+    let query = db.select().from(vendite).where(eq(vendite.attivitaId, attivitaId));
+    
+    if (filters.search) {
+      query = query.where(
+        or(
+          ilike(vendite.nomeArticolo, `%${filters.search}%`),
+          ilike(vendite.taglia, `%${filters.search}%`),
+          ilike(vendite.incassatoDa, `%${filters.search}%`)
+        )
+      );
+    }
+    
+    if (filters.startDate) {
+      query = query.where(gte(vendite.data, new Date(filters.startDate)));
+    }
+    
+    if (filters.endDate) {
+      const endDate = new Date(filters.endDate);
+      endDate.setHours(23, 59, 59, 999);
+      query = query.where(sql`${vendite.data} <= ${endDate}`);
+    }
+    
+    return await query.orderBy(desc(vendite.data));
+  }
+
+  async createSale(saleData: InsertVendita & { userId: string; attivitaId: string; nomeArticolo: string; taglia: string; margine: number }): Promise<Vendita> {
     const [newSale] = await db
       .insert(vendite)
       .values(saleData)
@@ -167,11 +271,58 @@ export class DatabaseStorage implements IStorage {
     return newSale;
   }
 
-  async getExpensesByUserId(userId: string): Promise<Spesa[]> {
-    return await db.select().from(spese).where(eq(spese.userId, userId)).orderBy(desc(spese.data));
+  async getTopSellingItems(attivitaId: string): Promise<Array<{ nomeArticolo: string; taglia: string; totalQuantity: number; totalRevenue: number }>> {
+    const result = await db
+      .select({
+        nomeArticolo: vendite.nomeArticolo,
+        taglia: vendite.taglia,
+        totalQuantity: sql<number>`sum(${vendite.quantita})`,
+        totalRevenue: sql<number>`sum(${vendite.prezzoVendita})`
+      })
+      .from(vendite)
+      .where(eq(vendite.attivitaId, attivitaId))
+      .groupBy(vendite.nomeArticolo, vendite.taglia)
+      .orderBy(sql<number>`sum(${vendite.quantita}) DESC`)
+      .limit(10);
+    
+    return result.map(item => ({
+      nomeArticolo: item.nomeArticolo,
+      taglia: item.taglia,
+      totalQuantity: Number(item.totalQuantity),
+      totalRevenue: Number(item.totalRevenue)
+    }));
   }
 
-  async createExpense(expense: InsertSpesa & { userId: string }): Promise<Spesa> {
+  // Expenses methods
+  async getExpensesByAttivita(attivitaId: string): Promise<Spesa[]> {
+    return await db.select().from(spese).where(eq(spese.attivitaId, attivitaId)).orderBy(desc(spese.data));
+  }
+
+  async getExpensesByAttivitaWithFilters(attivitaId: string, filters: { search?: string; categoria?: string; startDate?: string; endDate?: string }): Promise<Spesa[]> {
+    let query = db.select().from(spese).where(eq(spese.attivitaId, attivitaId));
+    
+    if (filters.search) {
+      query = query.where(ilike(spese.voce, `%${filters.search}%`));
+    }
+    
+    if (filters.categoria) {
+      query = query.where(eq(spese.categoria, filters.categoria));
+    }
+    
+    if (filters.startDate) {
+      query = query.where(gte(spese.data, new Date(filters.startDate)));
+    }
+    
+    if (filters.endDate) {
+      const endDate = new Date(filters.endDate);
+      endDate.setHours(23, 59, 59, 999);
+      query = query.where(sql`${spese.data} <= ${endDate}`);
+    }
+    
+    return await query.orderBy(desc(spese.data));
+  }
+
+  async createExpense(expense: InsertSpesa & { userId: string; attivitaId: string }): Promise<Spesa> {
     const [newExpense] = await db
       .insert(spese)
       .values(expense)
@@ -179,23 +330,24 @@ export class DatabaseStorage implements IStorage {
     return newExpense;
   }
 
-  async updateExpense(id: string, userId: string, updates: Partial<InsertSpesa>): Promise<Spesa | undefined> {
+  async updateExpense(id: string, attivitaId: string, updates: Partial<InsertSpesa>): Promise<Spesa | undefined> {
     const [updatedExpense] = await db
       .update(spese)
       .set(updates)
-      .where(and(eq(spese.id, id), eq(spese.userId, userId)))
+      .where(and(eq(spese.id, id), eq(spese.attivitaId, attivitaId)))
       .returning();
     return updatedExpense || undefined;
   }
 
-  async deleteExpense(id: string, userId: string): Promise<boolean> {
+  async deleteExpense(id: string, attivitaId: string): Promise<boolean> {
     const result = await db
       .delete(spese)
-      .where(and(eq(spese.id, id), eq(spese.userId, userId)));
+      .where(and(eq(spese.id, id), eq(spese.attivitaId, attivitaId)));
     return (result.rowCount ?? 0) > 0;
   }
 
-  async getUserStats(userId: string): Promise<{
+  // Statistics methods
+  async getAttivitaStats(attivitaId: string): Promise<{
     inventoryCount: number;
     totalSales: number;
     totalExpenses: number;
@@ -204,17 +356,17 @@ export class DatabaseStorage implements IStorage {
     const [inventoryCountResult] = await db
       .select({ count: sql<number>`count(*)` })
       .from(inventario)
-      .where(eq(inventario.userId, userId));
+      .where(eq(inventario.attivitaId, attivitaId));
 
     const [salesSumResult] = await db
       .select({ total: sql<number>`coalesce(sum(${vendite.prezzoVendita}), 0)` })
       .from(vendite)
-      .where(eq(vendite.userId, userId));
+      .where(eq(vendite.attivitaId, attivitaId));
 
     const [expensesSumResult] = await db
       .select({ total: sql<number>`coalesce(sum(${spese.importo}), 0)` })
       .from(spese)
-      .where(eq(spese.userId, userId));
+      .where(eq(spese.attivitaId, attivitaId));
 
     const inventoryCount = inventoryCountResult?.count || 0;
     const totalSales = Number(salesSumResult?.total || 0);
@@ -229,7 +381,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getRecentActivities(userId: string): Promise<Array<{
+  async getRecentActivities(attivitaId: string): Promise<Array<{
     id: string;
     type: 'sale' | 'expense' | 'inventory';
     description: string;
@@ -246,7 +398,7 @@ export class DatabaseStorage implements IStorage {
         type: sql<string>`'sale'`
       })
       .from(vendite)
-      .where(eq(vendite.userId, userId))
+      .where(eq(vendite.attivitaId, attivitaId))
       .orderBy(desc(vendite.data))
       .limit(5);
 
@@ -260,7 +412,7 @@ export class DatabaseStorage implements IStorage {
         type: sql<string>`'expense'`
       })
       .from(spese)
-      .where(eq(spese.userId, userId))
+      .where(eq(spese.attivitaId, attivitaId))
       .orderBy(desc(spese.data))
       .limit(5);
 
@@ -274,7 +426,7 @@ export class DatabaseStorage implements IStorage {
         type: sql<string>`'inventory'`
       })
       .from(inventario)
-      .where(eq(inventario.userId, userId))
+      .where(eq(inventario.attivitaId, attivitaId))
       .orderBy(desc(inventario.createdAt))
       .limit(5);
 
@@ -309,34 +461,7 @@ export class DatabaseStorage implements IStorage {
       .slice(0, 10);
   }
 
-  async getTopSellingItems(userId: string): Promise<Array<{
-    nomeArticolo: string;
-    taglia: string;
-    totalQuantity: number;
-    totalRevenue: number;
-  }>> {
-    const topItems = await db
-      .select({
-        nomeArticolo: vendite.nomeArticolo,
-        taglia: vendite.taglia,
-        totalQuantity: sql<number>`sum(${vendite.quantita})`,
-        totalRevenue: sql<number>`sum(${vendite.prezzoVendita})`
-      })
-      .from(vendite)
-      .where(eq(vendite.userId, userId))
-      .groupBy(vendite.nomeArticolo, vendite.taglia)
-      .orderBy(desc(sql`sum(${vendite.quantita})`))
-      .limit(10);
-
-    return topItems.map(item => ({
-      nomeArticolo: item.nomeArticolo,
-      taglia: item.taglia,
-      totalQuantity: Number(item.totalQuantity),
-      totalRevenue: Number(item.totalRevenue)
-    }));
-  }
-
-  async getChartData(userId: string): Promise<{
+  async getChartData(attivitaId: string): Promise<{
     salesData: Array<{date: string, amount: number}>;
     expensesData: Array<{date: string, amount: number}>;
     marginData: Array<{date: string, amount: number}>;
@@ -354,7 +479,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(vendite)
       .where(and(
-        eq(vendite.userId, userId),
+        eq(vendite.attivitaId, attivitaId),
         gte(vendite.data, sixMonthsAgo)
       ))
       .groupBy(sql`to_char(${vendite.data}, 'YYYY-MM')`)
@@ -368,7 +493,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(spese)
       .where(and(
-        eq(spese.userId, userId),
+        eq(spese.attivitaId, attivitaId),
         gte(spese.data, sixMonthsAgo)
       ))
       .groupBy(sql`to_char(${spese.data}, 'YYYY-MM')`)
@@ -407,10 +532,7 @@ export class DatabaseStorage implements IStorage {
       salesData,
       expensesData,
       marginData,
-      months: months.map(month => {
-        const date = new Date(month + '-01');
-        return date.toLocaleDateString('it-IT', { month: 'short', year: 'numeric' });
-      })
+      months
     };
   }
 }
