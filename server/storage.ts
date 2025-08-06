@@ -14,7 +14,7 @@ import {
   type UpdateProfile
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, sum, sql } from "drizzle-orm";
+import { eq, and, desc, sum, sql, gte, or, like, ilike } from "drizzle-orm";
 
 export interface IStorage {
   // User methods
@@ -334,6 +334,84 @@ export class DatabaseStorage implements IStorage {
       totalQuantity: Number(item.totalQuantity),
       totalRevenue: Number(item.totalRevenue)
     }));
+  }
+
+  async getChartData(userId: string): Promise<{
+    salesData: Array<{date: string, amount: number}>;
+    expensesData: Array<{date: string, amount: number}>;
+    marginData: Array<{date: string, amount: number}>;
+    months: string[];
+  }> {
+    // Get last 6 months of data
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    // Sales data by month
+    const salesByMonth = await db
+      .select({
+        month: sql<string>`to_char(${vendite.data}, 'YYYY-MM')`,
+        total: sql<number>`sum(${vendite.prezzoVendita})`
+      })
+      .from(vendite)
+      .where(and(
+        eq(vendite.userId, userId),
+        gte(vendite.data, sixMonthsAgo)
+      ))
+      .groupBy(sql`to_char(${vendite.data}, 'YYYY-MM')`)
+      .orderBy(sql`to_char(${vendite.data}, 'YYYY-MM')`);
+
+    // Expenses data by month
+    const expensesByMonth = await db
+      .select({
+        month: sql<string>`to_char(${spese.data}, 'YYYY-MM')`,
+        total: sql<number>`sum(${spese.importo})`
+      })
+      .from(spese)
+      .where(and(
+        eq(spese.userId, userId),
+        gte(spese.data, sixMonthsAgo)
+      ))
+      .groupBy(sql`to_char(${spese.data}, 'YYYY-MM')`)
+      .orderBy(sql`to_char(${spese.data}, 'YYYY-MM')`);
+
+    // Generate last 6 months
+    const months = [];
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push(date.toISOString().substring(0, 7));
+    }
+
+    const salesData = months.map(month => {
+      const sale = salesByMonth.find(s => s.month === month);
+      return {
+        date: month,
+        amount: sale ? Number(sale.total) : 0
+      };
+    });
+
+    const expensesData = months.map(month => {
+      const expense = expensesByMonth.find(e => e.month === month);
+      return {
+        date: month,
+        amount: expense ? Number(expense.total) : 0
+      };
+    });
+
+    const marginData = months.map((month, index) => ({
+      date: month,
+      amount: salesData[index].amount - expensesData[index].amount
+    }));
+
+    return {
+      salesData,
+      expensesData,
+      marginData,
+      months: months.map(month => {
+        const date = new Date(month + '-01');
+        return date.toLocaleDateString('it-IT', { month: 'short', year: 'numeric' });
+      })
+    };
   }
 }
 

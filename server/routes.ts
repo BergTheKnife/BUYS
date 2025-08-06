@@ -348,6 +348,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Chart data route
+  app.get('/api/chart-data', requireAuth, async (req, res) => {
+    try {
+      const chartData = await storage.getChartData(req.session.userId!);
+      res.json(chartData);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nel recupero dei dati del grafico" });
+    }
+  });
+
   // Inventory routes
   app.get('/api/inventario', requireAuth, async (req, res) => {
     try {
