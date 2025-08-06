@@ -2,11 +2,21 @@
 
 ## Overview
 
-BUYS (Build Up Your Store) is a comprehensive business management system designed for small clothing retailers to manage inventory, sales, expenses, and financial tracking. The application provides a complete solution for business owners to track their products with sizes and images, record sales transactions with quantity control, monitor expenses with automatic inventory cost tracking, and analyze their financial performance through an intuitive dashboard interface.
+BUYS (Build Up Your Store) is a comprehensive business management system designed for small clothing retailers to manage inventory, sales, expenses, and financial tracking. The application provides a complete solution for business owners to track their products with sizes and images, record sales transactions with quantity control, monitor expenses with automatic inventory cost tracking, and analyze their financial performance through an intuitive dashboard interface. Features secure multi-activity support and comprehensive email verification system for enhanced security.
 
 ## Recent Changes (August 6, 2025)
 
-### Latest Update - Multi-Activity System Implementation
+### Latest Update - Complete Email Verification System Implementation
+- **EMAIL VERIFICATION REQUIRED**: All new user registrations now require email verification before account activation
+- **Comprehensive Email System**: Implemented complete SMTP integration with nodemailer for verification and welcome emails
+- **Token-based Verification**: Secure 64-character hex tokens with 24-hour expiration for email verification process
+- **Database Schema Updates**: Added email_verification_tokens table and enhanced users table with email_verified and is_active columns
+- **Frontend Integration**: Updated welcome page to handle verification messages and user feedback for unverified accounts
+- **Account Security**: Users with unverified accounts cannot access the system until they click the email verification link
+- **Professional Email Templates**: HTML email templates for verification and welcome messages with BUYS branding
+- **Token Management**: Automatic cleanup of expired tokens and secure token deletion after successful verification
+
+### Previous Update - Multi-Activity System Implementation
 - **Complete Multi-Activity Architecture**: Implemented comprehensive database schema with activities and user_activities tables
 - **Activity-Based Data Isolation**: All inventory, sales, expenses, and statistics are now activity-specific rather than user-specific
 - **Activity Management System**: Added complete activity creation, joining, and switching functionality
@@ -58,7 +68,9 @@ The backend follows a **RESTful API** design built on **Node.js** with **Express
 ### Database Architecture
 The application uses **PostgreSQL** as the primary database with **Drizzle ORM** for type-safe database operations. The schema design includes:
 
-- **User management** with secure password hashing using bcrypt
+- **User management** with secure password hashing using bcrypt and email verification system
+- **Email verification tokens** with secure token generation and expiration management
+- **Activity-based data organization** with complete data isolation between business entities
 - **Inventory tracking** with product details, quantities, and image storage
 - **Sales recording** with automatic margin calculation and inventory updates
 - **Expense management** with categorization and date tracking
@@ -69,6 +81,9 @@ Authentication is implemented using:
 
 - **Session-based authentication** with secure cookie configuration
 - **Password hashing** using bcrypt for secure credential storage
+- **Email verification system** with secure token-based verification for all new registrations
+- **SMTP integration** using nodemailer for email delivery with configurable SMTP settings
+- **Account activation control** preventing unverified users from accessing the system
 - **Protected routes** with middleware validation on both client and server
 - **User context management** for maintaining authentication state across the application
 
@@ -98,8 +113,10 @@ The system handles file uploads for product images:
 
 ### Authentication & Security
 - **bcrypt** - Password hashing library
-- **express-session** - Session management middleware
+- **express-session** - Session management middleware  
 - **connect-pg-simple** - PostgreSQL session store
+- **nodemailer** - SMTP email delivery for verification and notifications
+- **crypto** - Secure token generation for email verification
 
 ### Data Management
 - **React Query (TanStack Query)** - Server state management and caching

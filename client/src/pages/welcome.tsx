@@ -24,6 +24,7 @@ export default function Welcome() {
     available: boolean | null;
     message: string;
   }>({ checking: false, available: null, message: "" });
+  const [verificationMessage, setVerificationMessage] = useState<string>('');
   const { user, hasActivity, login, register } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -58,11 +59,21 @@ export default function Welcome() {
         description: "Benvenuto in BUYS!",
       });
     } catch (error: any) {
-      toast({
-        title: "Errore",
-        description: error.message || "Credenziali non valide",
-        variant: "destructive",
-      });
+      // Check if it's a verification error
+      if (error.message?.includes("Account non verificato")) {
+        setVerificationMessage("Il tuo account necessita di verifica email. Controlla la tua casella di posta e clicca sul link ricevuto.");
+        toast({
+          title: "Account Non Verificato",
+          description: "Controlla la tua email per completare la verifica",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Errore",
+          description: error.message || "Credenziali non valide",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -105,11 +116,21 @@ export default function Welcome() {
         return;
       }
 
-      await register(data);
-      toast({
-        title: "Registrazione completata",
-        description: "Account creato con successo!",
-      });
+      const response = await apiRequest("POST", "/api/auth/register", data);
+      const result = await response.json();
+      
+      if (result.message?.includes("Controlla la tua email")) {
+        setVerificationMessage(`Registrazione completata! Abbiamo inviato un'email di verifica a ${data.email}. Clicca sul link nella email per attivare il tuo account.`);
+        toast({
+          title: "Verifica Email Necessaria",
+          description: "Controlla la tua email per il link di verifica",
+        });
+      } else {
+        toast({
+          title: "Registrazione completata",
+          description: "Account creato con successo!",
+        });
+      }
     } catch (error: any) {
       toast({
         title: "Errore",
@@ -135,6 +156,32 @@ export default function Welcome() {
                 />
               </div>
             </div>
+
+            {/* Email verification message */}
+            {verificationMessage && (
+              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-start space-x-3">
+                  <Mail className="h-5 w-5 text-blue-600 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-semibold text-blue-800 mb-1">
+                      Verifica Email Richiesta
+                    </h4>
+                    <p className="text-sm text-blue-700 mb-3">
+                      {verificationMessage}
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setVerificationMessage('')}
+                      className="text-blue-600 border-blue-300 hover:bg-blue-100"
+                    >
+                      <X className="h-3 w-3 mr-1" />
+                      Chiudi
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {isLogin ? (
               <form onSubmit={loginForm.handleSubmit(onLogin)} className="space-y-4">

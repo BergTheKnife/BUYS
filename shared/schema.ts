@@ -89,12 +89,20 @@ export const spese = pgTable("spese", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const emailVerificationTokensRelations = relations(emailVerificationTokens, ({ one }) => ({
+  user: one(users, {
+    fields: [emailVerificationTokens.userId],
+    references: [users.id],
+  }),
+}));
+
 export const usersRelations = relations(users, ({ many }) => ({
   inventario: many(inventario),
   vendite: many(vendite),
   spese: many(spese),
   ownedActivities: many(activities),
   activityMemberships: many(activityUsers),
+  emailVerificationTokens: many(emailVerificationTokens),
 }));
 
 export const activitiesRelations = relations(activities, ({ one, many }) => ({
@@ -250,3 +258,5 @@ export type InsertActivity = z.infer<typeof insertActivitySchema>;
 export type JoinActivity = z.infer<typeof joinActivitySchema>;
 export type ActivityUser = typeof activityUsers.$inferSelect;
 export type InsertActivityUser = typeof activityUsers.$inferInsert;
+export type EmailVerificationToken = typeof emailVerificationTokens.$inferSelect;
+export type InsertEmailVerificationToken = typeof emailVerificationTokens.$inferInsert;

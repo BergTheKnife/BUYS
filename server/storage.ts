@@ -5,6 +5,7 @@ import {
   spese,
   activities,
   activityUsers,
+  emailVerificationTokens,
   type User, 
   type InsertUser,
   type Inventario,
@@ -17,7 +18,9 @@ import {
   type Activity,
   type InsertActivity,
   type ActivityUser,
-  type InsertActivityUser
+  type InsertActivityUser,
+  type EmailVerificationToken,
+  type InsertEmailVerificationToken
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sum, sql, gte, or, like, ilike } from "drizzle-orm";
@@ -31,6 +34,13 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<User>): Promise<User | undefined>;
   deleteUser(id: string): Promise<boolean>;
+  verifyUserEmail(id: string): Promise<User | undefined>;
+  
+  // Email verification methods  
+  createEmailVerificationToken(token: InsertEmailVerificationToken): Promise<EmailVerificationToken>;
+  getEmailVerificationToken(token: string): Promise<EmailVerificationToken | undefined>;
+  deleteEmailVerificationToken(token: string): Promise<boolean>;
+  deleteExpiredTokens(): Promise<void>;
   
   // Activity methods
   createActivity(activity: InsertActivity & { proprietarioId: string }): Promise<Activity>;
@@ -109,6 +119,64 @@ export class DatabaseStorage implements IStorage {
       .values(insertUser)
       .returning();
     return user;
+  }
+
+  async updateUser(id: string, updates: Partial<User>): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set(updates)
+      .where(eq(users.id, id))
+      .returning();
+    return user || undefined;
+  }
+
+  async deleteUser(id: string): Promise<boolean> {
+    const result = await db
+      .delete(users)
+      .where(eq(users.id, id));
+    return result.rowCount! > 0;
+  }
+
+  async verifyUserEmail(id: string): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({ 
+        emailVerified: new Date(),
+        isActive: 1 
+      })
+      .where(eq(users.id, id))
+      .returning();
+    return user || undefined;
+  }
+
+  // Email verification methods
+  async createEmailVerificationToken(token: InsertEmailVerificationToken): Promise<EmailVerificationToken> {
+    const [newToken] = await db
+      .insert(emailVerificationTokens)
+      .values(token)
+      .returning();
+    return newToken;
+  }
+
+  async getEmailVerificationToken(token: string): Promise<EmailVerificationToken | undefined> {
+    const [emailToken] = await db
+      .select()
+      .from(emailVerificationTokens)
+      .where(eq(emailVerificationTokens.token, token));
+    return emailToken || undefined;
+  }
+
+  async deleteEmailVerificationToken(token: string): Promise<boolean> {
+    const result = await db
+      .delete(emailVerificationTokens)
+      .where(eq(emailVerificationTokens.token, token));
+    return result.rowCount! > 0;
+  }
+
+  async deleteExpiredTokens(): Promise<void> {
+    await db
+      .delete(emailVerificationTokens)
+      .where(sql`${emailVerificationTokens.expiresAt} < NOW()`);
   }
 
   // Activity methods
@@ -190,21 +258,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, userId));
   }
 
-  async updateUser(id: string, updates: Partial<User>): Promise<User | undefined> {
-    const [updatedUser] = await db
-      .update(users)
-      .set(updates)
-      .where(eq(users.id, id))
-      .returning();
-    return updatedUser || undefined;
-  }
 
-  async deleteUser(id: string): Promise<boolean> {
-    const result = await db
-      .delete(users)
-      .where(eq(users.id, id));
-    return (result.rowCount ?? 0) > 0;
-  }
 
   // Updated inventory methods with activity context
   async getInventoryByActivity(activityId: string): Promise<Inventario[]> {

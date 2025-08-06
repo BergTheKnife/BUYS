@@ -189,25 +189,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Hash password
       const hashedPassword = await bcrypt.hash(userData.password, 10);
       
-      // Create user
+      // Create user with email verification pending
       const user = await storage.createUser({
         ...userData,
         password: hashedPassword,
+        isActive: 0, // Pending verification
       });
 
-      // Set session
-      req.session.userId = user.id;
-
-      res.json({ 
-        user: { 
-          id: user.id, 
-          nome: user.nome, 
-          cognome: user.cognome, 
-          email: user.email, 
-          username: user.username,
-          createdAt: user.createdAt
-        } 
+      // Generate verification token
+      const { generateVerificationToken, getTokenExpiration, sendVerificationEmail } = await import('./emailService');
+      const verificationToken = generateVerificationToken();
+      
+      // Create verification token in database
+      await storage.createEmailVerificationToken({
+        userId: user.id,
+        token: verificationToken,
+        expiresAt: getTokenExpiration(),
       });
+
+      // Send verification email
+      try {
+        await sendVerificationEmail(user.email, user.nome, user.cognome, verificationToken);
+        
+        res.json({ 
+          message: "Registrazione completata! Controlla la tua email per il link di verifica.",
+          user: { 
+            id: user.id, 
+            nome: user.nome, 
+            cognome: user.cognome, 
+            email: user.email, 
+            username: user.username,
+            isActive: user.isActive,
+            emailVerified: user.emailVerified,
+            createdAt: user.createdAt
+          } 
+        });
+      } catch (emailError) {
+        console.error('Failed to send verification email:', emailError);
+        res.status(500).json({ 
+          message: "Registrazione completata ma invio email fallito. Contatta il supporto."
+        });
+      }
     } catch (error: any) {
       res.status(400).json({ message: error.message || "Errore durante la registrazione" });
     }
@@ -225,6 +247,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isValidPassword = await bcrypt.compare(password, user.password);
       if (!isValidPassword) {
         return res.status(401).json({ message: "Credenziali non valide" });
+      }
+
+      // Check if email is verified
+      if (user.isActive === 0) {
+        return res.status(403).json({ 
+          message: "Account non verificato. Controlla la tua email per il link di verifica.",
+          needsVerification: true 
+        });
       }
 
       // Set session
@@ -271,6 +301,163 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       res.status(400).json({ message: error.message || "Errore durante il login" });
+    }
+  });
+
+  // Email verification route
+  app.get('/api/auth/verify-email/:token', async (req, res) => {
+    try {
+      const { token } = req.params;
+      
+      // Clean up expired tokens first
+      await storage.deleteExpiredTokens();
+      
+      // Find the verification token
+      const verificationToken = await storage.getEmailVerificationToken(token);
+      if (!verificationToken) {
+        return res.status(400).send(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Verifica Email - BUYS</title>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f5f5f5; }
+              .container { background: white; padding: 40px; border-radius: 10px; max-width: 500px; margin: 0 auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+              .error { color: #e74c3c; }
+              .btn { background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 20px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h2 class="error">Token di Verifica Non Valido</h2>
+              <p>Il link di verifica è scaduto o non valido.</p>
+              <p>Effettua una nuova registrazione per ricevere un nuovo link di verifica.</p>
+              <a href="/" class="btn">Torna alla Home</a>
+            </div>
+          </body>
+          </html>
+        `);
+      }
+
+      // Check if token is expired
+      if (new Date() > verificationToken.expiresAt) {
+        await storage.deleteEmailVerificationToken(token);
+        return res.status(400).send(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Verifica Email - BUYS</title>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f5f5f5; }
+              .container { background: white; padding: 40px; border-radius: 10px; max-width: 500px; margin: 0 auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+              .error { color: #e74c3c; }
+              .btn { background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 20px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h2 class="error">Link di Verifica Scaduto</h2>
+              <p>Il link di verifica è scaduto (24 ore).</p>
+              <p>Effettua una nuova registrazione per ricevere un nuovo link di verifica.</p>
+              <a href="/" class="btn">Torna alla Home</a>
+            </div>
+          </body>
+          </html>
+        `);
+      }
+
+      // Verify the user's email
+      const verifiedUser = await storage.verifyUserEmail(verificationToken.userId);
+      if (!verifiedUser) {
+        return res.status(404).send(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Verifica Email - BUYS</title>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f5f5f5; }
+              .container { background: white; padding: 40px; border-radius: 10px; max-width: 500px; margin: 0 auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+              .error { color: #e74c3c; }
+              .btn { background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 20px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h2 class="error">Utente Non Trovato</h2>
+              <p>L'utente associato a questo token non esiste più.</p>
+              <a href="/" class="btn">Torna alla Home</a>
+            </div>
+          </body>
+          </html>
+        `);
+      }
+
+      // Delete the used token
+      await storage.deleteEmailVerificationToken(token);
+      
+      // Send welcome email
+      try {
+        const { sendWelcomeEmail } = await import('./emailService');
+        await sendWelcomeEmail(verifiedUser.email, verifiedUser.nome, verifiedUser.cognome);
+      } catch (emailError) {
+        console.error('Failed to send welcome email:', emailError);
+      }
+
+      // Return success page
+      res.status(200).send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Email Verificata - BUYS</title>
+          <meta charset="utf-8">
+          <style>
+            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f5f5f5; }
+            .container { background: white; padding: 40px; border-radius: 10px; max-width: 500px; margin: 0 auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            .success { color: #27ae60; }
+            .btn { background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 20px; }
+            .checkmark { font-size: 50px; color: #27ae60; margin-bottom: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="checkmark">✓</div>
+            <h2 class="success">Email Verificata con Successo!</h2>
+            <p>Congratulazioni <strong>${verifiedUser.nome}</strong>!</p>
+            <p>Il tuo account è stato verificato e ora puoi accedere a tutte le funzionalità di BUYS.</p>
+            <p>Riceverai una email di benvenuto con informazioni utili per iniziare.</p>
+            <a href="/" class="btn">Accedi al Sistema</a>
+          </div>
+        </body>
+        </html>
+      `);
+      
+    } catch (error: any) {
+      console.error('Email verification error:', error);
+      res.status(500).send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Errore Verifica - BUYS</title>
+          <meta charset="utf-8">
+          <style>
+            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f5f5f5; }
+            .container { background: white; padding: 40px; border-radius: 10px; max-width: 500px; margin: 0 auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            .error { color: #e74c3c; }
+            .btn { background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h2 class="error">Errore di Sistema</h2>
+            <p>Si è verificato un errore durante la verifica. Riprova più tardi.</p>
+            <a href="/" class="btn">Torna alla Home</a>
+          </div>
+        </body>
+        </html>
+      `);
     }
   });
 
