@@ -252,19 +252,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Activity routes
   app.post('/api/activities', requireAuth, async (req, res) => {
     try {
-      const activityData = insertActivitySchema.parse(req.body);
+      // Validate frontend data (expects 'password' field)
+      const { nome, password } = req.body;
+      
+      if (!nome || !password) {
+        return res.status(400).json({ message: "Nome attività e password sono richiesti" });
+      }
+      
+      if (password.length < 6) {
+        return res.status(400).json({ message: "Password deve essere di almeno 6 caratteri" });
+      }
       
       // Check if activity name already exists
-      const existingActivity = await storage.getActivityByName(activityData.nome);
+      const existingActivity = await storage.getActivityByName(nome);
       if (existingActivity) {
         return res.status(400).json({ message: "Nome attività già esistente" });
       }
 
       // Hash activity password
-      const hashedPassword = await bcrypt.hash(activityData.password, 10);
+      const hashedPassword = await bcrypt.hash(password, 10);
       
       const activity = await storage.createActivity({
-        nome: activityData.nome,
+        nome: nome,
         passwordHash: hashedPassword,
         proprietarioId: req.session.userId!,
       });
