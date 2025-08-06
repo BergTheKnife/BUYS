@@ -280,6 +280,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Set as current activity
       req.session.activityId = activity.id;
+      
+      // Update user's lastActivityId
+      await storage.updateUser(req.session.userId!, { lastActivityId: activity.id });
 
       res.json({ 
         message: "Attività creata con successo",
@@ -316,6 +319,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Set as current activity
       req.session.activityId = activity.id;
+      
+      // Update user's lastActivityId
+      await storage.updateUser(req.session.userId!, { lastActivityId: activity.id });
 
       res.json({ 
         message: "Accesso all'attività effettuato con successo",

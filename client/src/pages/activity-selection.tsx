@@ -60,13 +60,15 @@ export default function ActivitySelection() {
     mutationFn: async (data: CreateActivityForm) => {
       return await apiRequest("POST", "/api/activities", data);
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast({
         title: "Attività creata",
         description: "La tua nuova attività è stata creata con successo",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      setLocation("/dashboard");
+      // Invalida la cache e aspetta il refresh
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      // Forza il reload della pagina per aggiornare completamente lo stato
+      window.location.href = "/dashboard";
     },
     onError: (error: Error) => {
       toast({
@@ -81,13 +83,15 @@ export default function ActivitySelection() {
     mutationFn: async (data: JoinActivityForm) => {
       return await apiRequest("POST", "/api/activities/join", data);
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast({
         title: "Accesso effettuato",
         description: "Sei entrato nell'attività con successo",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      setLocation("/dashboard");
+      // Invalida la cache e aspetta il refresh
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      // Forza il reload della pagina per aggiornare completamente lo stato
+      window.location.href = "/dashboard";
     },
     onError: (error: Error) => {
       toast({
