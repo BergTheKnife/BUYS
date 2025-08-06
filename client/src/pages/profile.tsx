@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
@@ -293,9 +294,9 @@ export default function Profile() {
                 <form onSubmit={passwordForm.handleSubmit(onChangePassword)} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="currentPassword">Password Attuale</Label>
-                    <Input
+                    <PasswordInput
                       id="currentPassword"
-                      type="password"
+                      placeholder="Password attuale"
                       {...passwordForm.register("currentPassword")}
                     />
                     {passwordForm.formState.errors.currentPassword && (
@@ -307,9 +308,10 @@ export default function Profile() {
 
                   <div className="space-y-2">
                     <Label htmlFor="newPassword">Nuova Password</Label>
-                    <Input
+                    <PasswordInput
                       id="newPassword"
-                      type="password"
+                      placeholder="Nuova password"
+                      showPasswordHint={true}
                       {...passwordForm.register("newPassword")}
                     />
                     {passwordForm.formState.errors.newPassword && (
@@ -321,9 +323,9 @@ export default function Profile() {
 
                   <div className="space-y-2">
                     <Label htmlFor="confirmPassword">Conferma Nuova Password</Label>
-                    <Input
+                    <PasswordInput
                       id="confirmPassword"
-                      type="password"
+                      placeholder="Conferma nuova password"
                       {...passwordForm.register("confirmPassword")}
                     />
                     {passwordForm.formState.errors.confirmPassword && (

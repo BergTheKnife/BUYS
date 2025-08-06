@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Navbar } from "@/components/layout/navbar";
 import { useAuth } from "@/hooks/use-auth";
@@ -150,9 +151,9 @@ export default function ActivitySelection() {
                       <FormItem>
                         <FormLabel>Password Attività</FormLabel>
                         <FormControl>
-                          <Input 
-                            type="password"
-                            placeholder="Minimo 6 caratteri"
+                          <PasswordInput 
+                            placeholder="Password per l'attività"
+                            showPasswordHint={true}
                             {...field}
                           />
                         </FormControl>
@@ -227,8 +228,7 @@ export default function ActivitySelection() {
                       <FormItem>
                         <FormLabel>Password</FormLabel>
                         <FormControl>
-                          <Input 
-                            type="password"
+                          <PasswordInput 
                             placeholder="Password dell'attività"
                             {...field}
                           />

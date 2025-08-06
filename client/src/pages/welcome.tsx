@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
@@ -170,10 +171,9 @@ export default function Welcome() {
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
+                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground z-10" />
+                    <PasswordInput
                       id="password"
-                      type="password"
                       className="pl-10"
                       placeholder="Inserisci password"
                       {...loginForm.register("password")}
@@ -342,25 +342,14 @@ export default function Welcome() {
                 <div className="space-y-2">
                   <Label htmlFor="regPassword">Password</Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
+                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground z-10" />
+                    <PasswordInput
                       id="regPassword"
-                      type="password"
                       className="pl-10"
                       placeholder="Password sicura"
+                      showPasswordHint={true}
                       {...registerForm.register("password")}
                     />
-                  </div>
-                  <div className="text-xs text-muted-foreground space-y-1">
-                    <p className="flex items-center gap-2">
-                      <AlertCircle className="h-3 w-3" />
-                      Requisiti password:
-                    </p>
-                    <ul className="ml-5 space-y-1">
-                      <li>• Almeno 6 caratteri</li>
-                      <li>• Almeno una lettera maiuscola</li>
-                      <li>• Almeno un numero</li>
-                    </ul>
                   </div>
                   {registerForm.formState.errors.password && (
                     <p className="text-sm text-destructive">

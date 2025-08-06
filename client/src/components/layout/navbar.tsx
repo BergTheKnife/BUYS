@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
@@ -412,9 +413,9 @@ export function Navbar() {
                   <FormItem>
                     <FormLabel>Password</FormLabel>
                     <FormControl>
-                      <Input 
-                        type="password"
+                      <PasswordInput 
                         placeholder="Password per l'attività"
+                        showPasswordHint={true}
                         {...field}
                       />
                     </FormControl>
@@ -481,8 +482,7 @@ export function Navbar() {
                   <FormItem>
                     <FormLabel>Password</FormLabel>
                     <FormControl>
-                      <Input 
-                        type="password"
+                      <PasswordInput 
                         placeholder="Password dell'attività"
                         {...field}
                       />
