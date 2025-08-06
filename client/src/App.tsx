@@ -4,7 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
-import { ProtectedRoute } from "@/lib/auth";
+import { ProtectedRoute, UserOnlyRoute } from "@/lib/auth";
 import Welcome from "@/pages/welcome";
 import ActivitySelection from "@/pages/activity-selection";
 import Dashboard from "@/pages/dashboard";
@@ -48,7 +48,7 @@ function Router() {
       <Route path="/vendite" component={() => <ProtectedRoute><Sales /></ProtectedRoute>} />
       <Route path="/spese" component={() => <ProtectedRoute><Expenses /></ProtectedRoute>} />
       <Route path="/bilancio" component={() => <ProtectedRoute><Balance /></ProtectedRoute>} />
-      <Route path="/profilo" component={() => <ProtectedRoute><Profile /></ProtectedRoute>} />
+      <Route path="/profilo" component={() => <UserOnlyRoute><Profile /></UserOnlyRoute>} />
       <Route path="/impostazioni-attivita" component={() => <ProtectedRoute><ActivitySettings /></ProtectedRoute>} />
       <Route component={NotFound} />
     </Switch>
