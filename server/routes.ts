@@ -576,7 +576,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Utente non trovato" });
       }
 
-      // Activity selection handled by frontend
+      // Auto-restore last activity if no current activity in session but user has lastActivityId
+      if (!req.session.activityId && user.lastActivityId) {
+        try {
+          // Check if user still has access to this activity
+          const userActivities = await storage.getActivitiesByUserId(user.id);
+          const hasAccessToLastActivity = userActivities.some(activity => activity.id === user.lastActivityId);
+          
+          if (hasAccessToLastActivity) {
+            req.session.activityId = user.lastActivityId;
+            console.log('DEBUG: Auto-restored last activity in /me endpoint:', user.lastActivityId);
+          } else {
+            // Clear invalid lastActivityId
+            await storage.updateUser(user.id, { lastActivityId: null });
+            console.log('DEBUG: Cleared invalid lastActivityId for user:', user.id);
+          }
+        } catch (error) {
+          console.log('Error auto-restoring activity:', error);
+        }
+      }
 
       // Get current activity details if user has one selected
       let currentActivity = null;
