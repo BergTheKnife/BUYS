@@ -408,6 +408,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete activity route
+  app.delete('/api/activities/:id', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { password } = req.body;
+      
+      if (!password) {
+        return res.status(400).json({ message: "Password richiesta per eliminare l'attività" });
+      }
+
+      // Check if activity exists and user has permission
+      const activity = await storage.getActivityById(id);
+      if (!activity) {
+        return res.status(404).json({ message: "Attività non trovata" });
+      }
+
+      // Check if user is the owner
+      if (activity.proprietarioId !== req.session.userId) {
+        return res.status(403).json({ message: "Solo il proprietario può eliminare l'attività" });
+      }
+
+      // Verify password
+      const isValidPassword = await bcrypt.compare(password, activity.passwordHash);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "Password non corretta" });
+      }
+
+      // Delete all related data first (cascade delete)
+      // Delete user activity relations
+      await db.delete(activityUsers).where(eq(activityUsers.activityId, id));
+      
+      // Delete sales
+      await db.delete(vendite).where(eq(vendite.activityId, id));
+      
+      // Delete expenses  
+      await db.delete(spese).where(eq(spese.activityId, id));
+      
+      // Delete inventory
+      await db.delete(inventario).where(eq(inventario.activityId, id));
+
+      // Finally delete the activity
+      await db.delete(activities).where(eq(activities.id, id));
+
+      // Clear session if this was the current activity
+      if (req.session.activityId === id) {
+        req.session.activityId = undefined;
+        
+        // Update user's lastActivityId to null if it was this activity
+        await storage.updateUser(req.session.userId!, { lastActivityId: null });
+      }
+
+      res.json({ message: "Attività eliminata con successo" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nell'eliminazione dell'attività" });
+    }
+  });
+
   // Update username
   app.put('/api/auth/username', requireAuth, async (req, res) => {
     try {

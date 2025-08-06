@@ -26,8 +26,13 @@ const changeActivityPasswordSchema = z.object({
     .regex(/(?=.*\d)/, "La password deve contenere almeno un numero"),
 });
 
+const deleteActivitySchema = z.object({
+  password: z.string().min(1, "Password richiesta per eliminare l'attività"),
+});
+
 type UpdateActivityName = z.infer<typeof updateActivityNameSchema>;
 type ChangeActivityPassword = z.infer<typeof changeActivityPasswordSchema>;
+type DeleteActivity = z.infer<typeof deleteActivitySchema>;
 
 export default function ActivitySettings() {
   const { currentActivity } = useAuth();
@@ -46,6 +51,13 @@ export default function ActivitySettings() {
     defaultValues: {
       currentPassword: "",
       newPassword: "",
+    },
+  });
+
+  const deleteForm = useForm<DeleteActivity>({
+    resolver: zodResolver(deleteActivitySchema),
+    defaultValues: {
+      password: "",
     },
   });
 
@@ -93,12 +105,42 @@ export default function ActivitySettings() {
     },
   });
 
+  const deleteActivityMutation = useMutation({
+    mutationFn: async (data: DeleteActivity) => {
+      const response = await apiRequest("DELETE", `/api/activities/${currentActivity?.id}`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Attività eliminata",
+        description: "L'attività è stata eliminata con successo",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
+      // Redirect to activity selection after deletion
+      window.location.href = "/attivita";
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore nell'eliminazione dell'attività",
+        variant: "destructive",
+      });
+    },
+  });
+
   const onUpdateName = async (data: UpdateActivityName) => {
     await updateNameMutation.mutateAsync(data);
   };
 
   const onChangePassword = async (data: ChangeActivityPassword) => {
     await changePasswordMutation.mutateAsync(data);
+  };
+
+  const onDeleteActivity = async (data: DeleteActivity) => {
+    if (confirm("Sei sicuro di voler eliminare questa attività? Questa azione non può essere annullata e tutti i dati associati verranno persi.")) {
+      await deleteActivityMutation.mutateAsync(data);
+    }
   };
 
   if (!currentActivity) {
@@ -214,6 +256,54 @@ export default function ActivitySettings() {
                   {changePasswordMutation.isPending ? "Aggiornamento..." : "Cambia Password"}
                 </Button>
               </form>
+            </CardContent>
+          </Card>
+
+          <Separator />
+
+          {/* Elimina Attività */}
+          <Card className="border-destructive">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-destructive">
+                <Trash2 className="h-5 w-5" />
+                Elimina Attività
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="bg-destructive/10 border border-destructive/20 rounded-md p-4">
+                  <p className="text-sm text-destructive font-medium mb-2">⚠️ Attenzione!</p>
+                  <p className="text-sm text-muted-foreground">
+                    L'eliminazione dell'attività è permanente e comporterà la perdita di tutti i dati associati: 
+                    inventario, vendite, spese e statistiche. Questa operazione non può essere annullata.
+                  </p>
+                </div>
+                
+                <form onSubmit={deleteForm.handleSubmit(onDeleteActivity)} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="deletePassword">Conferma con Password Attività</Label>
+                    <PasswordInput
+                      id="deletePassword"
+                      placeholder="Password dell'attività"
+                      {...deleteForm.register("password")}
+                    />
+                    {deleteForm.formState.errors.password && (
+                      <p className="text-sm text-destructive">
+                        {deleteForm.formState.errors.password.message}
+                      </p>
+                    )}
+                  </div>
+                  
+                  <Button 
+                    type="submit" 
+                    variant="destructive"
+                    disabled={deleteActivityMutation.isPending}
+                    className="w-full"
+                  >
+                    {deleteActivityMutation.isPending ? "Eliminazione..." : "Elimina Attività Definitivamente"}
+                  </Button>
+                </form>
+              </div>
             </CardContent>
           </Card>
 
