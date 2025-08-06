@@ -43,9 +43,11 @@ export async function sendVerificationEmail(
   cognome: string,
   token: string
 ): Promise<void> {
-  const verificationUrl = `${process.env.NODE_ENV === 'production' 
-    ? `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}` 
-    : 'http://localhost:5000'}/api/auth/verify-email/${token}`;
+  // Use the correct URL - always use public Replit URL if available
+  const baseUrl = process.env.REPLIT_DOMAINS 
+    ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+    : 'http://localhost:5000';
+  const verificationUrl = `${baseUrl}/api/auth/verify-email/${token}`;
 
   const mailOptions = {
     from: {

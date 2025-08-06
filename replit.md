@@ -6,7 +6,17 @@ BUYS (Build Up Your Store) is a comprehensive business management system designe
 
 ## Recent Changes (August 6, 2025)
 
-### Latest Update - Complete Email Verification System with Resend Functionality
+### Latest Update - Mobile-Accessible Email Verification System (COMPLETED)
+- **MOBILE COMPATIBILITY FIXED**: Email verification links now use public Replit URLs instead of localhost for mobile access
+- **Cross-Device Verification**: Users can now verify their accounts from any device including mobile phones and tablets
+- **Public URL Configuration**: Email service automatically detects and uses REPLIT_DOMAINS environment variable for public URLs
+- **Enhanced User Experience**: Eliminated duplicate error messages during login attempts for unverified accounts
+- **Streamlined Interface**: Login with unverified account now shows single orange message with functional resend button
+- **Backend Improvements**: Resend verification endpoint supports both email and username lookup for better compatibility
+- **Error Handling**: Clear distinction between "invalid credentials" and "account not verified" error states
+- **Production-Ready**: Email verification system fully functional across all devices and environments
+
+### Previous Update - Complete Email Verification System with Resend Functionality
 - **EMAIL VERIFICATION REQUIRED**: All new user registrations now require email verification before account activation
 - **Comprehensive Email System**: Implemented complete SMTP integration with nodemailer for verification and welcome emails
 - **Token-based Verification**: Secure 64-character hex tokens with 24-hour expiration for email verification process
@@ -15,9 +25,6 @@ BUYS (Build Up Your Store) is a comprehensive business management system designe
 - **Account Security**: Users with unverified accounts cannot access the system until they click the email verification link
 - **Professional Email Templates**: HTML email templates for verification and welcome messages with BUYS branding
 - **Token Management**: Automatic cleanup of expired tokens and secure token deletion after successful verification
-- **Email Resend Feature**: Added resend verification email functionality for users with unverified accounts
-- **Enhanced UX**: Login attempts with unverified accounts now show prominent resend button with loading states
-- **Smart Redirect**: Email verification links redirect to app login with success toast notifications
 
 ### Previous Update - Multi-Activity System Implementation
 - **Complete Multi-Activity Architecture**: Implemented comprehensive database schema with activities and user_activities tables
