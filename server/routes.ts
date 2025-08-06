@@ -426,33 +426,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error('Failed to send welcome email:', emailError);
       }
 
-      // Return success page
-      res.status(200).send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Email Verificata - BUYS</title>
-          <meta charset="utf-8">
-          <style>
-            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f5f5f5; }
-            .container { background: white; padding: 40px; border-radius: 10px; max-width: 500px; margin: 0 auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-            .success { color: #27ae60; }
-            .btn { background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 20px; }
-            .checkmark { font-size: 50px; color: #27ae60; margin-bottom: 20px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="checkmark">✓</div>
-            <h2 class="success">Email Verificata con Successo!</h2>
-            <p>Congratulazioni <strong>${verifiedUser.nome}</strong>!</p>
-            <p>Il tuo account è stato verificato e ora puoi accedere a tutte le funzionalità di BUYS.</p>
-            <p>Riceverai una email di benvenuto con informazioni utili per iniziare.</p>
-            <a href="/" class="btn">Accedi al Sistema</a>
-          </div>
-        </body>
-        </html>
-      `);
+      // Redirect to app login with success message
+      const successMessage = encodeURIComponent(`Registrazione completata con successo! Benvenuto ${verifiedUser.nome}, ora puoi accedere al tuo account.`);
+      res.redirect(`/?verified=success&message=${successMessage}`);
       
     } catch (error: any) {
       console.error('Email verification error:', error);

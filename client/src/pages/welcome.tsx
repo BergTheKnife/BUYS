@@ -29,6 +29,23 @@ export default function Welcome() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
+  // Check for verification success message from URL params
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('verified') === 'success') {
+      const message = urlParams.get('message');
+      if (message) {
+        toast({
+          title: "Registrazione Completata",
+          description: decodeURIComponent(message),
+          variant: "default",
+        });
+        // Clean up URL params
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, [toast]);
+
   // Welcome page now only handles form submission, not redirects
   // Redirects are handled by HomeRedirect component in App.tsx
 
