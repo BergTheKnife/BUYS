@@ -230,15 +230,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Set session
       req.session.userId = user.id;
       
-      res.json({ 
-        user: { 
-          id: user.id, 
-          nome: user.nome, 
-          cognome: user.cognome, 
-          email: user.email, 
-          username: user.username,
-          createdAt: user.createdAt
-        } 
+      // If user has a last activity, auto-restore it in session
+      let restoredActivity = null;
+      if (user.lastActivityId) {
+        try {
+          const activity = await storage.getActivityById(user.lastActivityId);
+          if (activity) {
+            req.session.activityId = user.lastActivityId;
+            restoredActivity = activity;
+            console.log('DEBUG: Restored last activity in session:', user.lastActivityId);
+          }
+        } catch (error) {
+          console.log('Could not restore last activity:', error);
+        }
+      }
+      
+      // Save session and return response 
+      req.session.save((err) => {
+        if (err) {
+          console.log('Session save error:', err);
+          return res.status(500).json({ message: "Errore di sessione" });
+        }
+        
+        res.json({ 
+          user: { 
+            id: user.id, 
+            nome: user.nome, 
+            cognome: user.cognome, 
+            email: user.email, 
+            username: user.username,
+            createdAt: user.createdAt
+          },
+          hasActivity: !!restoredActivity,
+          currentActivity: restoredActivity ? {
+            id: restoredActivity.id,
+            nome: restoredActivity.nome,
+            proprietarioId: restoredActivity.proprietarioId
+          } : null
+        });
       });
     } catch (error: any) {
       res.status(400).json({ message: error.message || "Errore durante il login" });
