@@ -24,6 +24,18 @@ export function getTokenExpiration(): Date {
   return expiration;
 }
 
+// Test SMTP configuration
+export async function testEmailConnection(): Promise<boolean> {
+  try {
+    await transporter.verify();
+    console.log('✅ SMTP configuration is valid');
+    return true;
+  } catch (error) {
+    console.error('❌ SMTP configuration error:', error);
+    return false;
+  }
+}
+
 // Send verification email
 export async function sendVerificationEmail(
   email: string,
@@ -109,7 +121,24 @@ Sistema di gestione per negozi di abbigliamento
     `,
   };
 
-  await transporter.sendMail(mailOptions);
+  try {
+    console.log(`📧 Sending verification email to ${email}...`);
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Verification email sent successfully to ${email}`, info.messageId);
+  } catch (error) {
+    console.error('❌ Error sending verification email:', error);
+    // Log the specific error details
+    if (error instanceof Error) {
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        host: process.env.SMTP_HOST,
+        port: process.env.SMTP_PORT,
+        user: process.env.EMAIL_USER ? '***configured***' : 'NOT SET'
+      });
+    }
+    throw new Error('Failed to send verification email');
+  }
 }
 
 // Send welcome email after verification

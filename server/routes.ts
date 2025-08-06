@@ -226,9 +226,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       } catch (emailError) {
         console.error('Failed to send verification email:', emailError);
-        res.status(500).json({ 
-          message: "Registrazione completata ma invio email fallito. Contatta il supporto."
-        });
+        
+        // For development: provide fallback verification option
+        if (process.env.NODE_ENV === 'development') {
+          res.json({ 
+            message: "Registrazione completata! ERRORE EMAIL: verifica manualmente con questo link",
+            user: { 
+              id: user.id, 
+              nome: user.nome, 
+              cognome: user.cognome, 
+              email: user.email, 
+              username: user.username,
+              isActive: user.isActive,
+              emailVerified: user.emailVerified,
+              createdAt: user.createdAt
+            },
+            verificationUrl: `http://localhost:5000/api/auth/verify-email/${verificationToken}`,
+            error: "Email service not configured properly"
+          });
+        } else {
+          res.status(500).json({ 
+            message: "Registrazione completata ma invio email fallito. Contatta il supporto."
+          });
+        }
       }
     } catch (error: any) {
       res.status(400).json({ message: error.message || "Errore durante la registrazione" });
@@ -458,6 +478,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
         </body>
         </html>
       `);
+    }
+  });
+
+  // Debug endpoint to test email configuration
+  app.post('/api/debug/test-email', async (req, res) => {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(404).json({ message: 'Not found' });
+    }
+    
+    try {
+      const { testEmailConnection, sendVerificationEmail, generateVerificationToken } = await import('./emailService');
+      
+      // Test SMTP connection first
+      const isConnected = await testEmailConnection();
+      if (!isConnected) {
+        return res.status(500).json({ 
+          success: false, 
+          message: 'SMTP connection failed',
+          details: 'Check SMTP credentials and server settings'
+        });
+      }
+
+      // If email is provided, send a test email
+      const { email } = req.body;
+      if (email) {
+        const token = generateVerificationToken();
+        await sendVerificationEmail(email, 'Test', 'User', token);
+        return res.json({ 
+          success: true, 
+          message: `Test email sent to ${email}`,
+          token: token
+        });
+      }
+
+      return res.json({ 
+        success: true, 
+        message: 'SMTP connection is working',
+        connectionTest: true
+      });
+    } catch (error: any) {
+      console.error('Test email error:', error);
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Email test failed',
+        error: error.message 
+      });
     }
   });
 
