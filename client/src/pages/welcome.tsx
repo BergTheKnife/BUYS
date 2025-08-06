@@ -80,7 +80,9 @@ export default function Welcome() {
       // Check if it's a verification error
       if (error.message?.includes("Account non verificato")) {
         setVerificationMessage("Il tuo account necessita di verifica email. Controlla la tua casella di posta e clicca sul link ricevuto.");
-        setResendEmail(data.emailOrUsername); // Store email for resend button
+        // Use userEmail from server response if available, fallback to emailOrUsername
+        const emailForResend = error.userEmail || data.emailOrUsername;
+        setResendEmail(emailForResend);
         // Don't show toast for verification error - handled in UI instead
       } else {
         toast({
@@ -207,31 +209,7 @@ export default function Welcome() {
               </div>
             </div>
 
-            {/* Email verification message */}
-            {verificationMessage && (
-              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-start space-x-3">
-                  <Mail className="h-5 w-5 text-blue-600 mt-0.5" />
-                  <div>
-                    <h4 className="text-sm font-semibold text-blue-800 mb-1">
-                      Verifica Email Richiesta
-                    </h4>
-                    <p className="text-sm text-blue-700 mb-3">
-                      {verificationMessage}
-                    </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setVerificationMessage('')}
-                      className="text-blue-600 border-blue-300 hover:bg-blue-100"
-                    >
-                      <X className="h-3 w-3 mr-1" />
-                      Chiudi
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
+
 
             {isLogin ? (
               <form onSubmit={loginForm.handleSubmit(onLogin)} className="space-y-4">

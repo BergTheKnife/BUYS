@@ -273,7 +273,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (user.isActive === 0) {
         return res.status(403).json({ 
           message: "Account non verificato. Controlla la tua email per il link di verifica.",
-          needsVerification: true 
+          needsVerification: true,
+          userEmail: user.email
         });
       }
 
@@ -466,8 +467,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Email richiesta" });
       }
 
-      // Check if user exists
-      const user = await storage.getUserByEmail(email);
+      // Check if user exists by email or username
+      let user = await storage.getUserByEmail(email);
+      if (!user) {
+        user = await storage.getUserByUsername(email);
+      }
+      
       if (!user) {
         return res.status(404).json({ message: "Utente non trovato" });
       }
