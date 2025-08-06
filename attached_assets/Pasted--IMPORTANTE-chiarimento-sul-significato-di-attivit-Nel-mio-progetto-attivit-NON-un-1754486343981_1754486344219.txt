@@ -1,0 +1,63 @@
+    IMPORTANTE: chiarimento sul significato di “attività”
+
+    Nel mio progetto, “attività” NON è una singola funzione o un modulo.
+
+    ➤ Con “attività” intendo un intero contesto operativo dell'app, riferito a una singola attività commerciale (es. negozio, punto vendita, azienda).
+
+    ✔️ Ogni attività ha un proprio:
+
+        Magazzino
+
+        Registro vendite
+
+        Registro spese
+
+        Bilancio
+
+        Utenti associati
+
+    📌 L’intera interfaccia dell’app (dopo login/registrazione) deve riferirsi SEMPRE ad una specifica attività attiva.
+
+    🟥 Attualmente manca:
+
+        Una schermata iniziale dopo login per:
+
+            Creare una nuova attività (inserendo nome + password attività)
+
+            Oppure accedere ad una attività esistente (inserendo nome + password)
+
+        Un modo per cambiare attività attiva (da un menu)
+
+        Il collegamento tra i form (magazzino, vendite, spese) e l’attività attiva
+
+    ✅ Dopo login:
+
+        L’utente DEVE selezionare o creare un’attività
+
+        Una volta selezionata, tutti i dati e le azioni successive devono essere filtrati e legati solo a quella attività
+
+        L’intera app (dopo login) funziona solo all’interno di un’attività attiva
+
+    🚫 Non voglio un’area multi-cliente, ma un’app singola che lavora su una "attività per volta", isolando i dati per ciascuna.
+
+    🎯 Obiettivo:
+
+        Mostrare una schermata post-login con: “Crea nuova attività” / “Accedi a un’attività”
+
+        Selezionare un’attività attiva e salvarla nella sessione
+
+        Permettere di cambiare attività in qualsiasi momento
+
+        Far funzionare tutte le azioni (form, lettura, scrittura) solo nel contesto della attività selezionata
+
+🟢 Risultato atteso
+
+    Dopo il login:
+
+        Se non è stata selezionata un’attività: mostra subito la schermata di selezione
+
+        Se è già stata selezionata in precedenza: carica direttamente l’attività attiva
+
+        In ogni momento, l’utente deve poter cambiare attività
+
+        L’app deve funzionare solo dentro una attività: non ci deve essere mai ambiguità su quale contesto è attivo

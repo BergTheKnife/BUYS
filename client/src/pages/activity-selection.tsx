@@ -58,11 +58,7 @@ export default function ActivitySelection() {
 
   const createActivityMutation = useMutation({
     mutationFn: async (data: CreateActivityForm) => {
-      return await apiRequest("/api/activities", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
+      return await apiRequest("POST", "/api/activities", data);
     },
     onSuccess: () => {
       toast({
@@ -83,11 +79,7 @@ export default function ActivitySelection() {
 
   const joinActivityMutation = useMutation({
     mutationFn: async (data: JoinActivityForm) => {
-      return await apiRequest("/api/activities/join", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
+      return await apiRequest("POST", "/api/activities/join", data);
     },
     onSuccess: () => {
       toast({

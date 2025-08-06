@@ -6,9 +6,12 @@ import type { User, InsertUser, LoginUser } from "@shared/schema";
 
 interface AuthContextType {
   user: User | null;
+  currentActivity: any | null;
+  hasActivity: boolean;
   login: (credentials: LoginUser) => Promise<void>;
   register: (userData: InsertUser) => Promise<void>;
   logout: () => Promise<void>;
+  switchActivity: (activityId: string) => Promise<void>;
   isLoading: boolean;
 }
 
@@ -30,7 +33,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      setLocation("/dashboard");
+      // Don't redirect automatically - let the ProtectedRoute handle activity selection
     },
   });
 
@@ -38,6 +41,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     mutationFn: async (userData: InsertUser) => {
       const response = await apiRequest("POST", "/api/auth/register", userData);
       return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      // Don't redirect automatically - let the ProtectedRoute handle activity selection
+    },
+  });
+
+  const switchActivityMutation = useMutation({
+    mutationFn: async (activityId: string) => {
+      await apiRequest("POST", "/api/activities/switch", { activityId });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
@@ -55,12 +68,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
   });
 
+  const user = (authData as { user?: User })?.user || null;
+  const currentActivity = (authData as { currentActivity?: any })?.currentActivity || null;
+  const hasActivity = !!currentActivity;
+
   const value = {
-    user: (authData as { user?: User })?.user || null,
+    user,
+    currentActivity,
+    hasActivity,
     login: loginMutation.mutateAsync,
     register: registerMutation.mutateAsync,
     logout: logoutMutation.mutateAsync,
-    isLoading: isLoading || loginMutation.isPending || registerMutation.isPending,
+    switchActivity: switchActivityMutation.mutateAsync,
+    isLoading: isLoading || loginMutation.isPending || registerMutation.isPending || switchActivityMutation.isPending,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

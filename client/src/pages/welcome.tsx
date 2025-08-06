@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { useLocation } from "wouter";
 import { Store, User, Lock, Mail, UserPlus, LogIn, Check, X, AlertCircle } from "lucide-react";
 import buysLogoColorPath from "@assets/Buys colore_1754472538088.png";
 import { insertUserSchema, loginUserSchema } from "@shared/schema";
@@ -22,8 +23,18 @@ export default function Welcome() {
     available: boolean | null;
     message: string;
   }>({ checking: false, available: null, message: "" });
-  const { login, register } = useAuth();
+  const { user, hasActivity, login, register } = useAuth();
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
+
+  // Redirect logic - if user has activity go to dashboard, otherwise to activity selection
+  useEffect(() => {
+    if (user && hasActivity) {
+      setLocation("/dashboard");
+    } else if (user && !hasActivity) {
+      setLocation("/attivita");
+    }
+  }, [user, hasActivity, setLocation]);
 
   const loginForm = useForm<LoginUser>({
     resolver: zodResolver(loginUserSchema),

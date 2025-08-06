@@ -18,6 +18,8 @@ import {
   User,
   LogOut,
   Menu,
+  Building2,
+  ChevronDown,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import buysLogoWhitePath from "@assets/Buys bianco_1754472538088.png";
@@ -32,7 +34,7 @@ const navigation = [
 ];
 
 export function Navbar() {
-  const { user, logout } = useAuth();
+  const { user, currentActivity, logout } = useAuth();
   const [location, setLocation] = useLocation();
 
   const handleLogout = async () => {
@@ -96,8 +98,28 @@ export function Navbar() {
             <NavigationItems />
           </div>
 
-          {/* User Menu */}
+          {/* Activity Selector & User Menu */}
           <div className="flex items-center space-x-4">
+            {/* Activity Dropdown */}
+            {currentActivity && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="text-white hover:bg-white/10">
+                    <Building2 className="h-4 w-4 mr-2" />
+                    {currentActivity.nome}
+                    <ChevronDown className="h-3 w-3 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setLocation("/attivita")}>
+                    <Store className="h-4 w-4 mr-2" />
+                    Cambia Attività
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {/* User Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="text-white hover:bg-white/10">
@@ -141,11 +163,39 @@ export function Navbar() {
                     <NavigationItems mobile />
                   </div>
                   
-                  {/* User info and logout section */}
+                  {/* Activity info and user info section */}
                   <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
+                    {/* Current Activity */}
+                    {currentActivity && (
+                      <div className="flex items-center space-x-2 mb-3 p-2 bg-blue-50 dark:bg-blue-950 rounded-md">
+                        <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+                          <Building2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            {currentActivity.nome}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Attività corrente
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full mb-3 text-blue-600 border-blue-200 hover:bg-blue-50 hover:border-blue-300 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-950"
+                      onClick={() => setLocation("/attivita")}
+                    >
+                      <Store className="h-4 w-4 mr-2" />
+                      Cambia Attività
+                    </Button>
+
+                    {/* User Info */}
                     <div className="flex items-center space-x-2 mb-3">
-                      <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
-                        <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      <div className="w-8 h-8 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center">
+                        <User className="h-4 w-4 text-gray-600 dark:text-gray-400" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 dark:text-white truncate">

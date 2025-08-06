@@ -3,14 +3,16 @@ import { useLocation } from "wouter";
 import { useEffect } from "react";
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth();
+  const { user, hasActivity, isLoading } = useAuth();
   const [, setLocation] = useLocation();
 
   useEffect(() => {
     if (!isLoading && !user) {
       setLocation("/");
+    } else if (!isLoading && user && !hasActivity) {
+      setLocation("/attivita");
     }
-  }, [user, isLoading, setLocation]);
+  }, [user, hasActivity, isLoading, setLocation]);
 
   if (isLoading) {
     return (
@@ -22,6 +24,10 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (!user) {
     return null;
+  }
+
+  if (user && !hasActivity) {
+    return null; // Will redirect to activity selection
   }
 
   return <>{children}</>;
