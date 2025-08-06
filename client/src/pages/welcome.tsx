@@ -28,18 +28,8 @@ export default function Welcome() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
-  // Redirect logic - automatic for returning users with activities
-  useEffect(() => {
-    if (user && hasActivity) {
-      setLocation("/dashboard");
-    } else if (user && !hasActivity && user.lastActivityId) {
-      // User had an activity before, try to auto-switch to dashboard
-      setLocation("/dashboard");
-    } else if (user && !hasActivity && !user.lastActivityId) {
-      // First time user, show activity selection
-      setLocation("/attivita");
-    }
-  }, [user, hasActivity, setLocation]);
+  // Welcome page now only handles form submission, not redirects
+  // Redirects are handled by HomeRedirect component in App.tsx
 
   const loginForm = useForm<LoginUser>({
     resolver: zodResolver(loginUserSchema),
