@@ -13,32 +13,7 @@ import {
   Plus,
   ShoppingCart,
   PlusCircle,
-  BarChart3,
 } from "lucide-react";
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  BarElement,
-} from 'chart.js';
-import { Line, Bar } from 'react-chartjs-2';
-import { useState } from "react";
-
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  BarElement
-);
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -74,17 +49,7 @@ export default function Dashboard() {
     queryKey: ["/api/top-selling-items"],
   });
 
-  // Fetch chart data
-  const { data: chartData } = useQuery<{
-    salesData: Array<{date: string, amount: number}>;
-    expensesData: Array<{date: string, amount: number}>;
-    marginData: Array<{date: string, amount: number}>;
-    months: string[];
-  }>({
-    queryKey: ["/api/chart-data"],
-  });
 
-  const [showCharts, setShowCharts] = useState(false);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("it-IT", {
@@ -93,56 +58,7 @@ export default function Dashboard() {
     }).format(amount);
   };
 
-  // Chart configuration
-  const lineChartOptions = {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: 'top' as const,
-      },
-      title: {
-        display: true,
-        text: 'Andamento Mensile - Ultimi 6 Mesi'
-      },
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        ticks: {
-          callback: function(value: any) {
-            return '€' + value.toLocaleString('it-IT');
-          }
-        }
-      }
-    }
-  };
 
-  const lineChartData = chartData ? {
-    labels: chartData.months,
-    datasets: [
-      {
-        label: 'Vendite',
-        data: chartData.salesData.map(d => d.amount),
-        borderColor: 'rgb(75, 192, 192)',
-        backgroundColor: 'rgba(75, 192, 192, 0.2)',
-        tension: 0.1,
-      },
-      {
-        label: 'Spese',
-        data: chartData.expensesData.map(d => d.amount),
-        borderColor: 'rgb(255, 99, 132)',
-        backgroundColor: 'rgba(255, 99, 132, 0.2)',
-        tension: 0.1,
-      },
-      {
-        label: 'Margine',
-        data: chartData.marginData.map(d => d.amount),
-        borderColor: 'rgb(54, 162, 235)',
-        backgroundColor: 'rgba(54, 162, 235, 0.2)',
-        tension: 0.1,
-      },
-    ],
-  } : null;
 
   const statsCards = [
     {

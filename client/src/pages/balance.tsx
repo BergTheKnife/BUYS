@@ -11,6 +11,29 @@ import {
 } from "@/components/ui/select";
 import { TrendingUp, TrendingDown, Calculator, Download, FileText, Mail, BarChart3, LineChart } from "lucide-react";
 import { useState } from "react";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  BarElement,
+} from 'chart.js';
+import { Line, Bar } from 'react-chartjs-2';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  BarElement
+);
 
 export default function Balance() {
   const [period, setPeriod] = useState("month");
@@ -25,12 +48,95 @@ export default function Balance() {
     queryKey: ["/api/stats"],
   });
 
+  // Fetch chart data
+  const { data: chartData } = useQuery<{
+    salesData: Array<{date: string, amount: number}>;
+    expensesData: Array<{date: string, amount: number}>;
+    marginData: Array<{date: string, amount: number}>;
+    months: string[];
+  }>({
+    queryKey: ["/api/chart-data"],
+  });
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("it-IT", {
       style: "currency",
       currency: "EUR",
     }).format(amount);
   };
+
+  // Chart configuration
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+      },
+      title: {
+        display: true,
+        text: 'Andamento Finanziario - Ultimi 6 Mesi'
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          callback: function(value: any) {
+            return '€' + value.toLocaleString('it-IT');
+          }
+        }
+      }
+    }
+  };
+
+  const lineChartData = chartData ? {
+    labels: chartData.months,
+    datasets: [
+      {
+        label: 'Vendite',
+        data: chartData.salesData.map(d => d.amount),
+        borderColor: 'rgb(34, 197, 94)',
+        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+        tension: 0.4,
+      },
+      {
+        label: 'Spese',
+        data: chartData.expensesData.map(d => d.amount),
+        borderColor: 'rgb(239, 68, 68)',
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        tension: 0.4,
+      },
+      {
+        label: 'Margine',
+        data: chartData.marginData.map(d => d.amount),
+        borderColor: 'rgb(59, 130, 246)',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        tension: 0.4,
+      },
+    ],
+  } : null;
+
+  const barChartData = chartData ? {
+    labels: chartData.months,
+    datasets: [
+      {
+        label: 'Vendite',
+        data: chartData.salesData.map(d => d.amount),
+        backgroundColor: 'rgba(34, 197, 94, 0.8)',
+      },
+      {
+        label: 'Spese',
+        data: chartData.expensesData.map(d => d.amount),
+        backgroundColor: 'rgba(239, 68, 68, 0.8)',
+      },
+      {
+        label: 'Margine',
+        data: chartData.marginData.map(d => d.amount),
+        backgroundColor: 'rgba(59, 130, 246, 0.8)',
+      },
+    ],
+  } : null;
 
   const exportToCSV = () => {
     if (!stats) return;
@@ -146,14 +252,24 @@ export default function Balance() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="h-80 flex items-center justify-center bg-gray-50 rounded-lg">
-                  <div className="text-center">
-                    <TrendingUp className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                    <h3 className="text-lg font-semibold mb-2">Grafico in arrivo</h3>
-                    <p className="text-muted-foreground">
-                      La visualizzazione grafica sarà implementata con Chart.js
-                    </p>
-                  </div>
+                <div className="h-80">
+                  {chartData && (chartView === "line" ? lineChartData : barChartData) ? (
+                    chartView === "line" ? (
+                      <Line data={lineChartData!} options={chartOptions} />
+                    ) : (
+                      <Bar data={barChartData!} options={chartOptions} />
+                    )
+                  ) : (
+                    <div className="h-full flex items-center justify-center bg-gray-50 rounded-lg">
+                      <div className="text-center">
+                        <BarChart3 className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                        <h3 className="text-lg font-semibold mb-2">Caricamento dati...</h3>
+                        <p className="text-muted-foreground">
+                          Preparazione del grafico finanziario
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
