@@ -74,8 +74,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(401).json({ message: "Autenticazione richiesta" });
     }
     if (!req.session.activityId) {
+      console.log('DEBUG: No activityId in session for user:', req.session.userId);
       return res.status(400).json({ message: "Nessuna attività selezionata" });
     }
+    console.log('DEBUG: Activity middleware passed for user:', req.session.userId, 'activity:', req.session.activityId);
     next();
   };
 
@@ -317,16 +319,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/activities/join', requireAuth, async (req, res) => {
     try {
-      const joinData = joinActivitySchema.parse(req.body);
+      // Validate frontend data (expects 'password' field)
+      const { nome, password } = req.body;
+      
+      if (!nome || !password) {
+        return res.status(400).json({ message: "Nome attività e password sono richiesti" });
+      }
       
       // Find activity by name
-      const activity = await storage.getActivityByName(joinData.nome);
+      const activity = await storage.getActivityByName(nome);
       if (!activity) {
         return res.status(404).json({ message: "Attività non trovata o password errata" });
       }
 
       // Check password
-      const isValidPassword = await bcrypt.compare(joinData.password, activity.passwordHash);
+      const isValidPassword = await bcrypt.compare(password, activity.passwordHash);
       if (!isValidPassword) {
         return res.status(401).json({ message: "Attività non trovata o password errata" });
       }
