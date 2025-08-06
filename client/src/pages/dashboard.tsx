@@ -1,10 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Navbar } from "@/components/layout/navbar";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
+import { useEffect } from "react";
 import {
   Package,
   Euro,
@@ -16,8 +17,29 @@ import {
 } from "lucide-react";
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, currentActivity } = useAuth();
   const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
+
+  // Force refetch when currentActivity changes
+  useEffect(() => {
+    if (currentActivity) {
+      // Invalidate all activity-dependent queries when activity changes
+      const activityQueries = [
+        "/api/stats",
+        "/api/inventario", 
+        "/api/vendite",
+        "/api/spese",
+        "/api/recent-activities",
+        "/api/top-selling-items",
+        "/api/chart-data"
+      ];
+      
+      activityQueries.forEach(queryKey => {
+        queryClient.invalidateQueries({ queryKey: [queryKey] });
+      });
+    }
+  }, [currentActivity?.id, queryClient]);
 
   const { data: stats, isLoading } = useQuery<{
     inventoryCount: number;
@@ -26,6 +48,7 @@ export default function Dashboard() {
     netMargin: number;
   }>({
     queryKey: ["/api/stats"],
+    enabled: !!currentActivity?.id,
   });
 
   // Fetch recent activities
@@ -37,6 +60,7 @@ export default function Dashboard() {
     data: string;
   }>>({
     queryKey: ["/api/recent-activities"],
+    enabled: !!currentActivity?.id,
   });
 
   // Fetch top selling items
@@ -47,6 +71,7 @@ export default function Dashboard() {
     totalRevenue: number;
   }>>({
     queryKey: ["/api/top-selling-items"],
+    enabled: !!currentActivity?.id,
   });
 
 

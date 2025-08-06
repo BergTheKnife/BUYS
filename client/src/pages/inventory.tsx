@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Navbar } from "@/components/layout/navbar";
 import { AddItemModal } from "@/components/modals/add-item-modal";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import {
   Table,
   TableBody,
@@ -46,9 +47,18 @@ export default function Inventory() {
   const [restockQuantity, setRestockQuantity] = useState("1");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { currentActivity } = useAuth();
+
+  // Force refetch when currentActivity changes
+  useEffect(() => {
+    if (currentActivity) {
+      queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
+    }
+  }, [currentActivity?.id, queryClient]);
 
   const { data: inventory = [], isLoading } = useQuery<Inventario[]>({
     queryKey: ["/api/inventario"],
+    enabled: !!currentActivity?.id,
   });
 
   const deleteMutation = useMutation({

@@ -53,6 +53,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await apiRequest("PUT", "/api/activities/switch", { activityId });
     },
     onSuccess: () => {
+      // Invalidate all activity-specific data queries
+      const activityQueries = [
+        "/api/stats",
+        "/api/inventario", 
+        "/api/vendite",
+        "/api/spese",
+        "/api/recent-activities",
+        "/api/top-selling-items",
+        "/api/chart-data"
+      ];
+      
+      activityQueries.forEach(queryKey => {
+        queryClient.removeQueries({ queryKey: [queryKey] });
+      });
+      
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       setLocation("/dashboard");
     },
