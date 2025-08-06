@@ -100,6 +100,8 @@ export function AddExpenseModal({ isOpen, onClose, editingExpense }: AddExpenseM
   });
 
   const onSubmit = (data: ExpenseFormData) => {
+    console.log('Expense form submitted with data:', data);
+    console.log('Expense form errors:', form.formState.errors);
     mutation.mutate(data);
   };
 

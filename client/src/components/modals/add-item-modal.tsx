@@ -103,6 +103,9 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
   });
 
   const onSubmit = (data: InsertInventario & { immagine?: FileList }) => {
+    console.log('Form submitted with data:', data);
+    console.log('Form errors:', form.formState.errors);
+    
     const formData = new FormData();
     formData.append("nomeArticolo", data.nomeArticolo);
     formData.append("taglia", data.taglia);
@@ -113,6 +116,7 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
       formData.append("immagine", data.immagine[0]);
     }
 
+    console.log('Submitting FormData...');
     mutation.mutate(formData);
   };
 
