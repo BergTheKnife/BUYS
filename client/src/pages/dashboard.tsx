@@ -79,7 +79,7 @@ export default function Dashboard() {
       title: "Margine Netto",
       value: formatCurrency(stats?.netMargin || 0),
       icon: TrendingUp,
-      color: "bg-gradient-to-r from-secondary to-accent",
+      color: "bg-secondary",
     },
   ];
 
@@ -110,7 +110,7 @@ export default function Dashboard() {
       <div className="container mx-auto py-8 px-4">
         {/* Welcome Header */}
         <div className="mb-8">
-          <Card className="bg-gradient-to-r from-primary via-accent to-secondary text-white border-0">
+          <Card className="bg-primary text-white border-0">
             <CardContent className="py-8 text-center">
               <h1 className="text-3xl font-bold mb-2">
                 Ciao, {user?.nome}!

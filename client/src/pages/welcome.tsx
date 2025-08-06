@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { Store, User, Lock, Mail, UserPlus, LogIn, Check, X, AlertCircle } from "lucide-react";
-import buysLogoPath from "@assets/Buys_1754434716629.png";
+import buysLogoPath from "@assets/Buys_1754458899279.png";
 import { insertUserSchema, loginUserSchema } from "@shared/schema";
 import type { InsertUser, LoginUser } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
@@ -49,7 +49,7 @@ export default function Welcome() {
       await login(data);
       toast({
         title: "Accesso effettuato",
-        description: "Benvenuto in DAVALB!",
+        description: "Benvenuto in BUYS!",
       });
     } catch (error: any) {
       toast({
@@ -122,7 +122,7 @@ export default function Welcome() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary via-accent to-secondary flex items-center justify-center p-4">
+    <div className="min-h-screen bg-primary flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <Card className="backdrop-blur-lg bg-white/95 shadow-2xl border-0">
           <CardContent className="p-8">
@@ -131,7 +131,7 @@ export default function Welcome() {
                 <img 
                   src={buysLogoPath} 
                   alt="BUYS - Build Up Your Store" 
-                  className="w-48 h-auto mx-auto"
+                  className="w-80 h-auto mx-auto max-w-full"
                 />
               </div>
             </div>

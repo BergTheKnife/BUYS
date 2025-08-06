@@ -20,7 +20,7 @@ import {
   Menu,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import buysLogoPath from "@assets/Buys_1754434716629.png";
+import buysLogoPath from "@assets/Buys_1754458899279.png";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
@@ -86,7 +86,7 @@ export function Navbar() {
             <img 
               src={buysLogoPath} 
               alt="BUYS" 
-              className="h-8 w-auto"
+              className="h-10 w-auto"
             />
           </Button>
 
@@ -131,7 +131,7 @@ export function Navbar() {
                     <img 
                       src={buysLogoPath} 
                       alt="BUYS - Build Up Your Store" 
-                      className="h-12 w-auto"
+                      className="h-16 w-auto"
                     />
                   </div>
                   
