@@ -25,6 +25,7 @@ export default function Welcome() {
     message: string;
   }>({ checking: false, available: null, message: "" });
   const [verificationMessage, setVerificationMessage] = useState<string>('');
+  const [resendEmail, setResendEmail] = useState<string>(''); // Store email for resend
   const { user, hasActivity, login, register } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -79,6 +80,7 @@ export default function Welcome() {
       // Check if it's a verification error
       if (error.message?.includes("Account non verificato")) {
         setVerificationMessage("Il tuo account necessita di verifica email. Controlla la tua casella di posta e clicca sul link ricevuto.");
+        setResendEmail(data.emailOrUsername); // Store email for resend button
         toast({
           title: "Account Non Verificato",
           description: "Controlla la tua email per completare la verifica",
@@ -120,6 +122,32 @@ export default function Welcome() {
       setUsernameStatus({ checking: false, available: false, message: "Errore nel controllo" });
     }
   };
+
+  const resendVerificationMutation = useMutation({
+    mutationKey: ['resend-verification'],
+    mutationFn: async (email: string) => {
+      return apiRequest({
+        endpoint: '/api/auth/resend-verification',
+        method: 'POST',
+        body: { email }
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Email Inviata",
+        description: "Email di verifica inviata nuovamente. Controlla la tua casella di posta.",
+      });
+      setVerificationMessage('');
+      setResendEmail('');
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore nell'invio dell'email",
+        variant: "destructive",
+      });
+    }
+  });
 
   const onRegister = async (data: InsertUser) => {
     try {
@@ -249,6 +277,40 @@ export default function Welcome() {
                   <LogIn className="mr-2 h-4 w-4" />
                   Accedi
                 </Button>
+
+                {/* Show verification message and resend button */}
+                {verificationMessage && (
+                  <div className="p-4 border border-orange-200 bg-orange-50 rounded-md">
+                    <div className="flex items-start">
+                      <AlertCircle className="h-4 w-4 text-orange-600 mt-0.5 mr-2 flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-sm text-orange-800 mb-3">{verificationMessage}</p>
+                        {resendEmail && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="w-full border-orange-300 text-orange-700 hover:bg-orange-100"
+                            onClick={() => resendVerificationMutation.mutate(resendEmail)}
+                            disabled={resendVerificationMutation.isPending}
+                          >
+                            {resendVerificationMutation.isPending ? (
+                              <>
+                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-orange-600 mr-2"></div>
+                                Invio in corso...
+                              </>
+                            ) : (
+                              <>
+                                <Mail className="mr-2 h-3 w-3" />
+                                Reinvia Email di Verifica
+                              </>
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="text-center">
                   <span className="text-muted-foreground">Non hai un account? </span>

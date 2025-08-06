@@ -457,6 +457,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Resend verification email endpoint
+  app.post('/api/auth/resend-verification', async (req, res) => {
+    try {
+      const { email } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({ message: "Email richiesta" });
+      }
+
+      // Check if user exists
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.status(404).json({ message: "Utente non trovato" });
+      }
+
+      // Check if user is already verified
+      if (user.emailVerified) {
+        return res.status(400).json({ message: "Account già verificato" });
+      }
+
+      // Delete any existing verification tokens for this user
+      await storage.deleteEmailVerificationTokensByUserId(user.id);
+
+      // Generate new verification token
+      const { generateVerificationToken, getTokenExpiration } = await import('./emailService');
+      const verificationToken = generateVerificationToken();
+      
+      // Store new token
+      await storage.createEmailVerificationToken({
+        userId: user.id,
+        token: verificationToken,
+        expiresAt: getTokenExpiration(),
+      });
+
+      // Send verification email
+      const { sendVerificationEmail } = await import('./emailService');
+      await sendVerificationEmail(user.email, user.nome, user.cognome, verificationToken);
+      
+      res.json({ 
+        message: "Email di verifica inviata nuovamente. Controlla la tua casella di posta.",
+        success: true
+      });
+      
+    } catch (error: any) {
+      console.error('Resend verification email error:', error);
+      res.status(500).json({ 
+        message: "Errore nell'invio dell'email di verifica. Riprova più tardi.",
+        success: false
+      });
+    }
+  });
+
   // Debug endpoint to test email configuration
   app.post('/api/debug/test-email', async (req, res) => {
     if (process.env.NODE_ENV === 'production') {

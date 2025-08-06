@@ -6,7 +6,7 @@ BUYS (Build Up Your Store) is a comprehensive business management system designe
 
 ## Recent Changes (August 6, 2025)
 
-### Latest Update - Complete Email Verification System Implementation
+### Latest Update - Complete Email Verification System with Resend Functionality
 - **EMAIL VERIFICATION REQUIRED**: All new user registrations now require email verification before account activation
 - **Comprehensive Email System**: Implemented complete SMTP integration with nodemailer for verification and welcome emails
 - **Token-based Verification**: Secure 64-character hex tokens with 24-hour expiration for email verification process
@@ -15,6 +15,9 @@ BUYS (Build Up Your Store) is a comprehensive business management system designe
 - **Account Security**: Users with unverified accounts cannot access the system until they click the email verification link
 - **Professional Email Templates**: HTML email templates for verification and welcome messages with BUYS branding
 - **Token Management**: Automatic cleanup of expired tokens and secure token deletion after successful verification
+- **Email Resend Feature**: Added resend verification email functionality for users with unverified accounts
+- **Enhanced UX**: Login attempts with unverified accounts now show prominent resend button with loading states
+- **Smart Redirect**: Email verification links redirect to app login with success toast notifications
 
 ### Previous Update - Multi-Activity System Implementation
 - **Complete Multi-Activity Architecture**: Implemented comprehensive database schema with activities and user_activities tables

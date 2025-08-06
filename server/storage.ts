@@ -40,6 +40,7 @@ export interface IStorage {
   createEmailVerificationToken(token: InsertEmailVerificationToken): Promise<EmailVerificationToken>;
   getEmailVerificationToken(token: string): Promise<EmailVerificationToken | undefined>;
   deleteEmailVerificationToken(token: string): Promise<boolean>;
+  deleteEmailVerificationTokensByUserId(userId: string): Promise<void>;
   deleteExpiredTokens(): Promise<void>;
   
   // Activity methods
@@ -171,6 +172,12 @@ export class DatabaseStorage implements IStorage {
       .delete(emailVerificationTokens)
       .where(eq(emailVerificationTokens.token, token));
     return result.rowCount! > 0;
+  }
+
+  async deleteEmailVerificationTokensByUserId(userId: string): Promise<void> {
+    await db
+      .delete(emailVerificationTokens)
+      .where(eq(emailVerificationTokens.userId, userId));
   }
 
   async deleteExpiredTokens(): Promise<void> {
