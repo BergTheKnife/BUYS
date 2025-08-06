@@ -926,6 +926,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get current activity details
       const currentActivity = await storage.getActivityById(activityId);
+      
+      if (!currentActivity) {
+        return res.status(404).json({ message: "Attività non trovata" });
+      }
 
       res.json({ 
         message: "Attività cambiata con successo",

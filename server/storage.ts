@@ -337,6 +337,13 @@ export class DatabaseStorage implements IStorage {
       .orderBy(activityUsers.joinedAt);
   }
 
+  async updateLastActivity(userId: string, activityId: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ lastActivityId: activityId })
+      .where(eq(users.id, userId));
+  }
+
 
 
   // Updated inventory methods with activity context
