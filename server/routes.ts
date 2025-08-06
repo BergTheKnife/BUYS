@@ -153,6 +153,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   };
 
+  // Google OAuth routes
+  app.get('/api/auth/google', 
+    passport.authenticate('google', { scope: ['profile', 'email'] })
+  );
+
+  app.get('/api/auth/google/callback',
+    passport.authenticate('google', { failureRedirect: '/' }),
+    (req, res) => {
+      // Set session
+      req.session.userId = (req.user as any).id;
+      res.redirect('/dashboard'); // Redirect to dashboard or activity selection
+    }
+  );
+
   // Auth routes
   app.post('/api/auth/register', async (req, res) => {
     try {
@@ -213,11 +227,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Set session
       req.session.userId = user.id;
       
-      // Set last activity if user has one
-      if (user.lastActivityId) {
-        req.session.activityId = user.lastActivityId;
-      }
-
       res.json({ 
         user: { 
           id: user.id, 
@@ -225,7 +234,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           cognome: user.cognome, 
           email: user.email, 
           username: user.username,
-          lastActivityId: user.lastActivityId,
           createdAt: user.createdAt
         } 
       });
@@ -250,10 +258,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Utente non trovato" });
       }
 
-      // Update session activity if user has one
-      if (user.lastActivityId && !req.session.activityId) {
-        req.session.activityId = user.lastActivityId;
-      }
+      // Activity selection handled by frontend
 
       // Get current activity details if user has one selected
       let currentActivity = null;
@@ -306,6 +311,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore del server" });
+    }
+  });
+
+  // Activity management routes
+  app.put('/api/activities/:id/name', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { nome } = req.body;
+      
+      if (!nome || nome.trim().length === 0) {
+        return res.status(400).json({ message: "Nome attività richiesto" });
+      }
+
+      // Check if activity exists and user has permission
+      const activity = await storage.getActivityById(id);
+      if (!activity) {
+        return res.status(404).json({ message: "Attività non trovata" });
+      }
+
+      // Check if user has permission (owner or member)
+      // For now, allow only owner to change name
+      if (activity.proprietarioId !== req.session.userId) {
+        return res.status(403).json({ message: "Non hai i permessi per modificare questa attività" });
+      }
+
+      // Check if name is already taken by another activity
+      const existingActivity = await storage.getActivityByName(nome);
+      if (existingActivity && existingActivity.id !== id) {
+        return res.status(400).json({ message: "Nome attività già esistente" });
+      }
+
+      // Update activity name
+      const [updatedActivity] = await db
+        .update(activities)
+        .set({ nome: nome.trim(), updatedAt: new Date() })
+        .where(eq(activities.id, id))
+        .returning();
+
+      res.json({ 
+        message: "Nome attività aggiornato con successo",
+        activity: {
+          id: updatedActivity.id,
+          nome: updatedActivity.nome,
+          proprietarioId: updatedActivity.proprietarioId,
+          createdAt: updatedActivity.createdAt
+        }
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nell'aggiornamento del nome" });
+    }
+  });
+
+  app.put('/api/activities/:id/password', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { currentPassword, newPassword } = req.body;
+      
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ message: "Password attuale e nuova password richieste" });
+      }
+
+      if (newPassword.length < 6) {
+        return res.status(400).json({ message: "La nuova password deve essere di almeno 6 caratteri" });
+      }
+
+      // Check if activity exists and user has permission
+      const activity = await storage.getActivityById(id);
+      if (!activity) {
+        return res.status(404).json({ message: "Attività non trovata" });
+      }
+
+      // Check if user has permission (owner or member)
+      if (activity.proprietarioId !== req.session.userId) {
+        return res.status(403).json({ message: "Non hai i permessi per modificare questa attività" });
+      }
+
+      // Verify current password
+      const isValidPassword = await bcrypt.compare(currentPassword, activity.passwordHash);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "Password attuale non corretta" });
+      }
+
+      // Hash new password
+      const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+      // Update activity password
+      await db
+        .update(activities)
+        .set({ passwordHash: hashedNewPassword, updatedAt: new Date() })
+        .where(eq(activities.id, id));
+
+      res.json({ message: "Password attività aggiornata con successo" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nell'aggiornamento della password" });
     }
   });
 
@@ -371,9 +470,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Set as current activity
       req.session.activityId = activity.id;
-      
-      // Update user's lastActivityId
-      await storage.updateUser(req.session.userId!, { lastActivityId: activity.id });
 
       res.json({ 
         message: "Attività creata con successo",
@@ -415,9 +511,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Set as current activity
       req.session.activityId = activity.id;
-      
-      // Update user's lastActivityId
-      await storage.updateUser(req.session.userId!, { lastActivityId: activity.id });
 
       res.json({ 
         message: "Accesso all'attività effettuato con successo",

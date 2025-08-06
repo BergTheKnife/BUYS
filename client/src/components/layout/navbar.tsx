@@ -29,10 +29,13 @@ import {
   User,
   LogOut,
   Menu,
+  Settings,
   Building2,
   ChevronDown,
   Plus,
-  UserPlus
+  UserPlus,
+  Edit,
+  Lock
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -266,6 +269,15 @@ export function Navbar() {
                   <DropdownMenuItem onClick={() => setShowJoinActivity(true)}>
                     <UserPlus className="h-4 w-4 mr-2" />
                     Unisciti ad un'attività
+                  </DropdownMenuItem>
+                  
+                  <DropdownMenuSeparator />
+                  <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
+                    Gestione Attività
+                  </div>
+                  <DropdownMenuItem onClick={() => setLocation("/impostazioni-attivita")}>
+                    <Settings className="h-4 w-4 mr-2" />
+                    Impostazioni
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

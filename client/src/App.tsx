@@ -13,6 +13,7 @@ import Sales from "@/pages/sales";
 import Expenses from "@/pages/expenses";
 import Balance from "@/pages/balance";
 import Profile from "@/pages/profile";
+import ActivitySettings from "@/pages/activity-settings";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -26,6 +27,7 @@ function Router() {
       <Route path="/spese" component={() => <ProtectedRoute><Expenses /></ProtectedRoute>} />
       <Route path="/bilancio" component={() => <ProtectedRoute><Balance /></ProtectedRoute>} />
       <Route path="/profilo" component={() => <ProtectedRoute><Profile /></ProtectedRoute>} />
+      <Route path="/impostazioni-attivita" component={() => <ProtectedRoute><ActivitySettings /></ProtectedRoute>} />
       <Route component={NotFound} />
     </Switch>
   );
