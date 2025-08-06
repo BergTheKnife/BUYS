@@ -50,7 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const switchActivityMutation = useMutation({
     mutationFn: async (activityId: string) => {
-      await apiRequest("POST", `/api/activities/switch/${activityId}`, {});
+      await apiRequest("PUT", "/api/activities/switch", { activityId });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });

@@ -906,6 +906,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Switch activity
+  app.put('/api/activities/switch', requireAuth, async (req, res) => {
+    try {
+      const { activityId } = req.body;
+      const userId = req.session.userId!;
+
+      // Verify user has access to this activity
+      const userActivities = await storage.getActivitiesByUserId(userId);
+      const hasAccess = userActivities.some(activity => activity.id === activityId);
+
+      if (!hasAccess) {
+        return res.status(403).json({ message: "Non hai accesso a questa attività" });
+      }
+
+      // Update session and user's last activity
+      req.session.activityId = activityId;
+      await storage.updateLastActivity(userId, activityId);
+
+      // Get current activity details
+      const currentActivity = await storage.getActivityById(activityId);
+
+      res.json({ 
+        message: "Attività cambiata con successo",
+        currentActivity: {
+          id: currentActivity.id,
+          nome: currentActivity.nome,
+          proprietarioId: currentActivity.proprietarioId,
+          createdAt: currentActivity.createdAt
+        }
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nel cambio attività" });
+    }
+  });
+
   // Update username
   app.put('/api/auth/username', requireAuth, async (req, res) => {
     try {

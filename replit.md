@@ -6,7 +6,17 @@ BUYS (Build Up Your Store) is a comprehensive business management system designe
 
 ## Recent Changes (August 6, 2025)
 
-### Latest Update - Mobile-Accessible Email Verification System (COMPLETED)
+### Latest Update - Activity Switching System and Admin Panel (COMPLETED)
+- **ACTIVITY SWITCHING**: Implemented complete activity switcher in navbar dropdown for users with multiple activities
+- **SEAMLESS ACTIVITY MANAGEMENT**: Users can now easily switch between their business entities with a single click
+- **AUTO-RESTORE FUNCTIONALITY**: Enhanced /api/auth/me endpoint to automatically restore user's last activity on login
+- **COMPREHENSIVE ADMIN PANEL**: Created developer-only admin interface at /admin with full user and activity management
+- **LOGO DIMENSION FIX**: Restored correct navbar logo dimensions from h-14 to h-8 for better visual balance
+- **SECURE ADMIN ACCESS**: Admin endpoints only accessible in development mode with authentication required
+- **COMPLETE USER OVERSIGHT**: Admin panel shows all registered users, their activities, verification status, and membership details
+- **SAFE DELETION CONTROLS**: Implemented confirmation dialogs for user/activity deletion to prevent accidental data loss
+
+### Previous Update - Mobile-Accessible Email Verification System (COMPLETED)
 - **MOBILE COMPATIBILITY FIXED**: Email verification links now use public Replit URLs instead of localhost for mobile access
 - **Cross-Device Verification**: Users can now verify their accounts from any device including mobile phones and tablets
 - **Public URL Configuration**: Email service automatically detects and uses REPLIT_DOMAINS environment variable for public URLs

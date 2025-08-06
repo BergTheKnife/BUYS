@@ -213,7 +213,7 @@ export function Navbar() {
             <img 
               src={buysLogoWhitePath} 
               alt="BUYS" 
-              className="h-14 w-auto"
+              className="h-8 w-auto"
             />
           </Button>
 
@@ -296,6 +296,15 @@ export function Navbar() {
                   <User className="h-4 w-4 mr-2" />
                   Profilo
                 </DropdownMenuItem>
+                {process.env.NODE_ENV === 'development' && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setLocation("/admin")}>
+                      <Settings className="h-4 w-4 mr-2" />
+                      <span className="text-red-600 font-medium">Admin Panel</span>
+                    </DropdownMenuItem>
+                  </>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="h-4 w-4 mr-2" />
