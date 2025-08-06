@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { Store, User, Lock, Mail, UserPlus, LogIn, Check, X, AlertCircle } from "lucide-react";
-import buysLogoPath from "@assets/Buys_1754458899279.png";
+import buysLogoColorPath from "@assets/Buys colore_1754472538088.png";
 import { insertUserSchema, loginUserSchema } from "@shared/schema";
 import type { InsertUser, LoginUser } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
@@ -126,10 +126,10 @@ export default function Welcome() {
       <div className="w-full max-w-md">
         <Card className="backdrop-blur-lg bg-white/95 shadow-2xl border-0">
           <CardContent className="p-8">
-            <div className="text-center mb-8">
-              <div className="mb-4">
+            <div className="text-center mb-4">
+              <div className="mb-2">
                 <img 
-                  src={buysLogoPath} 
+                  src={buysLogoColorPath} 
                   alt="BUYS - Build Up Your Store" 
                   className="w-80 h-auto mx-auto max-w-full"
                 />

@@ -20,7 +20,8 @@ import {
   Menu,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import buysLogoPath from "@assets/Buys_1754458899279.png";
+import buysLogoWhitePath from "@assets/Buys bianco_1754472538088.png";
+import buysLogoColorPath from "@assets/Buys colore_1754472538088.png";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
@@ -84,9 +85,9 @@ export function Navbar() {
             onClick={() => setLocation("/dashboard")}
           >
             <img 
-              src={buysLogoPath} 
+              src={buysLogoWhitePath} 
               alt="BUYS" 
-              className="h-10 w-auto"
+              className="h-14 w-auto"
             />
           </Button>
 
@@ -129,9 +130,9 @@ export function Navbar() {
                   {/* Header */}
                   <div className="flex items-center justify-center mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
                     <img 
-                      src={buysLogoPath} 
+                      src={buysLogoColorPath} 
                       alt="BUYS - Build Up Your Store" 
-                      className="h-16 w-auto"
+                      className="h-20 w-auto"
                     />
                   </div>
                   
