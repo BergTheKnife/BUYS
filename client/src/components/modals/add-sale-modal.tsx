@@ -60,6 +60,7 @@ export function AddSaleModal({ isOpen, onClose }: AddSaleModalProps) {
 
   const mutation = useMutation({
     mutationFn: async (data: SaleFormData) => {
+      console.log('Sale form data being sent:', data);
       const response = await apiRequest("POST", "/api/vendite", {
         inventarioId: data.inventarioId,
         quantita: data.quantita,
@@ -91,6 +92,8 @@ export function AddSaleModal({ isOpen, onClose }: AddSaleModalProps) {
   });
 
   const onSubmit = (data: SaleFormData) => {
+    console.log('Sale form submitted with data:', data);
+    console.log('Sale form errors:', form.formState.errors);
     mutation.mutate(data);
   };
 
