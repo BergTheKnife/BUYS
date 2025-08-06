@@ -7,7 +7,7 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { storage } from "./storage";
 import { db } from "./db";
 import bcrypt from "bcrypt";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { activities, activityUsers, vendite, spese, inventario, users } from "@shared/schema";
 import multer from "multer";
 import path from "path";
@@ -884,7 +884,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       
-      // Delete activity (cascade will handle related data)
+      // CRITICAL DATA PROTECTION: Prevent accidental deletion of activities with data
+      const inventoryCount = await db.select({ count: sql`count(*)` }).from(inventario).where(eq(inventario.activityId, id));
+      const salesCount = await db.select({ count: sql`count(*)` }).from(vendite).where(eq(vendite.activityId, id));
+      const expensesCount = await db.select({ count: sql`count(*)` }).from(spese).where(eq(spese.activityId, id));
+      
+      const totalRecords = Number(inventoryCount[0]?.count || 0) + Number(salesCount[0]?.count || 0) + Number(expensesCount[0]?.count || 0);
+      
+      if (totalRecords > 0) {
+        return res.status(403).json({ 
+          message: `PROTEZIONE DATI: Impossibile eliminare l'attività. Contiene ${totalRecords} record di dati (inventario, vendite, spese). Solo il proprietario può eliminarla dall'interfaccia utente.` 
+        });
+      }
+      
+      // Only delete if activity is completely empty
       await db.delete(activities).where(eq(activities.id, id));
       
       res.json({ message: "Attività eliminata con successo" });
@@ -897,7 +910,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       
-      // Delete user (cascade will handle related data)  
+      // CRITICAL DATA PROTECTION: Check for user activities with data
+      const userActivities = await storage.getActivitiesByUserId(id);
+      let totalDataRecords = 0;
+      
+      for (const activity of userActivities) {
+        const inventoryCount = await db.select({ count: sql`count(*)` }).from(inventario).where(eq(inventario.activityId, activity.id));
+        const salesCount = await db.select({ count: sql`count(*)` }).from(vendite).where(eq(vendite.activityId, activity.id));
+        const expensesCount = await db.select({ count: sql`count(*)` }).from(spese).where(eq(spese.activityId, activity.id));
+        
+        totalDataRecords += Number(inventoryCount[0]?.count || 0) + Number(salesCount[0]?.count || 0) + Number(expensesCount[0]?.count || 0);
+      }
+      
+      if (totalDataRecords > 0) {
+        return res.status(403).json({ 
+          message: `PROTEZIONE DATI: Impossibile eliminare l'utente. Le sue attività contengono ${totalDataRecords} record di dati. L'utente deve prima eliminare le sue attività con dati dall'interfaccia utente.` 
+        });
+      }
+      
+      // Only delete if user has no activities with data
       await db.delete(users).where(eq(users.id, id));
       
       res.json({ message: "Utente eliminato con successo" });

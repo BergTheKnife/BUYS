@@ -114,13 +114,35 @@ export default function AdminPanel() {
   });
 
   const handleDeleteUser = (userId: string, userEmail: string) => {
-    if (confirm(`Sei sicuro di voler eliminare l'utente ${userEmail}? Questa azione eliminerà anche tutte le attività create da questo utente e non può essere annullata.`)) {
+    const confirmMessage = `⚠️ OPERAZIONE CRITICA ⚠️
+
+Stai per eliminare l'utente: ${userEmail}
+
+PROTEZIONE DATI ATTIVA:
+- Se l'utente ha attività con dati business, l'eliminazione sarà BLOCCATA
+- Solo gli utenti senza dati business possono essere eliminati dall'admin
+- Il sistema protegge automaticamente tutti i dati degli utenti
+
+Questa operazione è irreversibile. Confermi?`;
+
+    if (confirm(confirmMessage)) {
       deleteUserMutation.mutate(userId);
     }
   };
 
   const handleDeleteActivity = (activityId: string, activityName: string) => {
-    if (confirm(`Sei sicuro di voler eliminare l'attività "${activityName}"? Tutti i dati associati (inventario, vendite, spese) verranno persi definitivamente.`)) {
+    const confirmMessage = `⚠️ OPERAZIONE CRITICA ⚠️
+
+Stai per eliminare l'attività "${activityName}".
+
+ATTENZIONE: Se questa attività contiene dati business (inventario, vendite, spese), 
+l'eliminazione sarà BLOCCATA automaticamente dal sistema di protezione dati.
+
+Solo le attività completamente vuote possono essere eliminate dall'admin panel.
+
+Confermi di voler procedere?`;
+
+    if (confirm(confirmMessage)) {
       deleteActivityMutation.mutate(activityId);
     }
   };
@@ -261,9 +283,11 @@ export default function AdminPanel() {
                             variant="destructive"
                             size="sm"
                             onClick={() => handleDeleteActivity(activity.id, activity.nome)}
-                            disabled={deleteActivityMutation.isPending}
+                            disabled={deleteActivityMutation.isPending || activity.members.length > 0}
+                            title={activity.members.length > 0 ? "PROTEZIONE DATI: Impossibile eliminare attività con dati business" : "Elimina attività"}
                           >
                             <Trash2 className="h-4 w-4" />
+                            {activity.members.length > 0 && <span className="ml-1 text-xs">🔒</span>}
                           </Button>
                         </div>
                       </div>
