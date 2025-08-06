@@ -150,36 +150,6 @@ export default function Dashboard() {
           })}
         </div>
 
-        {/* Charts Section */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold">Analisi Grafici</h2>
-            <Button
-              onClick={() => setShowCharts(!showCharts)}
-              variant="outline"
-              className="flex items-center gap-2"
-            >
-              <BarChart3 className="h-4 w-4" />
-              {showCharts ? 'Nascondi Grafici' : 'Mostra Grafici'}
-            </Button>
-          </div>
-          
-          {showCharts && chartData && lineChartData && (
-            <div className="grid grid-cols-1 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Trend Finanziario - Ultimi 6 Mesi</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-96">
-                    <Line data={lineChartData} options={lineChartOptions} />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-        </div>
-
         {/* Activity and Top Items */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <Card>
