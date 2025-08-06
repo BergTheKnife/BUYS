@@ -34,8 +34,11 @@ const navigation = [
 ];
 
 export function Navbar() {
-  const { user, currentActivity, logout } = useAuth();
+  const { user, currentActivity, hasActivity, logout } = useAuth();
   const [location, setLocation] = useLocation();
+
+  // Don't show navigation items if user doesn't have an activity selected
+  const showNavigation = hasActivity;
 
   const handleLogout = async () => {
     try {
@@ -93,10 +96,12 @@ export function Navbar() {
             />
           </Button>
 
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-1">
-            <NavigationItems />
-          </div>
+          {/* Desktop Navigation - only show if user has activity */}
+          {showNavigation && (
+            <div className="hidden md:flex items-center space-x-1">
+              <NavigationItems />
+            </div>
+          )}
 
           {/* Activity Selector & User Menu */}
           <div className="flex items-center space-x-4">
@@ -158,10 +163,12 @@ export function Navbar() {
                     />
                   </div>
                   
-                  {/* Navigation */}
-                  <div className="flex flex-col space-y-1 flex-1">
-                    <NavigationItems mobile />
-                  </div>
+                  {/* Navigation - only show if user has activity */}
+                  {showNavigation && (
+                    <div className="flex flex-col space-y-1 flex-1">
+                      <NavigationItems mobile />
+                    </div>
+                  )}
                   
                   {/* Activity info and user info section */}
                   <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
