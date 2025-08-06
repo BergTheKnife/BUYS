@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -6,6 +7,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import {
@@ -20,7 +30,18 @@ import {
   Menu,
   Building2,
   ChevronDown,
+  Plus,
+  UserPlus
 } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import type { Activity } from "@shared/schema";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import buysLogoWhitePath from "@assets/Buys bianco_1754472538088.png";
 import buysLogoColorPath from "@assets/Buys colore_1754472538088.png";
@@ -33,9 +54,105 @@ const navigation = [
   { name: "Bilancio", href: "/bilancio", icon: TrendingUp },
 ];
 
+// Form schemas
+const createActivitySchema = z.object({
+  nome: z.string().min(1, "Nome attività richiesto").max(100, "Nome troppo lungo"),
+  password: z.string().min(6, "Password deve essere di almeno 6 caratteri"),
+});
+
+const joinActivitySchema = z.object({
+  nome: z.string().min(1, "Nome attività richiesto"),
+  password: z.string().min(1, "Password richiesta"),
+});
+
+type CreateActivityForm = z.infer<typeof createActivitySchema>;
+type JoinActivityForm = z.infer<typeof joinActivitySchema>;
+
 export function Navbar() {
-  const { user, currentActivity, hasActivity, logout } = useAuth();
+  const { user, currentActivity, hasActivity, logout, switchActivity } = useAuth();
   const [location, setLocation] = useLocation();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  // State for modals
+  const [showCreateActivity, setShowCreateActivity] = useState(false);
+  const [showJoinActivity, setShowJoinActivity] = useState(false);
+  
+  // Fetch user's activities
+  const { data: userActivities = [] } = useQuery<Activity[]>({
+    queryKey: ["/api/activities"],
+    enabled: !!user,
+  });
+  
+  // Forms for modals
+  const createForm = useForm<CreateActivityForm>({
+    resolver: zodResolver(createActivitySchema),
+    defaultValues: {
+      nome: "",
+      password: "",
+    },
+  });
+
+  const joinForm = useForm<JoinActivityForm>({
+    resolver: zodResolver(joinActivitySchema),
+    defaultValues: {
+      nome: "",
+      password: "",
+    },
+  });
+  
+  // Mutations
+  const createActivityMutation = useMutation({
+    mutationFn: async (data: CreateActivityForm) => {
+      return await apiRequest("POST", "/api/activities", data);
+    },
+    onSuccess: async () => {
+      toast({
+        title: "Attività creata",
+        description: "La tua nuova attività è stata creata con successo",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      setShowCreateActivity(false);
+      createForm.reset();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore nella creazione dell'attività",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const joinActivityMutation = useMutation({
+    mutationFn: async (data: JoinActivityForm) => {
+      return await apiRequest("POST", "/api/activities/join", data);
+    },
+    onSuccess: async () => {
+      toast({
+        title: "Accesso effettuato",
+        description: "Accesso all'attività effettuato con successo",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      setShowJoinActivity(false);
+      joinForm.reset();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore nell'accesso all'attività",
+        variant: "destructive",
+      });
+    },
+  });
+  
+  const onCreateSubmit = (data: CreateActivityForm) => {
+    createActivityMutation.mutate(data);
+  };
+  
+  const onJoinSubmit = (data: JoinActivityForm) => {
+    joinActivityMutation.mutate(data);
+  };
 
   // Don't show navigation items if user doesn't have an activity selected
   const showNavigation = hasActivity;
@@ -115,10 +232,39 @@ export function Navbar() {
                     <ChevronDown className="h-3 w-3 ml-1" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setLocation("/attivita")}>
-                    <Store className="h-4 w-4 mr-2" />
-                    Cambia Attività
+                <DropdownMenuContent align="end" className="w-56">
+                  {/* Switch Activity - Show other activities if user has multiple */}
+                  {userActivities.length > 1 && (
+                    <>
+                      <div className="px-2 py-1.5 text-sm font-medium text-gray-500 dark:text-gray-400">
+                        Cambia Attività
+                      </div>
+                      {userActivities
+                        .filter(activity => activity.id !== currentActivity.id)
+                        .map((activity) => (
+                          <DropdownMenuItem 
+                            key={activity.id}
+                            onClick={() => switchActivity(activity.id)}
+                          >
+                            <Store className="h-4 w-4 mr-2" />
+                            {activity.nome}
+                          </DropdownMenuItem>
+                        ))
+                      }
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+                  
+                  {/* Create New Activity */}
+                  <DropdownMenuItem onClick={() => setShowCreateActivity(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Crea nuova attività
+                  </DropdownMenuItem>
+                  
+                  {/* Join Activity */}
+                  <DropdownMenuItem onClick={() => setShowJoinActivity(true)}>
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Unisciti ad un'attività
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -229,6 +375,144 @@ export function Navbar() {
           </div>
         </div>
       </div>
+
+      {/* Create Activity Modal */}
+      <Dialog open={showCreateActivity} onOpenChange={setShowCreateActivity}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Crea nuova attività</DialogTitle>
+            <DialogDescription>
+              Crea una nuova attività per la tua azienda
+            </DialogDescription>
+          </DialogHeader>
+          
+          <Form {...createForm}>
+            <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4">
+              <FormField
+                control={createForm.control}
+                name="nome"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nome Attività</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="Es. Negozio di Abbigliamento"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={createForm.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="password"
+                        placeholder="Password per l'attività"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <div className="flex gap-2 pt-4">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setShowCreateActivity(false)}
+                  className="flex-1"
+                >
+                  Annulla
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={createActivityMutation.isPending}
+                  className="flex-1"
+                >
+                  {createActivityMutation.isPending ? "Creazione..." : "Crea"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Join Activity Modal */}
+      <Dialog open={showJoinActivity} onOpenChange={setShowJoinActivity}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Unisciti ad un'attività</DialogTitle>
+            <DialogDescription>
+              Accedi ad un'attività esistente
+            </DialogDescription>
+          </DialogHeader>
+          
+          <Form {...joinForm}>
+            <form onSubmit={joinForm.handleSubmit(onJoinSubmit)} className="space-y-4">
+              <FormField
+                control={joinForm.control}
+                name="nome"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nome Attività</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="Nome dell'attività esistente"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={joinForm.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="password"
+                        placeholder="Password dell'attività"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <div className="flex gap-2 pt-4">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setShowJoinActivity(false)}
+                  className="flex-1"
+                >
+                  Annulla
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={joinActivityMutation.isPending}
+                  className="flex-1"
+                >
+                  {joinActivityMutation.isPending ? "Accesso..." : "Accedi"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </nav>
   );
 }
