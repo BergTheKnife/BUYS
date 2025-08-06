@@ -265,6 +265,25 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, userId));
   }
 
+  async leaveActivity(activityId: string, userId: string): Promise<void> {
+    // Remove user from activity
+    await db
+      .delete(activityUsers)
+      .where(and(
+        eq(activityUsers.activityId, activityId),
+        eq(activityUsers.userId, userId)
+      ));
+    
+    // Update user's last activity to null if it was this activity
+    await db
+      .update(users)
+      .set({ lastActivityId: null })
+      .where(and(
+        eq(users.id, userId),
+        eq(users.lastActivityId, activityId)
+      ));
+  }
+
 
 
   // Updated inventory methods with activity context

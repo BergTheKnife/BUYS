@@ -783,6 +783,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Leave activity endpoint
+  app.post('/api/activities/:activityId/leave', requireActivity, async (req, res) => {
+    try {
+      const { activityId } = req.params;
+      const userId = req.session.userId!;
+      
+      // Check if this is current activity
+      if (req.session.activityId !== activityId) {
+        return res.status(400).json({ message: "Devi essere nell'attività per abbandonarla" });
+      }
+      
+      // Check if user is the owner
+      const activity = await storage.getActivityById(activityId);
+      if (activity?.proprietarioId === userId) {
+        return res.status(400).json({ 
+          message: "Non puoi abbandonare un'attività che hai creato. Puoi solo eliminarla." 
+        });
+      }
+      
+      // Leave activity
+      await storage.leaveActivity(activityId, userId);
+      
+      // Clear session activity
+      delete req.session.activityId;
+      
+      res.json({ message: "Hai abbandonato l'attività con successo" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nell'abbandono dell'attività" });
+    }
+  });
+
   // Update username
   app.put('/api/auth/username', requireAuth, async (req, res) => {
     try {

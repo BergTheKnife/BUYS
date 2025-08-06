@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { Building2, Edit, Lock, Trash2, Settings } from "lucide-react";
+import { Building2, Edit, Lock, Trash2, Settings, LogOut } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { z } from "zod";
 
@@ -35,9 +35,11 @@ type ChangeActivityPassword = z.infer<typeof changeActivityPasswordSchema>;
 type DeleteActivity = z.infer<typeof deleteActivitySchema>;
 
 export default function ActivitySettings() {
-  const { currentActivity } = useAuth();
+  const { currentActivity, user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  const isOwner = currentActivity?.proprietarioId === user?.id;
 
   const nameForm = useForm<UpdateActivityName>({
     resolver: zodResolver(updateActivityNameSchema),
@@ -128,6 +130,36 @@ export default function ActivitySettings() {
       });
     },
   });
+
+  const leaveActivityMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/activities/${currentActivity?.id}/leave`);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Attività abbandonata",
+        description: "Hai abbandonato l'attività con successo",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
+      // Redirect to activity selection after leaving
+      window.location.href = "/attivita";
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore nell'abbandono dell'attività",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const onLeaveActivity = async () => {
+    if (confirm("Sei sicuro di voler abbandonare questa attività? Non potrai più accedere ai dati finché non ti unisci di nuovo.")) {
+      await leaveActivityMutation.mutateAsync();
+    }
+  };
 
   const onUpdateName = async (data: UpdateActivityName) => {
     await updateNameMutation.mutateAsync(data);
@@ -261,12 +293,44 @@ export default function ActivitySettings() {
 
           <Separator />
 
-          {/* Elimina Attività */}
-          <Card className="border-destructive">
+          {/* Abbandona/Elimina Attività */}
+          {!isOwner && (
+            <Card className="border-orange-500">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-orange-600">
+                  <LogOut className="h-5 w-5" />
+                  Abbandona Attività
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="bg-orange-50 border border-orange-200 rounded-md p-4">
+                    <p className="text-sm text-orange-800 font-medium mb-2">ℹ️ Informazioni</p>
+                    <p className="text-sm text-orange-700">
+                      Abbandonando l'attività non perderai i dati, ma non potrai più accedervi finché non ti unirai di nuovo.
+                      Solo il proprietario può eliminare definitivamente l'attività.
+                    </p>
+                  </div>
+                  
+                  <Button 
+                    onClick={onLeaveActivity}
+                    variant="outline"
+                    disabled={leaveActivityMutation.isPending}
+                    className="w-full border-orange-300 text-orange-700 hover:bg-orange-50 hover:border-orange-400"
+                  >
+                    {leaveActivityMutation.isPending ? "Abbandono..." : "Abbandona Attività"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {isOwner && (
+            <Card className="border-destructive">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-destructive">
                 <Trash2 className="h-5 w-5" />
-                Elimina Attività
+                Elimina Attività (Solo Proprietario)
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -306,6 +370,7 @@ export default function ActivitySettings() {
               </div>
             </CardContent>
           </Card>
+          )}
 
           <div className="flex justify-center pt-8">
             <Button variant="outline" onClick={() => window.history.back()}>
