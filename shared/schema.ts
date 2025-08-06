@@ -11,9 +11,23 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
+  emailVerified: timestamp("email_verified"),
+  isActive: integer("is_active").default(0), // 0 = pending verification, 1 = verified/active
   lastActivityId: uuid("last_activity_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// Email verification tokens
+export const emailVerificationTokens = pgTable("email_verification_tokens", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("email_verification_tokens_user_idx").on(table.userId),
+  index("email_verification_tokens_token_idx").on(table.token),
+]);
 
 // Activities table
 export const activities = pgTable("activities", {
