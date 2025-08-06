@@ -1,6 +1,9 @@
 import express, { type Express } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
+import passport from "passport";
+import { Strategy as LocalStrategy } from "passport-local";
+import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { storage } from "./storage";
 import bcrypt from "bcrypt";
 import multer from "multer";
@@ -56,6 +59,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     },
   }));
+
+  // Initialize Passport
+  app.use(passport.initialize());
+  app.use(passport.session());
+
+  // Passport Local Strategy
+  passport.use(new LocalStrategy({
+    usernameField: 'emailOrUsername',
+    passwordField: 'password'
+  }, async (emailOrUsername, password, done) => {
+    try {
+      const user = await storage.getUserByEmailOrUsername(emailOrUsername);
+      if (!user) {
+        return done(null, false, { message: 'Credenziali non valide' });
+      }
+
+      const isValidPassword = await bcrypt.compare(password, user.password);
+      if (!isValidPassword) {
+        return done(null, false, { message: 'Credenziali non valide' });
+      }
+
+      return done(null, user);
+    } catch (error) {
+      return done(error);
+    }
+  }));
+
+  // Passport Google Strategy
+  passport.use(new GoogleStrategy({
+    clientID: process.env.GOOGLE_CLIENT_ID || "",
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+    callbackURL: "/api/auth/google/callback"
+  }, async (accessToken, refreshToken, profile, done) => {
+    try {
+      // Check if user exists with this Google ID or email
+      let user = await storage.getUserByEmail(profile.emails?.[0]?.value || "");
+      
+      if (!user) {
+        // Create new user from Google profile
+        const userData = {
+          nome: profile.name?.givenName || "",
+          cognome: profile.name?.familyName || "",
+          email: profile.emails?.[0]?.value || "",
+          username: profile.emails?.[0]?.value?.split('@')[0] || `user_${Date.now()}`,
+          password: "" // No password for Google users
+        };
+        
+        user = await storage.createUser(userData);
+      }
+      
+      return done(null, user);
+    } catch (error) {
+      return done(error);
+    }
+  }));
+
+  // Passport serialization
+  passport.serializeUser((user: any, done) => {
+    done(null, user.id);
+  });
+
+  passport.deserializeUser(async (id: string, done) => {
+    try {
+      const user = await storage.getUser(id);
+      done(null, user);
+    } catch (error) {
+      done(error);
+    }
+  });
 
   // Serve uploaded files
   app.use('/uploads', express.static(uploadDir));

@@ -126,11 +126,8 @@ export default function Welcome() {
   };
 
   const handleGoogleAuth = () => {
-    // For now, show a message that Google OAuth will be implemented
-    toast({
-      title: "Funzionalità in arrivo",
-      description: "L'autenticazione con Google sarà disponibile a breve",
-    });
+    // Redirect to Google OAuth endpoint
+    window.location.href = "/api/auth/google";
   };
 
   return (
