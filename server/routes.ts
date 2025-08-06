@@ -6,11 +6,23 @@ import bcrypt from "bcrypt";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { insertUserSchema, loginUserSchema, insertInventarioSchema, insertVenditaSchema, insertSpesaSchema, updateProfileSchema, changePasswordSchema, updateUsernameSchema } from "@shared/schema";
+import { 
+  insertUserSchema, 
+  loginUserSchema, 
+  insertInventarioSchema, 
+  insertVenditaSchema, 
+  insertSpesaSchema, 
+  updateProfileSchema, 
+  changePasswordSchema, 
+  updateUsernameSchema,
+  insertActivitySchema,
+  joinActivitySchema
+} from "@shared/schema";
 
 declare module "express-session" {
   interface SessionData {
     userId?: string;
+    activityId?: string;
   }
 }
 
@@ -52,6 +64,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const requireAuth = (req: any, res: any, next: any) => {
     if (!req.session.userId) {
       return res.status(401).json({ message: "Autenticazione richiesta" });
+    }
+    next();
+  };
+
+  // Activity middleware - requires both auth and activity
+  const requireActivity = (req: any, res: any, next: any) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ message: "Autenticazione richiesta" });
+    }
+    if (!req.session.activityId) {
+      return res.status(400).json({ message: "Nessuna attività selezionata" });
     }
     next();
   };
@@ -113,7 +136,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Credenziali non valide" });
       }
 
+      // Set session
       req.session.userId = user.id;
+      
+      // Set last activity if user has one
+      if (user.lastActivityId) {
+        req.session.activityId = user.lastActivityId;
+      }
 
       res.json({ 
         user: { 
@@ -122,6 +151,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           cognome: user.cognome, 
           email: user.email, 
           username: user.username,
+          lastActivityId: user.lastActivityId,
           createdAt: user.createdAt
         } 
       });
@@ -146,6 +176,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Utente non trovato" });
       }
 
+      // Update session activity if user has one
+      if (user.lastActivityId && !req.session.activityId) {
+        req.session.activityId = user.lastActivityId;
+      }
+
       res.json({ 
         user: { 
           id: user.id, 
@@ -153,6 +188,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           cognome: user.cognome, 
           email: user.email, 
           username: user.username,
+          lastActivityId: user.lastActivityId,
+          currentActivityId: req.session.activityId,
           createdAt: user.createdAt
         } 
       });
@@ -212,6 +249,122 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Activity routes
+  app.post('/api/activities', requireAuth, async (req, res) => {
+    try {
+      const activityData = insertActivitySchema.parse(req.body);
+      
+      // Check if activity name already exists
+      const existingActivity = await storage.getActivityByName(activityData.nome);
+      if (existingActivity) {
+        return res.status(400).json({ message: "Nome attività già esistente" });
+      }
+
+      // Hash activity password
+      const hashedPassword = await bcrypt.hash(activityData.password, 10);
+      
+      const activity = await storage.createActivity({
+        nome: activityData.nome,
+        passwordHash: hashedPassword,
+        proprietarioId: req.session.userId!,
+      });
+
+      // Set as current activity
+      req.session.activityId = activity.id;
+
+      res.json({ 
+        message: "Attività creata con successo",
+        activity: {
+          id: activity.id,
+          nome: activity.nome,
+          proprietarioId: activity.proprietarioId,
+          createdAt: activity.createdAt
+        }
+      });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Errore durante la creazione dell'attività" });
+    }
+  });
+
+  app.post('/api/activities/join', requireAuth, async (req, res) => {
+    try {
+      const joinData = joinActivitySchema.parse(req.body);
+      
+      // Find activity by name
+      const activity = await storage.getActivityByName(joinData.nome);
+      if (!activity) {
+        return res.status(404).json({ message: "Attività non trovata o password errata" });
+      }
+
+      // Check password
+      const isValidPassword = await bcrypt.compare(joinData.password, activity.passwordHash);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "Attività non trovata o password errata" });
+      }
+
+      // Join activity
+      await storage.joinActivity(activity.id, req.session.userId!);
+
+      // Set as current activity
+      req.session.activityId = activity.id;
+
+      res.json({ 
+        message: "Accesso all'attività effettuato con successo",
+        activity: {
+          id: activity.id,
+          nome: activity.nome,
+          proprietarioId: activity.proprietarioId,
+          createdAt: activity.createdAt
+        }
+      });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Errore durante l'accesso all'attività" });
+    }
+  });
+
+  app.get('/api/activities', requireAuth, async (req, res) => {
+    try {
+      const activities = await storage.getActivitiesByUserId(req.session.userId!);
+      res.json(activities.map(activity => ({
+        id: activity.id,
+        nome: activity.nome,
+        proprietarioId: activity.proprietarioId,
+        createdAt: activity.createdAt
+      })));
+    } catch (error) {
+      res.status(500).json({ message: "Errore del server" });
+    }
+  });
+
+  app.post('/api/activities/switch/:activityId', requireAuth, async (req, res) => {
+    try {
+      const { activityId } = req.params;
+      
+      // Check if user is member of this activity
+      const activities = await storage.getActivitiesByUserId(req.session.userId!);
+      const activity = activities.find(a => a.id === activityId);
+      
+      if (!activity) {
+        return res.status(403).json({ message: "Non sei membro di questa attività" });
+      }
+
+      // Switch to this activity
+      req.session.activityId = activityId;
+
+      res.json({ 
+        message: "Attività cambiata con successo",
+        activity: {
+          id: activity.id,
+          nome: activity.nome,
+          proprietarioId: activity.proprietarioId,
+          createdAt: activity.createdAt
+        }
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Errore del server" });
+    }
+  });
+
   // Profile management routes
   app.put('/api/auth/profile', requireAuth, async (req, res) => {
     try {
@@ -268,13 +421,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/export/data', requireAuth, async (req, res) => {
+  app.get('/api/export/data', requireActivity, async (req, res) => {
     try {
       const user = await storage.getUser(req.session.userId!);
-      const inventory = await storage.getInventoryByUserId(req.session.userId!);
-      const sales = await storage.getSalesByUserId(req.session.userId!);
-      const expenses = await storage.getExpensesByUserId(req.session.userId!);
-      const stats = await storage.getUserStats(req.session.userId!);
+      const inventory = await storage.getInventoryByActivity(req.session.activityId!);
+      const sales = await storage.getSalesByActivity(req.session.activityId!);
+      const expenses = await storage.getExpensesByActivity(req.session.activityId!);
+      const stats = await storage.getActivityStats(req.session.activityId!);
 
       const exportData = {
         user: {
@@ -284,6 +437,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           username: user?.username,
           createdAt: user?.createdAt
         },
+        activityId: req.session.activityId!,
         inventory,
         sales,
         expenses,
@@ -292,7 +446,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       res.setHeader('Content-Type', 'application/json');
-      res.setHeader('Content-Disposition', 'attachment; filename="davalb_export.json"');
+      res.setHeader('Content-Disposition', 'attachment; filename="buys_activity_export.json"');
       res.json(exportData);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nell'esportazione" });
@@ -319,9 +473,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Stats routes
-  app.get('/api/stats', requireAuth, async (req, res) => {
+  app.get('/api/stats', requireActivity, async (req, res) => {
     try {
-      const stats = await storage.getUserStats(req.session.userId!);
+      const stats = await storage.getActivityStats(req.session.activityId!);
       res.json(stats);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nel recupero delle statistiche" });
@@ -329,9 +483,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Recent activities route
-  app.get('/api/recent-activities', requireAuth, async (req, res) => {
+  app.get('/api/recent-activities', requireActivity, async (req, res) => {
     try {
-      const activities = await storage.getRecentActivities(req.session.userId!);
+      const activities = await storage.getRecentActivitiesByActivity(req.session.activityId!);
       res.json(activities);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nel recupero delle attività recenti" });
@@ -339,9 +493,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Top selling items route
-  app.get('/api/top-selling-items', requireAuth, async (req, res) => {
+  app.get('/api/top-selling-items', requireActivity, async (req, res) => {
     try {
-      const topItems = await storage.getTopSellingItems(req.session.userId!);
+      const topItems = await storage.getTopSellingItemsByActivity(req.session.activityId!);
       res.json(topItems);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nel recupero degli articoli più venduti" });
@@ -349,9 +503,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Chart data route
-  app.get('/api/chart-data', requireAuth, async (req, res) => {
+  app.get('/api/chart-data', requireActivity, async (req, res) => {
     try {
-      const chartData = await storage.getChartData(req.session.userId!);
+      const chartData = await storage.getChartDataByActivity(req.session.activityId!);
       res.json(chartData);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nel recupero dei dati del grafico" });
@@ -359,16 +513,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Inventory routes
-  app.get('/api/inventario', requireAuth, async (req, res) => {
+  app.get('/api/inventario', requireActivity, async (req, res) => {
     try {
-      const inventory = await storage.getInventoryByUserId(req.session.userId!);
+      const inventory = await storage.getInventoryByActivity(req.session.activityId!);
       res.json(inventory);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nel recupero dell'inventario" });
     }
   });
 
-  app.post('/api/inventario', requireAuth, upload.single('immagine'), async (req, res) => {
+  app.post('/api/inventario', requireActivity, upload.single('immagine'), async (req, res) => {
     try {
       // Convert form data types
       const formData = {
@@ -391,6 +545,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const item = await storage.createInventoryItem({
         ...itemData,
         userId: req.session.userId!,
+        activityId: req.session.activityId!,
         immagineUrl: immagineUrl,
       } as any);
 
@@ -398,6 +553,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const totalCost = Number(itemData.costo) * itemData.quantita;
       await storage.createExpense({
         userId: req.session.userId!,
+        activityId: req.session.activityId!,
         voce: `Acquisto inventario: ${itemData.nomeArticolo} - ${itemData.taglia}`,
         importo: totalCost.toString(),
         categoria: "Inventario",
@@ -411,7 +567,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put('/api/inventario/:id', requireAuth, upload.single('immagine'), async (req, res) => {
+  app.put('/api/inventario/:id', requireActivity, upload.single('immagine'), async (req, res) => {
     try {
       const { id } = req.params;
       const updates = insertInventarioSchema.partial().parse(req.body);
@@ -423,7 +579,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         (updates as any).immagineUrl = `/uploads/${filename}`;
       }
 
-      const item = await storage.updateInventoryItem(id, req.session.userId!, updates);
+      const item = await storage.updateInventoryItem(id, req.session.activityId!, updates);
       if (!item) {
         return res.status(404).json({ message: "Articolo non trovato" });
       }
@@ -434,10 +590,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/inventario/:id', requireAuth, async (req, res) => {
+  app.delete('/api/inventario/:id', requireActivity, async (req, res) => {
     try {
       const { id } = req.params;
-      const deleted = await storage.deleteInventoryItem(id, req.session.userId!);
+      const deleted = await storage.deleteInventoryItem(id, req.session.activityId!);
       
       if (!deleted) {
         return res.status(404).json({ message: "Articolo non trovato" });
@@ -449,7 +605,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/inventario/:id/restock', requireAuth, async (req, res) => {
+  app.post('/api/inventario/:id/restock', requireActivity, async (req, res) => {
     try {
       const { id } = req.params;
       const { quantita } = req.body;
@@ -458,7 +614,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Quantità non valida" });
       }
 
-      const item = await storage.getInventoryItem(id, req.session.userId!);
+      const item = await storage.getInventoryItem(id, req.session.activityId!);
       if (!item) {
         return res.status(404).json({ message: "Articolo non trovato" });
       }
@@ -471,6 +627,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const totalCost = Number(item.costo) * parseInt(quantita);
       await storage.createExpense({
         userId: req.session.userId!,
+        activityId: req.session.activityId!,
         voce: `Rifornimento: ${item.nomeArticolo} - ${item.taglia} (${quantita} pz)`,
         importo: totalCost.toString(),
         categoria: "Inventario",
@@ -478,7 +635,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Get updated item
-      const updatedItem = await storage.getInventoryItem(id, req.session.userId!);
+      const updatedItem = await storage.getInventoryItem(id, req.session.activityId!);
       res.json(updatedItem);
     } catch (error: any) {
       console.error('Restock error:', error);
@@ -487,16 +644,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Sales routes
-  app.get('/api/vendite', requireAuth, async (req, res) => {
+  app.get('/api/vendite', requireActivity, async (req, res) => {
     try {
-      const sales = await storage.getSalesByUserId(req.session.userId!);
+      const sales = await storage.getSalesByActivity(req.session.activityId!);
       res.json(sales);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nel recupero delle vendite" });
     }
   });
 
-  app.post('/api/vendite', requireAuth, async (req, res) => {
+  app.post('/api/vendite', requireActivity, async (req, res) => {
     try {
       // Convert form data types
       const formData = {
@@ -511,7 +668,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const saleData = insertVenditaSchema.parse(formData);
       
       // Get inventory item to calculate margin and update quantity
-      const inventoryItem = await storage.getInventoryItem(saleData.inventarioId, req.session.userId!);
+      const inventoryItem = await storage.getInventoryItem(saleData.inventarioId, req.session.activityId!);
       if (!inventoryItem) {
         return res.status(404).json({ message: "Articolo non trovato nell'inventario" });
       }
@@ -530,6 +687,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sale = await storage.createSale({
         ...saleData,
         userId: req.session.userId!,
+        activityId: req.session.activityId!,
         nomeArticolo: inventoryItem.nomeArticolo,
         taglia: inventoryItem.taglia,
         margine: margineTotal.toString(),
@@ -546,16 +704,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Expenses routes
-  app.get('/api/spese', requireAuth, async (req, res) => {
+  app.get('/api/spese', requireActivity, async (req, res) => {
     try {
-      const expenses = await storage.getExpensesByUserId(req.session.userId!);
+      const expenses = await storage.getExpensesByActivity(req.session.activityId!);
       res.json(expenses);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nel recupero delle spese" });
     }
   });
 
-  app.post('/api/spese', requireAuth, async (req, res) => {
+  app.post('/api/spese', requireActivity, async (req, res) => {
     try {
       // Convert form data types
       const formData = {
@@ -570,6 +728,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const expense = await storage.createExpense({
         ...expenseData,
         userId: req.session.userId!,
+        activityId: req.session.activityId!,
       });
 
       res.json(expense);
@@ -579,12 +738,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put('/api/spese/:id', requireAuth, async (req, res) => {
+  app.put('/api/spese/:id', requireActivity, async (req, res) => {
     try {
       const { id } = req.params;
       const updates = insertSpesaSchema.partial().parse(req.body);
       
-      const expense = await storage.updateExpense(id, req.session.userId!, updates);
+      const expense = await storage.updateExpense(id, req.session.activityId!, updates);
       if (!expense) {
         return res.status(404).json({ message: "Spesa non trovata" });
       }
@@ -595,10 +754,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/spese/:id', requireAuth, async (req, res) => {
+  app.delete('/api/spese/:id', requireActivity, async (req, res) => {
     try {
       const { id } = req.params;
-      const deleted = await storage.deleteExpense(id, req.session.userId!);
+      const deleted = await storage.deleteExpense(id, req.session.activityId!);
       
       if (!deleted) {
         return res.status(404).json({ message: "Spesa non trovata" });

@@ -1,0 +1,42 @@
+Dopo la registrazione o il primo login, mostra una schermata con due opzioni:
+•	[Crea una nuova attività]
+•	[Accedi a un’attività esistente]
+Quando l’utente seleziona “Crea una nuova attività”, mostra un form con:
+•	Nome dell’attività (obbligatorio, univoco)
+•	Password attività (obbligatoria, min. 6 caratteri)
+Alla conferma:
+•	Crea una nuova riga nella tabella attività con i campi:
+o	nome (stringa unica)
+o	password_hash (usa bcrypt o simile)
+o	proprietario_id (ID utente che ha creato l’attività)
+•	Crea una riga nella tabella attività_utenti per associare l’utente come membro
+•	Salva l’attività_id in sessione o localStorage come “attività attiva”
+•	Reindirizza l’utente alla dashboard (che parte con tutto vuoto: magazzino, vendite, spese)
+Quando l’utente seleziona “Accedi a un’attività esistente”, mostra un form con:
+•	Nome dell’attività
+•	Password
+Alla conferma:
+1.	Cerca nella tabella attività un record con quel nome
+2.	Se esiste, confronta la password inserita con la password_hash
+3.	Se è corretta:
+o	Aggiungi l’utente come membro alla tabella attività_utenti (se non già presente)
+o	Salva l’attività_id come attività attiva
+o	Reindirizza alla dashboard dell’attività (vuota se nuova)
+4.	Se non esiste o la password è errata:
+o	Mostra un errore: "Attività non trovata o password errata"
+
+Ogni attività ha il proprio magazzino, vendite, spese e bilancio.
+Nessun dato viene condiviso tra attività diverse.
+Tutte le tabelle (magazzino, vendite, spese) devono contenere un campo attività_id.
+Quando l’utente entra in un’attività:
+•	I dati mostrati sono solo quelli collegati a quell’attività_id
+•	Ogni nuova attività parte da zero: nessun articolo, nessuna spesa o vendita
+Quando l’utente cambia attività, aggiorna l’attività_id in sessione e ricarica i dati corrispondenti.
+
+Comportamento dopo login:
+•	L’app si apre automaticamente sull’ultima attività usata qualora l’utente sia già inserito in un’attività.
+
+All’interno dell’app (menu mobile o laterale), devono esserci:
+•	Opzione per creare una nuova attività
+•	Opzione per accedere a un’attività esistente
+•	Opzione per cambiare attività corrente tra quelle a cui si è associati

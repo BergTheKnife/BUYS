@@ -1,0 +1,69 @@
+PASSO 1 – Creazione di una nuova attività
+
+    Dopo la registrazione/login, mostra una schermata con due opzioni:
+
+        [Crea una nuova attività]
+
+        [Accedi a un’attività esistente]
+
+    Quando l’utente seleziona “Crea una nuova attività”, mostra un form con:
+
+        Nome dell’attività (obbligatorio, univoco)
+
+        Password attività (obbligatoria, min. 6 caratteri)
+
+    Alla conferma:
+
+        Crea una nuova riga nella tabella attività con i campi:
+
+            nome (stringa unica)
+
+            password_hash (usa bcrypt o simile)
+
+            proprietario_id (ID utente che ha creato l’attività)
+
+        Crea una riga nella tabella attività_utenti per associare l’utente come membro
+
+        Salva l’attività_id in sessione o localStorage come “attività attiva”
+
+        Reindirizza l’utente alla dashboard (che parte con tutto vuoto: magazzino, vendite, spese)
+
+✅ PASSO 2 – Accesso ad un’attività esistente
+
+    Quando l’utente seleziona “Accedi a un’attività esistente”, mostra un form con:
+
+        Nome dell’attività
+
+        Password
+
+    Al submit:
+
+        Cerca nella tabella attività un record con quel nome
+
+        Se esiste, confronta la password inserita con la password_hash
+
+        Se è corretta:
+
+            Aggiungi l’utente come membro alla tabella attività_utenti (se non già presente)
+
+            Salva l’attività_id come attività attiva
+
+            Reindirizza alla dashboard dell’attività (vuota se nuova)
+
+        Se non esiste o la password è errata:
+
+            Mostra un errore: "Attività non trovata o password errata"
+
+✅ PASSO 3 – Separazione dei dati per attività
+
+    Ogni attività ha il proprio magazzino, vendite, spese e bilancio.
+    Nessun dato viene condiviso tra attività diverse.
+
+    Tutte le tabelle (magazzino, vendite, spese) devono contenere un campo attività_id.
+    Quando l’utente entra in un’attività:
+
+        I dati mostrati sono solo quelli collegati a quell’attività_id
+
+        Ogni nuova attività parte da zero: nessun articolo, nessuna spesa o vendita
+
+    Quando l’utente cambia attività, aggiorna l’attività_id in sessione e ricarica i dati corrispondenti.

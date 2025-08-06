@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, decimal, integer, timestamp, uuid } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, decimal, integer, timestamp, uuid, index } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -11,12 +11,35 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
+  lastActivityId: uuid("last_activity_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// Activities table
+export const activities = pgTable("activities", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  nome: varchar("nome", { length: 100 }).notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  proprietarioId: uuid("proprietario_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Activity users junction table
+export const activityUsers = pgTable("activity_users", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  activityId: uuid("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  joinedAt: timestamp("joined_at").defaultNow(),
+}, (table) => [
+  index("activity_users_activity_idx").on(table.activityId),
+  index("activity_users_user_idx").on(table.userId),
+]);
 
 export const inventario = pgTable("inventario", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  activityId: uuid("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
   nomeArticolo: text("nome_articolo").notNull(),
   taglia: text("taglia").notNull(),
   costo: decimal("costo", { precision: 10, scale: 2 }).notNull(),
@@ -28,6 +51,7 @@ export const inventario = pgTable("inventario", {
 export const vendite = pgTable("vendite", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  activityId: uuid("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
   inventarioId: uuid("inventario_id").notNull().references(() => inventario.id),
   nomeArticolo: text("nome_articolo").notNull(),
   taglia: text("taglia").notNull(),
@@ -43,6 +67,7 @@ export const vendite = pgTable("vendite", {
 export const spese = pgTable("spese", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  activityId: uuid("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
   voce: text("voce").notNull(),
   importo: decimal("importo", { precision: 10, scale: 2 }).notNull(),
   categoria: text("categoria").notNull(),
@@ -54,12 +79,40 @@ export const usersRelations = relations(users, ({ many }) => ({
   inventario: many(inventario),
   vendite: many(vendite),
   spese: many(spese),
+  ownedActivities: many(activities),
+  activityMemberships: many(activityUsers),
+}));
+
+export const activitiesRelations = relations(activities, ({ one, many }) => ({
+  proprietario: one(users, {
+    fields: [activities.proprietarioId],
+    references: [users.id],
+  }),
+  members: many(activityUsers),
+  inventario: many(inventario),
+  vendite: many(vendite),
+  spese: many(spese),
+}));
+
+export const activityUsersRelations = relations(activityUsers, ({ one }) => ({
+  activity: one(activities, {
+    fields: [activityUsers.activityId],
+    references: [activities.id],
+  }),
+  user: one(users, {
+    fields: [activityUsers.userId],
+    references: [users.id],
+  }),
 }));
 
 export const inventarioRelations = relations(inventario, ({ one, many }) => ({
   user: one(users, {
     fields: [inventario.userId],
     references: [users.id],
+  }),
+  activity: one(activities, {
+    fields: [inventario.activityId],
+    references: [activities.id],
   }),
   vendite: many(vendite),
 }));
@@ -68,6 +121,10 @@ export const venditeRelations = relations(vendite, ({ one }) => ({
   user: one(users, {
     fields: [vendite.userId],
     references: [users.id],
+  }),
+  activity: one(activities, {
+    fields: [vendite.activityId],
+    references: [activities.id],
   }),
   inventario: one(inventario, {
     fields: [vendite.inventarioId],
@@ -79,6 +136,10 @@ export const speseRelations = relations(spese, ({ one }) => ({
   user: one(users, {
     fields: [spese.userId],
     references: [users.id],
+  }),
+  activity: one(activities, {
+    fields: [spese.activityId],
+    references: [activities.id],
   }),
 }));
 
@@ -117,6 +178,22 @@ export const updateUsernameSchema = z.object({
   username: z.string().min(3, "Username deve essere di almeno 3 caratteri"),
 });
 
+// Activity schemas
+export const insertActivitySchema = createInsertSchema(activities, {
+  nome: z.string().min(1, "Nome attività richiesto").max(100, "Nome troppo lungo"),
+  passwordHash: z.string().min(6, "Password deve essere di almeno 6 caratteri"),
+}).omit({
+  id: true,
+  proprietarioId: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const joinActivitySchema = z.object({
+  nome: z.string().min(1, "Nome attività richiesto"),
+  password: z.string().min(1, "Password richiesta"),
+});
+
 export const insertInventarioSchema = createInsertSchema(inventario).omit({
   id: true,
   userId: true,
@@ -151,3 +228,8 @@ export type InsertVendita = z.infer<typeof insertVenditaSchema>;
 export type Vendita = typeof vendite.$inferSelect;
 export type InsertSpesa = z.infer<typeof insertSpesaSchema>;
 export type Spesa = typeof spese.$inferSelect;
+export type Activity = typeof activities.$inferSelect;
+export type InsertActivity = z.infer<typeof insertActivitySchema>;
+export type JoinActivity = z.infer<typeof joinActivitySchema>;
+export type ActivityUser = typeof activityUsers.$inferSelect;
+export type InsertActivityUser = typeof activityUsers.$inferInsert;
