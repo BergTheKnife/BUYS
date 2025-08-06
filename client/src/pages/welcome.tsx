@@ -81,11 +81,7 @@ export default function Welcome() {
       if (error.message?.includes("Account non verificato")) {
         setVerificationMessage("Il tuo account necessita di verifica email. Controlla la tua casella di posta e clicca sul link ricevuto.");
         setResendEmail(data.emailOrUsername); // Store email for resend button
-        toast({
-          title: "Account Non Verificato",
-          description: "Controlla la tua email per completare la verifica",
-          variant: "destructive",
-        });
+        // Don't show toast for verification error - handled in UI instead
       } else {
         toast({
           title: "Errore",
@@ -126,11 +122,20 @@ export default function Welcome() {
   const resendVerificationMutation = useMutation({
     mutationKey: ['resend-verification'],
     mutationFn: async (email: string) => {
-      return apiRequest({
-        endpoint: '/api/auth/resend-verification',
+      const response = await fetch('/api/auth/resend-verification', {
         method: 'POST',
-        body: { email }
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email })
       });
+      
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: 'Errore di rete' }));
+        throw new Error(error.message);
+      }
+      
+      return response.json();
     },
     onSuccess: () => {
       toast({
