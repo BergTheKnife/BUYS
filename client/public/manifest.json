@@ -1,18 +1,23 @@
 {
-  "name": "BUYS - Build Up Your Store",
+  "name": "BUYS",
   "short_name": "BUYS",
   "description": "Sistema di gestione inventario e vendite per negozi di abbigliamento",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "theme_color": "#3B82F6",
+  "theme_color": "#FF9500",
   "background_color": "#FFFFFF",
   "icons": [
     {
       "src": "/app-icon.png",
-      "sizes": "512x512",
+      "sizes": "1024x1024",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/app-icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
     },
     {
       "src": "/app-icon.png",
@@ -22,6 +27,21 @@
     {
       "src": "/app-icon.png",
       "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/app-icon.png",
+      "sizes": "167x167",
+      "type": "image/png"
+    },
+    {
+      "src": "/app-icon.png",
+      "sizes": "152x152",
+      "type": "image/png"
+    },
+    {
+      "src": "/app-icon.png",
+      "sizes": "120x120",
       "type": "image/png"
     }
   ]
