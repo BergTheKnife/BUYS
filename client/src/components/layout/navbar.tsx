@@ -35,7 +35,8 @@ import {
   Plus,
   UserPlus,
   Edit,
-  Lock
+  Lock,
+  Shield
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -296,15 +297,11 @@ export function Navbar() {
                   <User className="h-4 w-4 mr-2" />
                   Profilo
                 </DropdownMenuItem>
-                {process.env.NODE_ENV === 'development' && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => setLocation("/admin")}>
-                      <Settings className="h-4 w-4 mr-2" />
-                      <span className="text-red-600 font-medium">Admin Panel</span>
-                    </DropdownMenuItem>
-                  </>
-                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setLocation("/admin")}>
+                  <Shield className="h-4 w-4 mr-2" />
+                  <span className="text-blue-600 font-medium">Amministratore</span>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="h-4 w-4 mr-2" />

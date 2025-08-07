@@ -1,24 +1,24 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Shield, Users, Activity, Trash2, Lock, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  Users, 
-  Building2, 
-  Trash2, 
-  Shield, 
-  Calendar,
-  Mail,
-  User,
-  Settings
-} from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
+import { z } from "zod";
+
+const adminPasswordSchema = z.object({
+  password: z.string().min(1, "Password richiesta"),
+});
+
+type AdminPasswordForm = z.infer<typeof adminPasswordSchema>;
 
 interface AdminUser {
   id: string;
@@ -26,54 +26,74 @@ interface AdminUser {
   cognome: string;
   email: string;
   username: string;
-  createdAt: string;
   isActive: number;
-  emailVerified: boolean;
-  activities: Array<{
-    activityId: string;
-    nome: string;
-    proprietarioId: string;
-    joinedAt: string;
-  }>;
+  emailVerified: string | null;
+  createdAt: string;
+  activitiesCount: number;
+  salesCount: number;
+  inventoryCount: number;
 }
 
 interface AdminActivity {
   id: string;
   nome: string;
-  proprietarioId: string;
-  createdAt: string;
   proprietarioNome: string;
-  proprietarioCognome: string;
   proprietarioEmail: string;
-  proprietarioUsername: string;
-  members: Array<{
-    userId: string;
-    nome: string;
-    cognome: string;
-    email: string;
-    username: string;
-    joinedAt: string;
-  }>;
+  membersCount: number;
+  inventoryCount: number;
+  salesCount: number;
+  expensesCount: number;
+  createdAt: string;
+  hasData: boolean;
 }
 
-export default function AdminPanel() {
+export function AdminPage() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [selectedTab, setSelectedTab] = useState("users");
 
-  const { data: users, isLoading: usersLoading } = useQuery<AdminUser[]>({
+  const form = useForm<AdminPasswordForm>({
+    resolver: zodResolver(adminPasswordSchema),
+    defaultValues: { password: "" },
+  });
+
+  // Admin authentication
+  const authMutation = useMutation({
+    mutationFn: async (data: AdminPasswordForm) => {
+      return await apiRequest("POST", "/api/admin/auth", data);
+    },
+    onSuccess: () => {
+      setIsAuthenticated(true);
+      toast({
+        title: "Accesso admin autorizzato",
+        description: "Benvenuto nel pannello amministratore",
+      });
+      form.reset();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Accesso negato",
+        description: error.message || "Password amministratore non corretta",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Fetch admin data
+  const { data: adminUsers = [], isLoading: usersLoading } = useQuery<AdminUser[]>({
     queryKey: ["/api/admin/users"],
-    retry: false,
+    enabled: isAuthenticated,
   });
 
-  const { data: activities, isLoading: activitiesLoading } = useQuery<AdminActivity[]>({
+  const { data: adminActivities = [], isLoading: activitiesLoading } = useQuery<AdminActivity[]>({
     queryKey: ["/api/admin/activities"],
-    retry: false,
+    enabled: isAuthenticated,
   });
 
+  // Delete mutations
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: string) => {
-      await apiRequest("DELETE", `/api/admin/users/${userId}`);
+      return await apiRequest("DELETE", `/api/admin/users/${userId}`);
     },
     onSuccess: () => {
       toast({
@@ -83,10 +103,10 @@ export default function AdminPanel() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/activities"] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
-        title: "Errore",
-        description: error.message || "Errore nell'eliminazione dell'utente",
+        title: "Errore eliminazione",
+        description: error.message || "Impossibile eliminare l'utente",
         variant: "destructive",
       });
     },
@@ -94,7 +114,7 @@ export default function AdminPanel() {
 
   const deleteActivityMutation = useMutation({
     mutationFn: async (activityId: string) => {
-      await apiRequest("DELETE", `/api/admin/activities/${activityId}`);
+      return await apiRequest("DELETE", `/api/admin/activities/${activityId}`);
     },
     onSuccess: () => {
       toast({
@@ -104,232 +124,212 @@ export default function AdminPanel() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/activities"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
-        title: "Errore",
-        description: error.message || "Errore nell'eliminazione dell'attività",
+        title: "Errore eliminazione",
+        description: error.message || "Impossibile eliminare l'attività",
         variant: "destructive",
       });
     },
   });
 
-  const handleDeleteUser = (userId: string, userEmail: string) => {
-    const confirmMessage = `⚠️ OPERAZIONE CRITICA ⚠️
+  const onAuthSubmit = (data: AdminPasswordForm) => {
+    authMutation.mutate(data);
+  };
 
-Stai per eliminare l'utente: ${userEmail}
-
-PROTEZIONE DATI ATTIVA:
-- Se l'utente ha attività con dati business, l'eliminazione sarà BLOCCATA
-- Solo gli utenti senza dati business possono essere eliminati dall'admin
-- Il sistema protegge automaticamente tutti i dati degli utenti
-
-Questa operazione è irreversibile. Confermi?`;
-
-    if (confirm(confirmMessage)) {
+  const handleDeleteUser = (userId: string, userName: string) => {
+    if (window.confirm(`Sei sicuro di voler eliminare l'utente ${userName}? Questa azione è irreversibile.`)) {
       deleteUserMutation.mutate(userId);
     }
   };
 
   const handleDeleteActivity = (activityId: string, activityName: string) => {
-    const confirmMessage = `⚠️ OPERAZIONE CRITICA ⚠️
-
-Stai per eliminare l'attività "${activityName}".
-
-ATTENZIONE: Se questa attività contiene dati business (inventario, vendite, spese), 
-l'eliminazione sarà BLOCCATA automaticamente dal sistema di protezione dati.
-
-Solo le attività completamente vuote possono essere eliminate dall'admin panel.
-
-Confermi di voler procedere?`;
-
-    if (confirm(confirmMessage)) {
+    if (window.confirm(`Sei sicuro di voler eliminare l'attività ${activityName}? Questa azione è irreversibile.`)) {
       deleteActivityMutation.mutate(activityId);
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto py-8 px-4">
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <Shield className="h-6 w-6 text-red-600" />
-            <h1 className="text-2xl font-bold">Pannello di Amministrazione</h1>
-            <Badge variant="destructive">Solo Sviluppatore</Badge>
-          </div>
-          <p className="text-muted-foreground">
-            Gestione utenti e attività dell'applicazione BUYS
-          </p>
-        </div>
-
-        <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="users" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Utenti ({users?.length || 0})
-            </TabsTrigger>
-            <TabsTrigger value="activities" className="flex items-center gap-2">
-              <Building2 className="h-4 w-4" />
-              Attività ({activities?.length || 0})
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="users" className="space-y-4">
-            {usersLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <Shield className="h-12 w-12 text-blue-600" />
+            </div>
+            <CardTitle className="text-2xl font-bold">Pannello Amministratore</CardTitle>
+            <CardDescription>
+              Inserisci la password di amministratore per accedere
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={form.handleSubmit(onAuthSubmit)} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="password">Password Amministratore</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Inserisci password admin"
+                  {...form.register("password")}
+                />
+                {form.formState.errors.password && (
+                  <p className="text-sm text-destructive">
+                    {form.formState.errors.password.message}
+                  </p>
+                )}
               </div>
-            ) : (
-              <div className="grid gap-4">
-                {users?.map((user) => (
-                  <Card key={user.id}>
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3">
-                          <User className="h-5 w-5" />
-                          <div>
-                            <CardTitle className="text-lg">
-                              {user.nome} {user.cognome}
-                            </CardTitle>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                              <Mail className="h-4 w-4" />
-                              {user.email}
-                              <span>•</span>
-                              @{user.username}
-                            </div>
-                          </div>
-                        </div>
+              <Button 
+                type="submit" 
+                className="w-full"
+                disabled={authMutation.isPending}
+              >
+                {authMutation.isPending ? "Verifica..." : "Accedi"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto py-6 px-4">
+      <div className="flex items-center gap-3 mb-6">
+        <Shield className="h-8 w-8 text-blue-600" />
+        <div>
+          <h1 className="text-3xl font-bold">Pannello Amministratore</h1>
+          <p className="text-muted-foreground">Gestione sistema BUYS</p>
+        </div>
+      </div>
+
+      <Tabs defaultValue="users" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="users" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Utenti ({adminUsers.length})
+          </TabsTrigger>
+          <TabsTrigger value="activities" className="flex items-center gap-2">
+            <Activity className="h-4 w-4" />
+            Attività ({adminActivities.length})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="users" className="space-y-4">
+          <Alert>
+            <Eye className="h-4 w-4" />
+            <AlertDescription>
+              Gli utenti con dati (inventario, vendite, spese) sono protetti dalla cancellazione automatica.
+            </AlertDescription>
+          </Alert>
+
+          {usersLoading ? (
+            <div className="text-center py-8">Caricamento utenti...</div>
+          ) : (
+            <div className="grid gap-4">
+              {adminUsers.map((user) => (
+                <Card key={user.id}>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
                         <div className="flex items-center gap-2">
+                          <h3 className="font-semibold">{user.nome} {user.cognome}</h3>
                           <Badge variant={user.isActive ? "default" : "secondary"}>
-                            {user.isActive ? "Attivo" : "Non Verificato"}
+                            {user.isActive ? "Attivo" : "In attesa verifica"}
                           </Badge>
-                          <Badge variant={user.emailVerified ? "default" : "destructive"}>
-                            {user.emailVerified ? "Email Verificata" : "Email Non Verificata"}
-                          </Badge>
+                          {user.emailVerified && (
+                            <Badge variant="outline">Email verificata</Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">@{user.username} • {user.email}</p>
+                        <div className="flex gap-4 text-xs text-muted-foreground">
+                          <span>{user.activitiesCount} attività</span>
+                          <span>{user.salesCount} vendite</span>
+                          <span>{user.inventoryCount} prodotti</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {(user.salesCount > 0 || user.inventoryCount > 0) ? (
+                          <div className="flex items-center gap-1 text-xs text-orange-600">
+                            <Lock className="h-3 w-3" />
+                            Protetto
+                          </div>
+                        ) : (
                           <Button
                             variant="destructive"
                             size="sm"
-                            onClick={() => handleDeleteUser(user.id, user.email)}
+                            onClick={() => handleDeleteUser(user.id, `${user.nome} ${user.cognome}`)}
                             disabled={deleteUserMutation.isPending}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2 text-sm">
-                          <Calendar className="h-4 w-4" />
-                          Registrato: {format(new Date(user.createdAt), "dd MMMM yyyy 'alle' HH:mm", { locale: it })}
-                        </div>
-                        
-                        {user.activities && user.activities.length > 0 && (
-                          <div>
-                            <h4 className="font-medium mb-2">Attività ({user.activities.length}):</h4>
-                            <div className="space-y-2">
-                              {user.activities.map((activity) => (
-                                <div key={activity.activityId} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                                  <div className="flex items-center gap-2">
-                                    <Building2 className="h-4 w-4" />
-                                    <span className="font-medium">{activity.nome}</span>
-                                    {activity.proprietarioId === user.id && (
-                                      <Badge variant="secondary" className="text-xs">Proprietario</Badge>
-                                    )}
-                                  </div>
-                                  <span className="text-xs text-muted-foreground">
-                                    {format(new Date(activity.joinedAt), "dd/MM/yyyy", { locale: it })}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
                         )}
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
 
-          <TabsContent value="activities" className="space-y-4">
-            {activitiesLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              </div>
-            ) : (
-              <div className="grid gap-4">
-                {activities?.map((activity) => (
-                  <Card key={activity.id}>
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3">
-                          <Building2 className="h-5 w-5" />
-                          <div>
-                            <CardTitle className="text-lg">{activity.nome}</CardTitle>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                              <User className="h-4 w-4" />
-                              Proprietario: {activity.proprietarioNome} {activity.proprietarioCognome}
-                              <span>•</span>
-                              {activity.proprietarioEmail}
-                            </div>
-                          </div>
-                        </div>
+        <TabsContent value="activities" className="space-y-4">
+          <Alert>
+            <Eye className="h-4 w-4" />
+            <AlertDescription>
+              Le attività con dati business sono protette dalla cancellazione automatica.
+            </AlertDescription>
+          </Alert>
+
+          {activitiesLoading ? (
+            <div className="text-center py-8">Caricamento attività...</div>
+          ) : (
+            <div className="grid gap-4">
+              {adminActivities.map((activity) => (
+                <Card key={activity.id}>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline">
-                            {activity.members.length} membri
-                          </Badge>
+                          <h3 className="font-semibold">{activity.nome}</h3>
+                          {activity.hasData && (
+                            <Badge variant="outline">Dati presenti</Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Proprietario: {activity.proprietarioNome} ({activity.proprietarioEmail})
+                        </p>
+                        <div className="flex gap-4 text-xs text-muted-foreground">
+                          <span>{activity.membersCount} membri</span>
+                          <span>{activity.inventoryCount} prodotti</span>
+                          <span>{activity.salesCount} vendite</span>
+                          <span>{activity.expensesCount} spese</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {activity.hasData ? (
+                          <div className="flex items-center gap-1 text-xs text-orange-600">
+                            <Lock className="h-3 w-3" />
+                            Protetta
+                          </div>
+                        ) : (
                           <Button
                             variant="destructive"
                             size="sm"
                             onClick={() => handleDeleteActivity(activity.id, activity.nome)}
-                            disabled={deleteActivityMutation.isPending || activity.members.length > 0}
-                            title={activity.members.length > 0 ? "PROTEZIONE DATI: Impossibile eliminare attività con dati business" : "Elimina attività"}
+                            disabled={deleteActivityMutation.isPending}
                           >
                             <Trash2 className="h-4 w-4" />
-                            {activity.members.length > 0 && <span className="ml-1 text-xs">🔒</span>}
                           </Button>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2 text-sm">
-                          <Calendar className="h-4 w-4" />
-                          Creata: {format(new Date(activity.createdAt), "dd MMMM yyyy 'alle' HH:mm", { locale: it })}
-                        </div>
-                        
-                        {activity.members && activity.members.length > 0 && (
-                          <div>
-                            <h4 className="font-medium mb-2">Membri ({activity.members.length}):</h4>
-                            <div className="space-y-2">
-                              {activity.members.map((member) => (
-                                <div key={member.userId} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                                  <div className="flex items-center gap-2">
-                                    <User className="h-4 w-4" />
-                                    <span className="font-medium">{member.nome} {member.cognome}</span>
-                                    <span className="text-sm text-muted-foreground">@{member.username}</span>
-                                    {member.userId === activity.proprietarioId && (
-                                      <Badge variant="secondary" className="text-xs">Proprietario</Badge>
-                                    )}
-                                  </div>
-                                  <span className="text-xs text-muted-foreground">
-                                    {format(new Date(member.joinedAt), "dd/MM/yyyy", { locale: it })}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
                         )}
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
-      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

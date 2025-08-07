@@ -89,6 +89,56 @@ export interface IStorage {
     totalQuantity: number;
     totalRevenue: number;
   }>>;
+
+  // Activity history and members
+  getActivityHistoryByActivity(activityId: string, filter?: string, month?: string, year?: string): Promise<Array<{
+    id: string;
+    type: 'sale' | 'expense' | 'inventory';
+    description: string;
+    amount: number;
+    data: string;
+    details?: any;
+  }>>;
+
+  getActivityMembers(activityId: string): Promise<Array<{
+    id: string;
+    nome: string;
+    cognome: string;
+    displayName: string;
+  }>>;
+
+  // Admin methods
+  getAdminUsers(): Promise<Array<{
+    id: string;
+    nome: string;
+    cognome: string;
+    email: string;
+    username: string;
+    isActive: number;
+    emailVerified: string | null;
+    createdAt: string;
+    activitiesCount: number;
+    salesCount: number;
+    inventoryCount: number;
+  }>>;
+
+  getAdminActivities(): Promise<Array<{
+    id: string;
+    nome: string;
+    proprietarioNome: string;
+    proprietarioEmail: string;
+    membersCount: number;
+    inventoryCount: number;
+    salesCount: number;
+    expensesCount: number;
+    createdAt: string;
+    hasData: boolean;
+  }>>;
+
+  userHasData(userId: string): Promise<boolean>;
+  activityHasData(activityId: string): Promise<boolean>;
+  deleteUser(userId: string): Promise<void>;
+  deleteActivity(activityId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -675,6 +725,151 @@ export class DatabaseStorage implements IStorage {
       ...member,
       displayName: `${member.nome} ${member.cognome}`
     }));
+  }
+
+  // Admin methods implementation
+  async getAdminUsers(): Promise<Array<{
+    id: string;
+    nome: string;
+    cognome: string;
+    email: string;
+    username: string;
+    isActive: number;
+    emailVerified: string | null;
+    createdAt: string;
+    activitiesCount: number;
+    salesCount: number;
+    inventoryCount: number;
+  }>> {
+    const adminUsers = await db
+      .select({
+        id: users.id,
+        nome: users.nome,
+        cognome: users.cognome,
+        email: users.email,
+        username: users.username,
+        isActive: users.isActive,
+        emailVerified: users.emailVerified,
+        createdAt: users.createdAt,
+        activitiesCount: sql<number>`count(distinct ${userActivities.activityId})`,
+        salesCount: sql<number>`count(distinct ${vendite.id})`,
+        inventoryCount: sql<number>`count(distinct ${inventario.id})`
+      })
+      .from(users)
+      .leftJoin(userActivities, eq(users.id, userActivities.userId))
+      .leftJoin(vendite, eq(users.id, vendite.userId))
+      .leftJoin(inventario, eq(users.id, inventario.userId))
+      .groupBy(users.id, users.nome, users.cognome, users.email, users.username, users.isActive, users.emailVerified, users.createdAt)
+      .orderBy(desc(users.createdAt));
+
+    return adminUsers.map(user => ({
+      id: user.id,
+      nome: user.nome,
+      cognome: user.cognome,
+      email: user.email,
+      username: user.username,
+      isActive: user.isActive || 0,
+      emailVerified: user.emailVerified?.toISOString() || null,
+      createdAt: user.createdAt?.toISOString() || "",
+      activitiesCount: Number(user.activitiesCount),
+      salesCount: Number(user.salesCount),
+      inventoryCount: Number(user.inventoryCount)
+    }));
+  }
+
+  async getAdminActivities(): Promise<Array<{
+    id: string;
+    nome: string;
+    proprietarioNome: string;
+    proprietarioEmail: string;
+    membersCount: number;
+    inventoryCount: number;
+    salesCount: number;
+    expensesCount: number;
+    createdAt: string;
+    hasData: boolean;
+  }>> {
+    const adminActivities = await db
+      .select({
+        id: activities.id,
+        nome: activities.nome,
+        proprietarioNome: sql<string>`${users.nome} || ' ' || ${users.cognome}`,
+        proprietarioEmail: users.email,
+        createdAt: activities.createdAt,
+        membersCount: sql<number>`count(distinct ${userActivities.userId})`,
+        inventoryCount: sql<number>`count(distinct ${inventario.id})`,
+        salesCount: sql<number>`count(distinct ${vendite.id})`,
+        expensesCount: sql<number>`count(distinct ${spese.id})`
+      })
+      .from(activities)
+      .innerJoin(users, eq(activities.proprietarioId, users.id))
+      .leftJoin(userActivities, eq(activities.id, userActivities.activityId))
+      .leftJoin(inventario, eq(activities.id, inventario.activityId))
+      .leftJoin(vendite, eq(activities.id, vendite.activityId))
+      .leftJoin(spese, eq(activities.id, spese.activityId))
+      .groupBy(activities.id, activities.nome, users.nome, users.cognome, users.email, activities.createdAt)
+      .orderBy(desc(activities.createdAt));
+
+    return adminActivities.map(activity => ({
+      id: activity.id,
+      nome: activity.nome,
+      proprietarioNome: activity.proprietarioNome,
+      proprietarioEmail: activity.proprietarioEmail,
+      membersCount: Number(activity.membersCount),
+      inventoryCount: Number(activity.inventoryCount),
+      salesCount: Number(activity.salesCount),
+      expensesCount: Number(activity.expensesCount),
+      createdAt: activity.createdAt?.toISOString() || "",
+      hasData: Number(activity.inventoryCount) > 0 || Number(activity.salesCount) > 0 || Number(activity.expensesCount) > 0
+    }));
+  }
+
+  async userHasData(userId: string): Promise<boolean> {
+    const [inventoryCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(inventario)
+      .where(eq(inventario.userId, userId));
+
+    const [salesCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(vendite)
+      .where(eq(vendite.userId, userId));
+
+    const [expensesCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(spese)
+      .where(eq(spese.userId, userId));
+
+    return Number(inventoryCount.count) > 0 || Number(salesCount.count) > 0 || Number(expensesCount.count) > 0;
+  }
+
+  async activityHasData(activityId: string): Promise<boolean> {
+    const [inventoryCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(inventario)
+      .where(eq(inventario.activityId, activityId));
+
+    const [salesCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(vendite)
+      .where(eq(vendite.activityId, activityId));
+
+    const [expensesCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(spese)
+      .where(eq(spese.activityId, activityId));
+
+    return Number(inventoryCount.count) > 0 || Number(salesCount.count) > 0 || Number(expensesCount.count) > 0;
+  }
+
+  async deleteUser(userId: string): Promise<void> {
+    // Delete user and all related data (cascading deletes should handle most)
+    await db.delete(users).where(eq(users.id, userId));
+  }
+
+  async deleteActivity(activityId: string): Promise<void> {
+    // Delete activity and all related data (cascading deletes should handle most)
+    await db.delete(activities).where(eq(activities.id, activityId));
   }
 
   async getChartDataByActivity(activityId: string): Promise<{

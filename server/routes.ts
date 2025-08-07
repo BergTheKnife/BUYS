@@ -1705,5 +1705,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+  // Admin routes
+  app.post("/api/admin/auth", async (req, res) => {
+    try {
+      const { password } = req.body;
+      // Simple admin password check - in production, use environment variable
+      const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
+      
+      if (password !== adminPassword) {
+        return res.status(401).json({ message: "Password amministratore non corretta" });
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Admin auth error:", error);
+      res.status(500).json({ message: "Errore interno del server" });
+    }
+  });
+
+  app.get("/api/admin/users", async (req, res) => {
+    try {
+      const adminUsers = await storage.getAdminUsers();
+      res.json(adminUsers);
+    } catch (error) {
+      console.error("Error fetching admin users:", error);
+      res.status(500).json({ message: "Errore nel caricamento degli utenti" });
+    }
+  });
+
+  app.get("/api/admin/activities", async (req, res) => {
+    try {
+      const adminActivities = await storage.getAdminActivities();
+      res.json(adminActivities);
+    } catch (error) {
+      console.error("Error fetching admin activities:", error);
+      res.status(500).json({ message: "Errore nel caricamento delle attività" });
+    }
+  });
+
+  app.delete("/api/admin/users/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      
+      // Check if user has data
+      const hasData = await storage.userHasData(userId);
+      if (hasData) {
+        return res.status(400).json({ 
+          message: "Impossibile eliminare l'utente: ha dati associati (inventario, vendite, spese)" 
+        });
+      }
+      
+      await storage.deleteUser(userId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      res.status(500).json({ message: "Errore nell'eliminazione dell'utente" });
+    }
+  });
+
+  app.delete("/api/admin/activities/:activityId", async (req, res) => {
+    try {
+      const { activityId } = req.params;
+      
+      // Check if activity has data
+      const hasData = await storage.activityHasData(activityId);
+      if (hasData) {
+        return res.status(400).json({ 
+          message: "Impossibile eliminare l'attività: ha dati associati (inventario, vendite, spese)" 
+        });
+      }
+      
+      await storage.deleteActivity(activityId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting activity:", error);
+      res.status(500).json({ message: "Errore nell'eliminazione dell'attività" });
+    }
+  });
+
   return httpServer;
 }
