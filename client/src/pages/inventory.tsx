@@ -155,7 +155,7 @@ export default function Inventory() {
             <Package className="h-8 w-8" />
             Magazzino
           </h1>
-          <Button onClick={() => setIsAddModalOpen(true)}>
+          <Button onClick={() => setIsAddModalOpen(true)} className="ml-[38px] mr-[38px]">
             <Plus className="h-4 w-4 mr-2" />
             Aggiungi Articolo
           </Button>
