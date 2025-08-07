@@ -9,7 +9,7 @@ import { ProfileUploader } from "@/components/ProfileUploader";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { User, Mail, Edit3, Save, X, Trash2 } from "lucide-react";
+import { User, Mail, Edit3, Save, X, Trash2, Key } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,10 +25,16 @@ import {
 export default function Profile() {
   const { user } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [formData, setFormData] = useState({
     nome: user?.nome || "",
     cognome: user?.cognome || "",
     email: user?.email || "",
+  });
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -49,6 +55,27 @@ export default function Profile() {
       toast({
         title: "Errore",
         description: error.message || "Errore nell'aggiornamento del profilo",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const changePasswordMutation = useMutation({
+    mutationFn: async (data: { currentPassword: string; newPassword: string }) => {
+      return await apiRequest('/api/auth/password', 'PUT', data);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Password aggiornata",
+        description: "La tua password è stata cambiata con successo",
+      });
+      setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      setIsChangingPassword(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore nel cambio password",
         variant: "destructive",
       });
     },
@@ -86,6 +113,36 @@ export default function Profile() {
       email: user?.email || "",
     });
     setIsEditing(false);
+  };
+
+  const handlePasswordSave = () => {
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      toast({
+        title: "Errore",
+        description: "La nuova password e la conferma non corrispondono",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (passwordData.newPassword.length < 6) {
+      toast({
+        title: "Errore",
+        description: "La nuova password deve essere di almeno 6 caratteri",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    changePasswordMutation.mutate({
+      currentPassword: passwordData.currentPassword,
+      newPassword: passwordData.newPassword,
+    });
+  };
+
+  const handlePasswordCancel = () => {
+    setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
+    setIsChangingPassword(false);
   };
 
   const handleImageUpdate = (imageUrl: string) => {
@@ -273,6 +330,80 @@ export default function Profile() {
                   </div>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Password Management */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Key className="h-5 w-5" />
+                Gestione Password
+              </CardTitle>
+              <CardDescription>
+                Cambia la tua password per mantenere l'account sicuro
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!isChangingPassword ? (
+                <Button 
+                  onClick={() => setIsChangingPassword(true)}
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                >
+                  <Key className="h-4 w-4 mr-2" />
+                  Cambia Password
+                </Button>
+              ) : (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="currentPassword">Password Attuale</Label>
+                    <Input
+                      id="currentPassword"
+                      type="password"
+                      value={passwordData.currentPassword}
+                      onChange={(e) => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
+                      placeholder="Inserisci la password attuale"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="newPassword">Nuova Password</Label>
+                    <Input
+                      id="newPassword"
+                      type="password"
+                      value={passwordData.newPassword}
+                      onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
+                      placeholder="Inserisci la nuova password (min. 6 caratteri)"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword">Conferma Nuova Password</Label>
+                    <Input
+                      id="confirmPassword"
+                      type="password"
+                      value={passwordData.confirmPassword}
+                      onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                      placeholder="Conferma la nuova password"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <Button 
+                      onClick={handlePasswordSave} 
+                      disabled={changePasswordMutation.isPending}
+                    >
+                      <Save className="h-4 w-4 mr-2" />
+                      {changePasswordMutation.isPending ? "Salvando..." : "Salva Password"}
+                    </Button>
+                    <Button variant="outline" onClick={handlePasswordCancel}>
+                      <X className="h-4 w-4 mr-2" />
+                      Annulla
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 

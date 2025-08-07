@@ -76,13 +76,6 @@ export interface IStorage {
     totalExpenses: number;
     netMargin: number;
   }>;
-  getRecentActivitiesByActivity(activityId: string): Promise<Array<{
-    id: string;
-    type: 'sale' | 'expense' | 'inventory';
-    description: string;
-    amount?: number;
-    data: string;
-  }>>;
   getTopSellingItemsByActivity(activityId: string): Promise<Array<{
     nomeArticolo: string;
     taglia: string;

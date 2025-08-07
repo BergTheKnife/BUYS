@@ -1318,9 +1318,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/recent-activities', requireActivity, async (req, res) => {
     try {
-      // Placeholder for recent activities - implement if needed
-      const activities = [];
-      res.json(activities);
+      // Return empty array for now - this endpoint can be implemented later if needed
+      res.json([]);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nel recupero delle attività recenti" });
     }
@@ -1460,7 +1459,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/activity-members", requireActivity, async (req, res) => {
     try {
       const activityId = req.session.activityId;
-      const members = await storage.getActivityMembers(activityId);
+      const members = await storage.getActivityMembers(activityId!);
       res.json(members);
     } catch (error: any) {
       console.error('Error fetching activity members:', error);
