@@ -7,7 +7,7 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { storage } from "./storage";
 import { db } from "./db";
 import bcrypt from "bcrypt";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and } from "drizzle-orm";
 import { activities, activityUsers, vendite, spese, inventario, users } from "@shared/schema";
 import multer from "multer";
 import path from "path";

@@ -26,7 +26,7 @@ export function ProfileUploader({ currentImageUrl, onImageUpdate }: ProfileUploa
       
       // Get upload URL
       const uploadData = await apiRequest('/api/profile/upload-url', 'POST');
-      const uploadURL = uploadData.uploadURL;
+      const uploadURL = (uploadData as any).uploadURL;
 
       // Upload file to GCS
       const uploadResponse = await fetch(uploadURL, {
