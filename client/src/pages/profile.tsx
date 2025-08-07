@@ -318,18 +318,7 @@ export default function Profile() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Stato Account</Label>
-                <div className="flex items-center gap-2">
-                  <div className={`px-2 py-1 rounded text-xs font-medium ${
-                    (user.isActive === 1 && user.emailVerified) 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-yellow-100 text-yellow-800'
-                  }`}>
-                    {(user.isActive === 1 && user.emailVerified) ? 'Attivo e Verificato' : 'In attesa di verifica'}
-                  </div>
-                </div>
-              </div>
+
             </CardContent>
           </Card>
 

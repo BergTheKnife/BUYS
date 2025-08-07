@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -10,8 +10,16 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { Building2, Edit, Lock, Trash2, Settings, LogOut } from "lucide-react";
+import { Building2, Edit, Lock, Trash2, Settings, LogOut, Users, UserPlus, UserMinus, Mail, User } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { z } from "zod";
 
 const updateActivityNameSchema = z.object({
@@ -30,16 +38,38 @@ const deleteActivitySchema = z.object({
   password: z.string().min(1, "Password richiesta per eliminare l'attività"),
 });
 
+const addMemberSchema = z.object({
+  emailOrUsername: z.string().min(1, "Email o username richiesto"),
+});
+
 type UpdateActivityName = z.infer<typeof updateActivityNameSchema>;
 type ChangeActivityPassword = z.infer<typeof changeActivityPasswordSchema>;
 type DeleteActivity = z.infer<typeof deleteActivitySchema>;
+type AddMember = z.infer<typeof addMemberSchema>;
+
+interface ActivityMember {
+  userId: string;
+  nome: string;
+  cognome: string;
+  email: string;
+  username: string;
+  joinedAt: string;
+  isOwner: boolean;
+}
 
 export default function ActivitySettings() {
   const { currentActivity, user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [showAddMember, setShowAddMember] = useState(false);
   
   const isOwner = currentActivity?.proprietarioId === user?.id;
+
+  // Fetch activity members
+  const { data: activityMembers = [] } = useQuery<ActivityMember[]>({
+    queryKey: ["/api/activity-members", currentActivity?.id],
+    enabled: !!currentActivity?.id && isOwner,
+  });
 
   const nameForm = useForm<UpdateActivityName>({
     resolver: zodResolver(updateActivityNameSchema),
@@ -60,6 +90,13 @@ export default function ActivitySettings() {
     resolver: zodResolver(deleteActivitySchema),
     defaultValues: {
       password: "",
+    },
+  });
+
+  const addMemberForm = useForm<AddMember>({
+    resolver: zodResolver(addMemberSchema),
+    defaultValues: {
+      emailOrUsername: "",
     },
   });
 
@@ -102,6 +139,48 @@ export default function ActivitySettings() {
       toast({
         title: "Errore",
         description: error.message || "Errore nel cambio password",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const addMemberMutation = useMutation({
+    mutationFn: async (data: AddMember) => {
+      return await apiRequest("POST", `/api/activities/${currentActivity?.id}/members`, data);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Membro aggiunto",
+        description: "Il nuovo membro è stato aggiunto all'attività",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/activity-members", currentActivity?.id] });
+      addMemberForm.reset();
+      setShowAddMember(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore nell'aggiunta del membro",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const removeMemberMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return await apiRequest("DELETE", `/api/activities/${currentActivity?.id}/members/${userId}`);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Membro rimosso",
+        description: "Il membro è stato rimosso dall'attività",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/activity-members", currentActivity?.id] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore nella rimozione del membro",
         variant: "destructive",
       });
     },
@@ -167,6 +246,16 @@ export default function ActivitySettings() {
 
   const onChangePassword = async (data: ChangeActivityPassword) => {
     await changePasswordMutation.mutateAsync(data);
+  };
+
+  const onAddMember = (data: AddMember) => {
+    addMemberMutation.mutate(data);
+  };
+
+  const onRemoveMember = (userId: string, memberName: string) => {
+    if (window.confirm(`Sei sicuro di voler rimuovere ${memberName} dall'attività?`)) {
+      removeMemberMutation.mutate(userId);
+    }
   };
 
   const onDeleteActivity = async (data: DeleteActivity) => {
@@ -290,6 +379,114 @@ export default function ActivitySettings() {
               </form>
             </CardContent>
           </Card>
+
+          <Separator />
+
+          {/* Gestione Membri - Solo per il Proprietario */}
+          {isOwner && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="h-5 w-5" />
+                      Gestione Membri
+                    </CardTitle>
+                    <CardDescription>
+                      Aggiungi o rimuovi membri dall'attività (solo proprietario)
+                    </CardDescription>
+                  </div>
+                  <Button onClick={() => setShowAddMember(true)}>
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Aggiungi Membro
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {activityMembers.length > 0 ? (
+                  <div className="space-y-3">
+                    {activityMembers.map((member) => (
+                      <div key={member.userId} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-shrink-0">
+                            <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                              <User className="h-4 w-4 text-primary" />
+                            </div>
+                          </div>
+                          <div>
+                            <div className="font-medium">
+                              {member.nome} {member.cognome}
+                              {member.isOwner && <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Proprietario</span>}
+                            </div>
+                            <div className="text-sm text-muted-foreground flex items-center gap-2">
+                              <Mail className="h-3 w-3" />
+                              {member.email}
+                              <span>•</span>
+                              @{member.username}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Unito il {new Date(member.joinedAt).toLocaleDateString('it-IT')}
+                            </div>
+                          </div>
+                        </div>
+                        {!member.isOwner && (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => onRemoveMember(member.userId, `${member.nome} ${member.cognome}`)}
+                            disabled={removeMemberMutation.isPending}
+                          >
+                            <UserMinus className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>Nessun membro presente oltre al proprietario</p>
+                    <p className="text-sm">Aggiungi membri per collaborare sull'attività</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Dialog per Aggiungere Membro */}
+          <Dialog open={showAddMember} onOpenChange={setShowAddMember}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Aggiungi Nuovo Membro</DialogTitle>
+                <DialogDescription>
+                  Inserisci l'email o l'username dell'utente che vuoi aggiungere all'attività
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={addMemberForm.handleSubmit(onAddMember)} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="emailOrUsername">Email o Username</Label>
+                  <Input
+                    id="emailOrUsername"
+                    placeholder="es. mario@email.com o mario123"
+                    {...addMemberForm.register("emailOrUsername")}
+                  />
+                  {addMemberForm.formState.errors.emailOrUsername && (
+                    <p className="text-sm text-destructive">
+                      {addMemberForm.formState.errors.emailOrUsername.message}
+                    </p>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setShowAddMember(false)}>
+                    Annulla
+                  </Button>
+                  <Button type="submit" disabled={addMemberMutation.isPending}>
+                    {addMemberMutation.isPending ? "Aggiunta..." : "Aggiungi Membro"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
 
           <Separator />
 

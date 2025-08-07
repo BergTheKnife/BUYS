@@ -981,6 +981,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get activity members (only for activity owner)
+  app.get('/api/activity-members/:activityId', requireAuth, requireActivity, async (req, res) => {
+    try {
+      const { activityId } = req.params;
+      
+      // Check if user is the owner
+      const activity = await storage.getActivityById(activityId);
+      if (!activity || activity.proprietarioId !== req.session.userId) {
+        return res.status(403).json({ message: "Solo il proprietario può visualizzare i membri" });
+      }
+
+      // Get all members of the activity
+      const members = await db.select({
+        userId: users.id,
+        nome: users.nome,
+        cognome: users.cognome,
+        email: users.email,
+        username: users.username,
+        joinedAt: activityUsers.joinedAt,
+        isOwner: sql<boolean>`${users.id} = ${activity.proprietarioId}`
+      })
+      .from(activityUsers)
+      .innerJoin(users, eq(activityUsers.userId, users.id))
+      .where(eq(activityUsers.activityId, activityId));
+
+      res.json(members);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nel recupero dei membri" });
+    }
+  });
+
+  // Add member to activity (only for activity owner)
+  app.post('/api/activities/:activityId/members', requireAuth, requireActivity, async (req, res) => {
+    try {
+      const { activityId } = req.params;
+      const { emailOrUsername } = req.body;
+      
+      // Check if user is the owner
+      const activity = await storage.getActivityById(activityId);
+      if (!activity || activity.proprietarioId !== req.session.userId) {
+        return res.status(403).json({ message: "Solo il proprietario può aggiungere membri" });
+      }
+
+      // Find user by email or username
+      let targetUser;
+      if (emailOrUsername.includes('@')) {
+        // Search by email
+        targetUser = await storage.getUserByEmail(emailOrUsername);
+      } else {
+        // Search by username
+        targetUser = await storage.getUserByUsername(emailOrUsername);
+      }
+
+      if (!targetUser) {
+        return res.status(404).json({ message: "Utente non trovato" });
+      }
+
+      // Check if user is already a member
+      const existingMembership = await db.select()
+        .from(activityUsers)
+        .where(
+          and(
+            eq(activityUsers.userId, targetUser.id),
+            eq(activityUsers.activityId, activityId)
+          )
+        );
+
+      if (existingMembership.length > 0) {
+        return res.status(400).json({ message: "L'utente è già membro di questa attività" });
+      }
+
+      // Add user to activity
+      await storage.addUserToActivity(targetUser.id, activityId);
+
+      res.json({ 
+        message: "Membro aggiunto con successo",
+        member: {
+          userId: targetUser.id,
+          nome: targetUser.nome,
+          cognome: targetUser.cognome,
+          email: targetUser.email,
+          username: targetUser.username
+        }
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nell'aggiunta del membro" });
+    }
+  });
+
+  // Remove member from activity (only for activity owner)
+  app.delete('/api/activities/:activityId/members/:userId', requireAuth, requireActivity, async (req, res) => {
+    try {
+      const { activityId, userId } = req.params;
+      
+      // Check if user is the owner
+      const activity = await storage.getActivityById(activityId);
+      if (!activity || activity.proprietarioId !== req.session.userId) {
+        return res.status(403).json({ message: "Solo il proprietario può rimuovere membri" });
+      }
+
+      // Cannot remove the owner
+      if (userId === activity.proprietarioId) {
+        return res.status(400).json({ message: "Il proprietario non può essere rimosso dall'attività" });
+      }
+
+      // Remove user from activity
+      await storage.removeUserFromActivity(userId, activityId);
+
+      res.json({ message: "Membro rimosso con successo" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nella rimozione del membro" });
+    }
+  });
+
   // Update username
   app.put('/api/auth/username', requireAuth, async (req, res) => {
     try {

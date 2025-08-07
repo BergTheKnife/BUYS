@@ -49,6 +49,8 @@ export interface IStorage {
   getActivityByName(nome: string): Promise<Activity | undefined>;
   getActivityById(id: string): Promise<Activity | undefined>;
   joinActivity(activityId: string, userId: string): Promise<void>;
+  addUserToActivity(userId: string, activityId: string): Promise<void>;
+  removeUserFromActivity(userId: string, activityId: string): Promise<void>;
   
   // Inventory methods (now with activity context)
   getInventoryByActivity(activityId: string): Promise<Inventario[]>;
@@ -315,6 +317,43 @@ export class DatabaseStorage implements IStorage {
       .where(and(
         eq(activityUsers.activityId, activityId),
         eq(activityUsers.userId, userId)
+      ));
+    
+    // Update user's last activity to null if it was this activity
+    await db
+      .update(users)
+      .set({ lastActivityId: null })
+      .where(and(
+        eq(users.id, userId),
+        eq(users.lastActivityId, activityId)
+      ));
+  }
+
+  async addUserToActivity(userId: string, activityId: string): Promise<void> {
+    // Check if user is already a member
+    const [existingMembership] = await db
+      .select()
+      .from(activityUsers)
+      .where(and(
+        eq(activityUsers.userId, userId),
+        eq(activityUsers.activityId, activityId)
+      ));
+    
+    if (!existingMembership) {
+      await db.insert(activityUsers).values({
+        userId,
+        activityId,
+      });
+    }
+  }
+
+  async removeUserFromActivity(userId: string, activityId: string): Promise<void> {
+    // Remove user from activity
+    await db
+      .delete(activityUsers)
+      .where(and(
+        eq(activityUsers.userId, userId),
+        eq(activityUsers.activityId, activityId)
       ));
     
     // Update user's last activity to null if it was this activity
