@@ -175,37 +175,37 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen-safe bg-gray-50 dark:bg-gray-900">
       <Navbar />
-      <div className="container mx-auto py-8 px-4">
+      <div className="container mx-auto py-4 sm:py-6 lg:py-8 px-3 sm:px-4 lg:px-6 max-w-full">
         {/* Welcome Header */}
-        <div className="mb-8">
+        <div className="mb-6 sm:mb-8">
           <Card className="bg-primary text-white border-0">
-            <CardContent className="py-8 text-center">
-              <h1 className="text-3xl font-bold mb-2">
+            <CardContent className="py-4 sm:py-6 lg:py-8 text-center">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-2">
                 Ciao, {user?.nome}!
               </h1>
-              <p className="text-white/80">Benvenuto in BUYS - Build Up Your Success</p>
+              <p className="text-white/80 text-sm sm:text-base">Benvenuto in BUYS - Build Up Your Success</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="responsive-grid mb-6 sm:mb-8">
           {statsCards.map((stat, index) => {
             const Icon = stat.icon;
             return (
               <Card key={index} className="hover:shadow-lg transition-shadow">
-                <CardContent className="p-6">
+                <CardContent className="p-3 sm:p-4 lg:p-6">
                   <div className="flex items-center">
-                    <div className={`p-3 rounded-lg ${stat.color} text-white mr-4`}>
-                      <Icon className="h-6 w-6" />
+                    <div className={`p-2 sm:p-3 rounded-lg ${stat.color} text-white mr-3 sm:mr-4 flex-shrink-0`}>
+                      <Icon className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" />
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">
                         {stat.title}
                       </p>
-                      <p className="text-2xl font-bold">{stat.value}</p>
+                      <p className="text-lg sm:text-xl lg:text-2xl font-bold">{stat.value}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -215,14 +215,14 @@ export default function Dashboard() {
         </div>
 
         {/* Activity and Top Items */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
           <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Cronologia Attività</CardTitle>
-                <div className="flex gap-2">
+            <CardHeader className="pb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <CardTitle className="text-base sm:text-lg">Cronologia Attività</CardTitle>
+                <div className="flex flex-wrap gap-2">
                   <Select value={historyFilter} onValueChange={setHistoryFilter}>
-                    <SelectTrigger className="w-28">
+                    <SelectTrigger className="w-20 sm:w-28 text-xs sm:text-sm">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -236,7 +236,7 @@ export default function Dashboard() {
                   {historyFilter === 'month' && (
                     <>
                       <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                        <SelectTrigger className="w-24">
+                        <SelectTrigger className="w-20 sm:w-24 text-xs sm:text-sm">
                           <SelectValue placeholder="Mese" />
                         </SelectTrigger>
                         <SelectContent>
@@ -248,7 +248,7 @@ export default function Dashboard() {
                         </SelectContent>
                       </Select>
                       <Select value={selectedYear} onValueChange={setSelectedYear}>
-                        <SelectTrigger className="w-20">
+                        <SelectTrigger className="w-16 sm:w-20 text-xs sm:text-sm">
                           <SelectValue placeholder="Anno" />
                         </SelectTrigger>
                         <SelectContent>

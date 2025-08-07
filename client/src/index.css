@@ -69,10 +69,130 @@
     overflow-x: hidden;
     width: 100%;
     min-width: 320px; /* Minimum width for very small screens */
+    height: 100%;
+    min-height: 100vh;
+    touch-action: manipulation; /* Better touch handling */
   }
 
-  /* Prevent horizontal scroll on mobile */
-  * {
+  /* Prevent horizontal scroll on mobile and improve performance */
+  *, *::before, *::after {
+    box-sizing: border-box;
+    max-width: 100%;
+  }
+  
+  #root {
+    width: 100%;
+    height: 100%;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Better mobile touch targets */
+  button, input, select, textarea, a {
+    min-height: 44px; /* iOS recommended minimum touch target */
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Smooth scrolling for better UX */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Better focus states for accessibility */
+  *:focus {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* Mobile-specific optimizations */
+  @media (max-width: 768px) {
+    body {
+      font-size: 16px; /* Prevent zoom on iOS */
+      -webkit-text-size-adjust: 100%;
+      -webkit-font-smoothing: antialiased;
+    }
+    
+    /* Better spacing on mobile */
+    .container {
+      padding-left: 1rem;
+      padding-right: 1rem;
+    }
+  }
+
+  /* Ultra-wide screen support */
+  @media (min-width: 2560px) {
+    .container {
+      max-width: 2400px;
+      margin: 0 auto;
+    }
+  }
+
+  /* High DPI screen optimizations */
+  @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    * {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+  }
+
+  /* Custom scrollbar for webkit browsers */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: var(--muted);
+    border-radius: 4px;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--muted-foreground);
+  }
+
+  /* Responsive utilities */
+  .responsive-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+  }
+  
+  @media (max-width: 640px) {
+    .responsive-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Better text rendering */
+  h1, h2, h3, h4, h5, h6 {
+    text-wrap: balance;
+  }
+  
+  p {
+    text-wrap: pretty;
+    max-width: 65ch;
+  }
+
+  /* Loading states */
+  .loading {
+    background: linear-gradient(90deg, var(--muted) 25%, transparent 37%, var(--muted) 63%);
+    background-size: 400% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+  
+  @keyframes shimmer {
+    0% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  /* Checkbox forced dimensions */
+  .checkbox-forced {
     max-width: 100%;
     box-sizing: border-box;
   }
@@ -180,5 +300,21 @@
     height: 16px !important;
     min-width: 16px !important;
     min-height: 16px !important;
+  }
+}
+
+/* PWA and mobile improvements */
+@media (display-mode: standalone) {
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Print styles */
+@media print {
+  * {
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
   }
 }
