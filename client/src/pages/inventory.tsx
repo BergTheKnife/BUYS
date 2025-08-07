@@ -230,22 +230,27 @@ export default function Inventory() {
                               variant="outline"
                               onClick={() => setRestockItem(item)}
                               title="Rifornisci"
+                              className="min-w-[32px] h-8"
                             >
-                              <PackagePlus className="h-4 w-4" />
+                              <PackagePlus className="h-4 w-4 text-blue-600" />
                             </Button>
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={() => setEditingItem(item)}
+                              title="Modifica"
+                              className="min-w-[32px] h-8"
                             >
-                              <Edit className="h-4 w-4" />
+                              <Edit className="h-4 w-4 text-green-600" />
                             </Button>
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={() => setItemToDelete(item)}
+                              title="Elimina"
+                              className="min-w-[32px] h-8"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-4 w-4 text-red-600" />
                             </Button>
                           </div>
                         </TableCell>

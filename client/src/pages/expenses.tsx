@@ -306,15 +306,19 @@ export default function Expenses() {
                               size="sm"
                               variant="outline"
                               onClick={() => setEditingExpense(expense)}
+                              title="Modifica spesa"
+                              className="min-w-[32px] h-8"
                             >
-                              <Edit className="h-4 w-4" />
+                              <Edit className="h-4 w-4 text-green-600" />
                             </Button>
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={() => setExpenseToDelete(expense)}
+                              title="Elimina spesa"
+                              className="min-w-[32px] h-8"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-4 w-4 text-red-600" />
                             </Button>
                           </div>
                         </TableCell>
