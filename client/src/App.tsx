@@ -15,6 +15,7 @@ import Balance from "@/pages/balance";
 import Profile from "@/pages/profile";
 import ActivitySettings from "@/pages/activity-settings";
 import { AdminPage } from "@/pages/admin";
+import IconPreview from "@/pages/icon-preview";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
 
@@ -52,6 +53,7 @@ function Router() {
       <Route path="/profilo" component={() => <UserOnlyRoute><Profile /></UserOnlyRoute>} />
       <Route path="/impostazioni-attivita" component={() => <ProtectedRoute><ActivitySettings /></ProtectedRoute>} />
       <Route path="/admin" component={() => <UserOnlyRoute><AdminPage /></UserOnlyRoute>} />
+      <Route path="/icon-preview" component={IconPreview} />
       <Route component={NotFound} />
     </Switch>
   );

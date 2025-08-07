@@ -15,8 +15,10 @@ import {
   ShoppingCart,
   PlusCircle,
   Calendar,
-  Filter
+  Filter,
+  Eye
 } from "lucide-react";
+import { IconPreviewButton } from "@/components/icon-preview-button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function Dashboard() {
@@ -185,7 +187,10 @@ export default function Dashboard() {
               <h1 className="text-3xl font-bold mb-2">
                 Ciao, {user?.nome}!
               </h1>
-              <p className="text-white/80">Benvenuto in BUYS - Build Up Your Success</p>
+              <p className="text-white/80 mb-4">Benvenuto in BUYS - Build Up Your Success</p>
+              <div className="flex justify-center gap-4">
+                <IconPreviewButton />
+              </div>
             </CardContent>
           </Card>
         </div>
