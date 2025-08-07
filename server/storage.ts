@@ -23,7 +23,7 @@ import {
   type InsertEmailVerificationToken
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, sum, sql, gte, or, like, ilike } from "drizzle-orm";
+import { eq, and, desc, sum, sql, gte, lt, lte, or, like, ilike } from "drizzle-orm";
 
 export interface IStorage {
   // User methods
@@ -473,15 +473,58 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getRecentActivitiesByActivity(activityId: string): Promise<Array<{
+  async getActivityHistoryByActivity(
+    activityId: string, 
+    filter: string = 'all', 
+    month?: string, 
+    year?: string
+  ): Promise<Array<{
     id: string;
     type: 'sale' | 'expense' | 'inventory';
     description: string;
-    amount?: number;
+    amount: number;
     data: string;
+    details?: any;
   }>> {
-    // Get recent sales
-    const recentSales = await db
+    // Build date conditions based on filter
+    let dateConditions: any[] = [];
+    
+    if (filter === 'today') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      dateConditions = [
+        gte(vendite.data, today),
+        lt(vendite.data, tomorrow)
+      ];
+    } else if (filter === 'month' && month && year) {
+      const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+      const endDate = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59, 999);
+      dateConditions = [
+        gte(vendite.data, startDate),
+        lte(vendite.data, endDate)
+      ];
+    } else if (filter === 'year' && year) {
+      const startDate = new Date(parseInt(year), 0, 1);
+      const endDate = new Date(parseInt(year), 11, 31, 23, 59, 59, 999);
+      dateConditions = [
+        gte(vendite.data, startDate),
+        lte(vendite.data, endDate)
+      ];
+    }
+
+    const allActivities: Array<{
+      id: string;
+      type: 'sale' | 'expense' | 'inventory';
+      description: string;
+      amount: number;
+      data: string;
+      details?: any;
+    }> = [];
+
+    // Get sales with date filters
+    let salesQuery = db
       .select({
         id: vendite.id,
         description: sql<string>`'Vendita: ' || ${vendite.nomeArticolo} || ' - ' || ${vendite.taglia}`,
@@ -490,12 +533,21 @@ export class DatabaseStorage implements IStorage {
         type: sql<string>`'sale'`
       })
       .from(vendite)
-      .where(eq(vendite.activityId, activityId))
-      .orderBy(desc(vendite.data))
-      .limit(5);
+      .where(and(eq(vendite.activityId, activityId), ...dateConditions))
+      .orderBy(desc(vendite.data));
 
-    // Get recent expenses
-    const recentExpenses = await db
+    const sales = await salesQuery.limit(50);
+
+    allActivities.push(...sales.map(item => ({
+      id: item.id,
+      type: 'sale' as const,
+      description: item.description,
+      amount: Number(item.amount),
+      data: item.data.toISOString()
+    })));
+
+    // Get expenses with same date filters  
+    let expensesQuery = db
       .select({
         id: spese.id,
         description: sql<string>`'Spesa: ' || ${spese.voce}`,
@@ -504,12 +556,26 @@ export class DatabaseStorage implements IStorage {
         type: sql<string>`'expense'`
       })
       .from(spese)
-      .where(eq(spese.activityId, activityId))
-      .orderBy(desc(spese.data))
-      .limit(5);
+      .where(and(eq(spese.activityId, activityId), ...dateConditions.map(cond => 
+        // Replace vendite.data with spese.data in conditions
+        cond.toString().includes('vendite.data') 
+          ? sql`${spese.data} ${cond.toString().split(' ').slice(1).join(' ')}`
+          : cond
+      )))
+      .orderBy(desc(spese.data));
 
-    // Get recent inventory additions
-    const recentInventory = await db
+    const expenses = await expensesQuery.limit(50);
+
+    allActivities.push(...expenses.map(item => ({
+      id: item.id,
+      type: 'expense' as const,
+      description: item.description,
+      amount: Number(item.amount),
+      data: item.data.toISOString()
+    })));
+
+    // Get inventory additions with date filters
+    let inventoryQuery = db
       .select({
         id: inventario.id,
         description: sql<string>`'Inventario: ' || ${inventario.nomeArticolo} || ' - ' || ${inventario.taglia}`,
@@ -518,39 +584,28 @@ export class DatabaseStorage implements IStorage {
         type: sql<string>`'inventory'`
       })
       .from(inventario)
-      .where(eq(inventario.activityId, activityId))
-      .orderBy(desc(inventario.createdAt))
-      .limit(5);
+      .where(and(eq(inventario.activityId, activityId), ...dateConditions.map(cond =>
+        // Replace vendite.data with inventario.createdAt in conditions
+        cond.toString().includes('vendite.data')
+          ? sql`${inventario.createdAt} ${cond.toString().split(' ').slice(1).join(' ')}`
+          : cond
+      )))
+      .orderBy(desc(inventario.createdAt));
 
-    // Combine and sort all activities
-    const allActivities = [
-      ...recentSales.map(item => ({
-        id: item.id,
-        type: item.type as 'sale' | 'expense' | 'inventory',
-        description: item.description,
-        amount: Number(item.amount),
-        data: item.data.toISOString()
-      })),
-      ...recentExpenses.map(item => ({
-        id: item.id,
-        type: item.type as 'sale' | 'expense' | 'inventory',
-        description: item.description,
-        amount: Number(item.amount),
-        data: item.data.toISOString()
-      })),
-      ...recentInventory.map(item => ({
-        id: item.id,
-        type: item.type as 'sale' | 'expense' | 'inventory',
-        description: item.description,
-        amount: Number(item.amount),
-        data: item.data?.toISOString() || new Date().toISOString()
-      }))
-    ];
+    const inventory = await inventoryQuery.limit(50);
 
-    // Sort by date and return top 10
+    allActivities.push(...inventory.map(item => ({
+      id: item.id,
+      type: 'inventory' as const,
+      description: item.description,
+      amount: Number(item.amount),
+      data: item.data?.toISOString() || new Date().toISOString()
+    })));
+
+    // Sort by date and return
     return allActivities
       .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
-      .slice(0, 10);
+      .slice(0, 100);
   }
 
   async getTopSellingItemsByActivity(activityId: string): Promise<Array<{
@@ -577,6 +632,48 @@ export class DatabaseStorage implements IStorage {
       taglia: item.taglia,
       totalQuantity: Number(item.totalQuantity),
       totalRevenue: Number(item.totalRevenue)
+    }));
+  }
+
+  async updateUserProfileImage(userId: string, profileImageUrl: string): Promise<User> {
+    const [updatedUser] = await db
+      .update(users)
+      .set({ profileImageUrl })
+      .where(eq(users.id, userId))
+      .returning();
+    
+    return updatedUser;
+  }
+
+  async updateUserProfile(userId: string, profileData: { nome: string; cognome: string; email: string }): Promise<User> {
+    const [updatedUser] = await db
+      .update(users)
+      .set(profileData)
+      .where(eq(users.id, userId))
+      .returning();
+    
+    return updatedUser;
+  }
+
+  async getActivityMembers(activityId: string): Promise<Array<{
+    id: string;
+    nome: string;
+    cognome: string;
+    displayName: string;
+  }>> {
+    const members = await db
+      .select({
+        id: users.id,
+        nome: users.nome,
+        cognome: users.cognome
+      })
+      .from(userActivities)
+      .innerJoin(users, eq(userActivities.userId, users.id))
+      .where(eq(userActivities.activityId, activityId));
+
+    return members.map(member => ({
+      ...member,
+      displayName: `${member.nome} ${member.cognome}`
     }));
   }
 

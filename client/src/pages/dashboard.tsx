@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Navbar } from "@/components/layout/navbar";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   Package,
   Euro,
@@ -14,12 +14,17 @@ import {
   Plus,
   ShoppingCart,
   PlusCircle,
+  Calendar,
+  Filter
 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function Dashboard() {
   const { user, currentActivity } = useAuth();
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
+
+
 
   // Force refetch when currentActivity changes
   useEffect(() => {
@@ -30,7 +35,7 @@ export default function Dashboard() {
         "/api/inventario", 
         "/api/vendite",
         "/api/spese",
-        "/api/recent-activities",
+        "/api/activity-history",
         "/api/top-selling-items",
         "/api/chart-data"
       ];
@@ -51,17 +56,54 @@ export default function Dashboard() {
     enabled: !!currentActivity?.id,
   });
 
-  // Fetch recent activities
-  const { data: recentActivities = [] } = useQuery<Array<{
+  // Fetch activity history  
+  const [historyFilter, setHistoryFilter] = useState('all');
+  const [selectedMonth, setSelectedMonth] = useState<string>();
+  const [selectedYear, setSelectedYear] = useState<string>();
+
+  const { data: activityHistory = [], isLoading: isActivitiesLoading } = useQuery<Array<{
     id: string;
-    type: 'sale' | 'expense' | 'inventory';
+    type: 'inventory' | 'sale' | 'expense';
     description: string;
-    amount?: number;
+    amount: number;
     data: string;
+    details?: any;
   }>>({
-    queryKey: ["/api/recent-activities"],
+    queryKey: ["/api/activity-history", historyFilter, selectedMonth, selectedYear],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('filter', historyFilter);
+      if (selectedMonth) params.append('month', selectedMonth);
+      if (selectedYear) params.append('year', selectedYear);
+      
+      const response = await fetch(`/api/activity-history?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+    },
     enabled: !!currentActivity?.id,
   });
+
+  // Generate years for filter (current year and last 2 years)
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 3 }, (_, i) => currentYear - i);
+  
+  // Generate months
+  const months = [
+    { value: '1', label: 'Gennaio' },
+    { value: '2', label: 'Febbraio' },
+    { value: '3', label: 'Marzo' },
+    { value: '4', label: 'Aprile' },
+    { value: '5', label: 'Maggio' },
+    { value: '6', label: 'Giugno' },
+    { value: '7', label: 'Luglio' },
+    { value: '8', label: 'Agosto' },
+    { value: '9', label: 'Settembre' },
+    { value: '10', label: 'Ottobre' },
+    { value: '11', label: 'Novembre' },
+    { value: '12', label: 'Dicembre' }
+  ];
 
   // Fetch top selling items
   const { data: topSellingItems = [] } = useQuery<Array<{
@@ -179,41 +221,121 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <Card>
             <CardHeader>
-              <CardTitle>Attività Recente</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>Cronologia Attività</CardTitle>
+                <div className="flex gap-2">
+                  <Select value={historyFilter} onValueChange={setHistoryFilter}>
+                    <SelectTrigger className="w-28">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tutto</SelectItem>
+                      <SelectItem value="today">Oggi</SelectItem>
+                      <SelectItem value="month">Mese</SelectItem>
+                      <SelectItem value="year">Anno</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  {historyFilter === 'month' && (
+                    <>
+                      <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                        <SelectTrigger className="w-24">
+                          <SelectValue placeholder="Mese" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {months.map(month => (
+                            <SelectItem key={month.value} value={month.value}>
+                              {month.label.slice(0, 3)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={selectedYear} onValueChange={setSelectedYear}>
+                        <SelectTrigger className="w-20">
+                          <SelectValue placeholder="Anno" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {years.map(year => (
+                            <SelectItem key={year} value={year.toString()}>
+                              {year}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </>
+                  )}
+                  
+                  {historyFilter === 'year' && (
+                    <Select value={selectedYear} onValueChange={setSelectedYear}>
+                      <SelectTrigger className="w-20">
+                        <SelectValue placeholder="Anno" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {years.map(year => (
+                          <SelectItem key={year} value={year.toString()}>
+                            {year}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {recentActivities.length > 0 ? (
-                  recentActivities.slice(0, 5).map((activity) => (
-                    <div key={activity.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                      <div className={`p-2 rounded-full ${
-                        activity.type === 'sale' ? 'bg-green-100 text-green-600' :
-                        activity.type === 'expense' ? 'bg-red-100 text-red-600' :
-                        'bg-blue-100 text-blue-600'
-                      }`}>
-                        {activity.type === 'sale' ? <ShoppingCart className="h-4 w-4" /> :
-                         activity.type === 'expense' ? <Receipt className="h-4 w-4" /> :
-                         <Package className="h-4 w-4" />}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">{activity.description}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(activity.data).toLocaleDateString("it-IT")}
-                        </p>
-                      </div>
-                      {activity.amount && (
-                        <div className="text-sm font-semibold">
-                          {formatCurrency(activity.amount)}
+              <div className="space-y-3">
+                {activityHistory.length > 0 ? (
+                  <div className="space-y-2 max-h-80 overflow-y-auto">
+                    {activityHistory.slice(0, 20).map((activity, index) => {
+                      const getActivityBadge = () => {
+                        if (activity.type === 'inventory') return { text: 'INV', variant: 'secondary' as const };
+                        if (activity.type === 'sale') return { text: 'VEN', variant: 'default' as const };
+                        return { text: 'SPE', variant: 'destructive' as const };
+                      };
+
+                      const badge = getActivityBadge();
+                      
+                      return (
+                        <div key={index} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                          <div className={`p-2 rounded-full ${
+                            activity.type === 'sale' ? 'bg-green-100 text-green-600' :
+                            activity.type === 'expense' ? 'bg-red-100 text-red-600' :
+                            'bg-blue-100 text-blue-600'
+                          }`}>
+                            {activity.type === 'sale' ? <ShoppingCart className="h-4 w-4" /> :
+                             activity.type === 'expense' ? <Receipt className="h-4 w-4" /> :
+                             <Package className="h-4 w-4" />}
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium">{activity.description}</p>
+                              <Badge variant={badge.variant} className="text-xs">
+                                {badge.text}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(activity.data).toLocaleDateString('it-IT', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </p>
+                          </div>
+                          <div className="text-sm font-semibold text-right">
+                            {formatCurrency(activity.amount)}
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  ))
+                      );
+                    })}
+                  </div>
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>Nessuna attività recente</p>
+                    <p>Nessuna attività trovata</p>
                     <p className="text-sm">
-                      Inizia aggiungendo articoli al magazzino o registrando vendite
+                      Modifica i filtri per vedere più risultati
                     </p>
                   </div>
                 )}

@@ -1,106 +1,38 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 import { Navbar } from "@/components/layout/navbar";
+import { ProfileUploader } from "@/components/ProfileUploader";
 import { useAuth } from "@/hooks/use-auth";
-import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
-  User,
-  Key,
-  Download,
-  Upload,
-  UserX,
-  Calendar,
-  ShoppingCart,
-  Save,
-} from "lucide-react";
-import { z } from "zod";
-
-const updateProfileSchema = z.object({
-  nome: z.string().min(1, "Nome richiesto"),
-  cognome: z.string().min(1, "Cognome richiesto"),
-  email: z.string().email("Email non valida"),
-});
-
-const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1, "Password attuale richiesta"),
-  newPassword: z.string()
-    .min(6, "La nuova password deve essere di almeno 6 caratteri")
-    .regex(/(?=.*[A-Z])/, "La password deve contenere almeno una lettera maiuscola")
-    .regex(/(?=.*\d)/, "La password deve contenere almeno un numero"),
-  confirmPassword: z.string().min(1, "Conferma password richiesta"),
-}).refine(data => data.newPassword === data.confirmPassword, {
-  message: "Le password non coincidono",
-  path: ["confirmPassword"],
-});
-
-const updateUsernameSchema = z.object({
-  username: z.string().min(3, "Username deve essere di almeno 3 caratteri"),
-});
-
-type UpdateProfileData = z.infer<typeof updateProfileSchema>;
-type ChangePasswordData = z.infer<typeof changePasswordSchema>;
-type UpdateUsernameData = z.infer<typeof updateUsernameSchema>;
+import { useToast } from "@/hooks/use-toast";
+import { User, Mail, Edit3, Save, X } from "lucide-react";
 
 export default function Profile() {
-  const { user, logout } = useAuth();
+  const { user, refetch } = useAuth();
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState({
+    nome: user?.nome || "",
+    cognome: user?.cognome || "",
+    email: user?.email || "",
+  });
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [usernameStatus, setUsernameStatus] = useState<{
-    checking: boolean;
-    available: boolean | null;
-    message: string;
-  }>({ checking: false, available: null, message: "" });
-
-  const profileForm = useForm<UpdateProfileData>({
-    resolver: zodResolver(updateProfileSchema),
-    defaultValues: {
-      nome: user?.nome || "",
-      cognome: user?.cognome || "",
-      email: user?.email || "",
-    },
-  });
-
-  const passwordForm = useForm<ChangePasswordData>({
-    resolver: zodResolver(changePasswordSchema),
-    defaultValues: {
-      currentPassword: "",
-      newPassword: "",
-      confirmPassword: "",
-    },
-  });
 
   const updateProfileMutation = useMutation({
-    mutationFn: async (data: UpdateProfileData) => {
-      const response = await apiRequest("PUT", "/api/auth/profile", data);
-      return response.json();
+    mutationFn: async (data: typeof formData) => {
+      return await apiRequest('/api/profile/update', 'POST', data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       toast({
-        title: "Successo",
-        description: "Profilo aggiornato con successo",
+        title: "Profilo aggiornato",
+        description: "Le informazioni del profilo sono state salvate con successo",
       });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+      setIsEditing(false);
     },
     onError: (error: any) => {
       toast({
@@ -111,352 +43,207 @@ export default function Profile() {
     },
   });
 
-  const changePasswordMutation = useMutation({
-    mutationFn: async (data: ChangePasswordData) => {
-      const response = await apiRequest("PUT", "/api/auth/password", {
-        currentPassword: data.currentPassword,
-        newPassword: data.newPassword,
-      });
-      return response.json();
-    },
-    onSuccess: () => {
-      passwordForm.reset();
-      toast({
-        title: "Successo",
-        description: "Password cambiata con successo",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Errore",
-        description: error.message || "Errore nel cambio password",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const exportDataMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("GET", "/api/export/data");
-      return response.blob();
-    },
-    onSuccess: (blob) => {
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `davalb_export_${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      toast({
-        title: "Successo",
-        description: "Dati esportati con successo",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Errore",
-        description: error.message || "Errore nell'esportazione dei dati",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const deleteAccountMutation = useMutation({
-    mutationFn: async () => {
-      await apiRequest("DELETE", "/api/auth/account");
-    },
-    onSuccess: () => {
-      toast({
-        title: "Account eliminato",
-        description: "Il tuo account è stato eliminato con successo",
-      });
-      logout();
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Errore",
-        description: error.message || "Errore nell'eliminazione dell'account",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const onUpdateProfile = (data: UpdateProfileData) => {
-    updateProfileMutation.mutate(data);
+  const handleSave = () => {
+    updateProfileMutation.mutate(formData);
   };
 
-  const onChangePassword = (data: ChangePasswordData) => {
-    changePasswordMutation.mutate(data);
+  const handleCancel = () => {
+    setFormData({
+      nome: user?.nome || "",
+      cognome: user?.cognome || "",
+      email: user?.email || "",
+    });
+    setIsEditing(false);
   };
 
-  // Mock account statistics - in a real app these would come from API
-  const accountStats = {
-    daysActive: Math.floor((Date.now() - new Date(user?.createdAt || Date.now()).getTime()) / (1000 * 60 * 60 * 24)) || 0,
-    totalSalesCount: 0, // This would come from actual sales data
+  const handleImageUpdate = (imageUrl: string) => {
+    // Image update is handled by the ProfileUploader component
+    // This callback is called when image is successfully updated
   };
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navbar />
+        <div className="container mx-auto py-8 px-4">
+          <div className="flex items-center justify-center h-96">
+            <div className="text-center">
+              <User className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+              <p className="text-gray-600">Caricamento profilo...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
       
       <div className="container mx-auto py-8 px-4">
-        <h1 className="text-3xl font-bold mb-8 flex items-center gap-2">
-          <User className="h-8 w-8" />
-          Profilo
-        </h1>
+        <div className="max-w-2xl mx-auto space-y-6">
+          {/* Header */}
+          <div className="text-center">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Profilo Utente</h1>
+            <p className="text-gray-600">
+              Gestisci le informazioni del tuo profilo e le impostazioni dell'account
+            </p>
+          </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Profile Section */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Personal Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Informazioni Personali</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={profileForm.handleSubmit(onUpdateProfile)} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="nome">Nome</Label>
-                      <Input
-                        id="nome"
-                        {...profileForm.register("nome")}
-                      />
-                      {profileForm.formState.errors.nome && (
-                        <p className="text-sm text-destructive">
-                          {profileForm.formState.errors.nome.message}
-                        </p>
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="cognome">Cognome</Label>
-                      <Input
-                        id="cognome"
-                        {...profileForm.register("cognome")}
-                      />
-                      {profileForm.formState.errors.cognome && (
-                        <p className="text-sm text-destructive">
-                          {profileForm.formState.errors.cognome.message}
-                        </p>
-                      )}
-                    </div>
-                  </div>
+          {/* Profile Image */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Foto Profilo
+              </CardTitle>
+              <CardDescription>
+                Carica una foto profilo per personalizzare il tuo account
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex justify-center">
+              <ProfileUploader
+                currentImageUrl={user.profileImageUrl}
+                onImageUpdate={handleImageUpdate}
+              />
+            </CardContent>
+          </Card>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+          {/* Profile Information */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Edit3 className="h-5 w-5" />
+                    Informazioni Personali
+                  </CardTitle>
+                  <CardDescription>
+                    Le tue informazioni di base del profilo
+                  </CardDescription>
+                </div>
+                {!isEditing && (
+                  <Button variant="outline" onClick={() => setIsEditing(true)}>
+                    <Edit3 className="h-4 w-4 mr-2" />
+                    Modifica
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="nome">Nome</Label>
+                  {isEditing ? (
                     <Input
-                      id="email"
-                      type="email"
-                      {...profileForm.register("email")}
+                      id="nome"
+                      value={formData.nome}
+                      onChange={(e) => setFormData(prev => ({ ...prev, nome: e.target.value }))}
+                      placeholder="Il tuo nome"
                     />
-                    {profileForm.formState.errors.email && (
-                      <p className="text-sm text-destructive">
-                        {profileForm.formState.errors.email.message}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="username">Username</Label>
+                  ) : (
+                    <div className="px-3 py-2 bg-gray-50 rounded-md border">
+                      {user.nome}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="cognome">Cognome</Label>
+                  {isEditing ? (
                     <Input
-                      id="username"
-                      value={user?.username || ""}
-                      disabled
-                      className="bg-muted"
+                      id="cognome"
+                      value={formData.cognome}
+                      onChange={(e) => setFormData(prev => ({ ...prev, cognome: e.target.value }))}
+                      placeholder="Il tuo cognome"
                     />
-                    <p className="text-sm text-muted-foreground">
-                      L'username non può essere modificato
-                    </p>
-                  </div>
+                  ) : (
+                    <div className="px-3 py-2 bg-gray-50 rounded-md border">
+                      {user.cognome}
+                    </div>
+                  )}
+                </div>
+              </div>
 
-                  <Separator />
-                  
+              <div className="space-y-2">
+                <Label htmlFor="email" className="flex items-center gap-2">
+                  <Mail className="h-4 w-4" />
+                  Email
+                </Label>
+                {isEditing ? (
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                    placeholder="La tua email"
+                  />
+                ) : (
+                  <div className="px-3 py-2 bg-gray-50 rounded-md border">
+                    {user.email}
+                  </div>
+                )}
+              </div>
+
+              {isEditing && (
+                <div className="flex gap-2 pt-4">
                   <Button 
-                    type="submit" 
+                    onClick={handleSave} 
                     disabled={updateProfileMutation.isPending}
-                    className="w-full md:w-auto"
                   >
                     <Save className="h-4 w-4 mr-2" />
-                    {updateProfileMutation.isPending ? "Salvando..." : "Salva Modifiche"}
+                    {updateProfileMutation.isPending ? "Salvando..." : "Salva"}
                   </Button>
-                </form>
-              </CardContent>
-            </Card>
-
-            {/* Change Password */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Cambia Password</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={passwordForm.handleSubmit(onChangePassword)} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="currentPassword">Password Attuale</Label>
-                    <PasswordInput
-                      id="currentPassword"
-                      placeholder="Password attuale"
-                      {...passwordForm.register("currentPassword")}
-                    />
-                    {passwordForm.formState.errors.currentPassword && (
-                      <p className="text-sm text-destructive">
-                        {passwordForm.formState.errors.currentPassword.message}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="newPassword">Nuova Password</Label>
-                    <PasswordInput
-                      id="newPassword"
-                      placeholder="Nuova password"
-                      showPasswordHint={true}
-                      {...passwordForm.register("newPassword")}
-                    />
-                    {passwordForm.formState.errors.newPassword && (
-                      <p className="text-sm text-destructive">
-                        {passwordForm.formState.errors.newPassword.message}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Conferma Nuova Password</Label>
-                    <PasswordInput
-                      id="confirmPassword"
-                      placeholder="Conferma nuova password"
-                      {...passwordForm.register("confirmPassword")}
-                    />
-                    {passwordForm.formState.errors.confirmPassword && (
-                      <p className="text-sm text-destructive">
-                        {passwordForm.formState.errors.confirmPassword.message}
-                      </p>
-                    )}
-                  </div>
-
-                  <Button 
-                    type="submit" 
-                    disabled={changePasswordMutation.isPending}
-                    className="w-full md:w-auto bg-yellow-600 hover:bg-yellow-700"
-                  >
-                    <Key className="h-4 w-4 mr-2" />
-                    {changePasswordMutation.isPending ? "Aggiornando..." : "Aggiorna Password"}
+                  <Button variant="outline" onClick={handleCancel}>
+                    <X className="h-4 w-4 mr-2" />
+                    Annulla
                   </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Account Actions */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Azioni Account</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Button
-                  onClick={() => exportDataMutation.mutate()}
-                  disabled={exportDataMutation.isPending}
-                  variant="outline"
-                  className="w-full"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  {exportDataMutation.isPending ? "Esportando..." : "Esporta Tutti i Dati"}
-                </Button>
-                
-                <Button variant="outline" className="w-full">
-                  <Upload className="h-4 w-4 mr-2" />
-                  Backup Dati
-                </Button>
-                
-                <Separator />
-                
-                <Button
-                  onClick={() => setShowDeleteDialog(true)}
-                  variant="destructive"
-                  className="w-full"
-                >
-                  <UserX className="h-4 w-4 mr-2" />
-                  Elimina Account
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Account Statistics */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Statistiche Account</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4 text-center">
-                  <div>
-                    <div className="flex items-center justify-center mb-2">
-                      <Calendar className="h-5 w-5 text-primary mr-1" />
-                    </div>
-                    <p className="text-2xl font-bold text-primary">{accountStats.daysActive}</p>
-                    <p className="text-sm text-muted-foreground">Giorni Attivo</p>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-center mb-2">
-                      <ShoppingCart className="h-5 w-5 text-green-600 mr-1" />
-                    </div>
-                    <p className="text-2xl font-bold text-green-600">{accountStats.totalSalesCount}</p>
-                    <p className="text-sm text-muted-foreground">Vendite Totali</p>
+          {/* Account Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Informazioni Account</CardTitle>
+              <CardDescription>
+                Dettagli sull'account e statistiche
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Username</Label>
+                  <div className="px-3 py-2 bg-gray-50 rounded-md border">
+                    {user.username}
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+                
+                <div className="space-y-2">
+                  <Label>Data Registrazione</Label>
+                  <div className="px-3 py-2 bg-gray-50 rounded-md border">
+                    {user.createdAt ? new Date(user.createdAt).toLocaleDateString('it-IT') : 'N/A'}
+                  </div>
+                </div>
+              </div>
 
-            {/* Account Info */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Informazioni Account</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Stato:</span>
-                  <Badge variant="default">Attivo</Badge>
+              <div className="space-y-2">
+                <Label>Stato Account</Label>
+                <div className="flex items-center gap-2">
+                  <div className={`px-2 py-1 rounded text-xs font-medium ${
+                    user.isActive === 1 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {user.isActive === 1 ? 'Attivo' : 'In attesa di verifica'}
+                  </div>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Registrato il:</span>
-                  <span className="text-sm">
-                    {user?.createdAt ? new Date(user.createdAt).toLocaleDateString("it-IT") : "N/A"}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Ultimo accesso:</span>
-                  <span className="text-sm">Oggi</span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
-
-        {/* Delete Account Dialog */}
-        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Elimina Account</AlertDialogTitle>
-              <AlertDialogDescription>
-                Sei sicuro di voler eliminare il tuo account? Questa azione cancellerà 
-                permanentemente tutti i tuoi dati, inclusi inventario, vendite e spese. 
-                Questa azione non può essere annullata.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Annulla</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => deleteAccountMutation.mutate()}
-                disabled={deleteAccountMutation.isPending}
-                className="bg-destructive hover:bg-destructive/90"
-              >
-                {deleteAccountMutation.isPending ? "Eliminando..." : "Elimina Account"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
     </div>
   );

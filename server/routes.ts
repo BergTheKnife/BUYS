@@ -12,6 +12,7 @@ import { activities, activityUsers, vendite, spese, inventario, users } from "@s
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { 
   insertUserSchema, 
   loginUserSchema, 
@@ -1255,6 +1256,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Recent activities route
+  // Activity history endpoint with filters
+  app.get('/api/activity-history', requireActivity, async (req, res) => {
+    try {
+      const activityId = req.session.activityId;
+      const { period = 'all', month, year } = req.query;
+      
+      let dateFilter = sql`1=1`; // No filter by default
+      
+      // Apply date filters
+      if (period === 'today') {
+        dateFilter = sql`DATE(created_at) = CURRENT_DATE`;
+      } else if (period === 'month' && month && year) {
+        dateFilter = sql`EXTRACT(MONTH FROM created_at) = ${month} AND EXTRACT(YEAR FROM created_at) = ${year}`;
+      } else if (period === 'year' && year) {
+        dateFilter = sql`EXTRACT(YEAR FROM created_at) = ${year}`;
+      }
+      
+      // Get inventory additions
+      const inventoryHistory = await db.select({
+        id: inventario.id,
+        type: sql`'inventory'`,
+        description: sql`'Aggiunto articolo: ' || ${inventario.nomeArticolo} || ' - ' || ${inventario.taglia}`,
+        amount: inventario.costo,
+        data: inventario.createdAt,
+        details: sql`json_build_object('nome', ${inventario.nomeArticolo}, 'taglia', ${inventario.taglia}, 'quantita', ${inventario.quantita})`
+      }).from(inventario)
+        .where(sql`${eq(inventario.activityId, activityId!)} AND ${dateFilter}`);
+      
+      // Get sales
+      const salesHistory = await db.select({
+        id: vendite.id,
+        type: sql`'sale'`,
+        description: sql`'Vendita: ' || ${vendite.nomeArticolo} || ' - ' || ${vendite.taglia}`,
+        amount: vendite.prezzoVendita,
+        data: vendite.createdAt,
+        details: sql`json_build_object('nome', ${vendite.nomeArticolo}, 'taglia', ${vendite.taglia}, 'quantita', ${vendite.quantita}, 'incassato_da', ${vendite.incassatoDa})`
+      }).from(vendite)
+        .where(sql`${eq(vendite.activityId, activityId!)} AND ${dateFilter}`);
+      
+      // Get expenses
+      const expensesHistory = await db.select({
+        id: spese.id,
+        type: sql`'expense'`,
+        description: spese.voce,
+        amount: spese.importo,
+        data: spese.createdAt,
+        details: sql`json_build_object('categoria', ${spese.categoria})`
+      }).from(spese)
+        .where(sql`${eq(spese.activityId, activityId!)} AND ${dateFilter}`);
+      
+      // Combine and sort by date (newest first)
+      const allHistory = [...inventoryHistory, ...salesHistory, ...expensesHistory]
+        .sort((a, b) => new Date(b.data || new Date()).getTime() - new Date(a.data || new Date()).getTime());
+        
+      res.json(allHistory);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore del server" });
+    }
+  });
+
   app.get('/api/recent-activities', requireActivity, async (req, res) => {
     try {
       const activities = await storage.getRecentActivitiesByActivity(req.session.activityId!);
@@ -1265,12 +1326,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Top selling items route
+  // Get activity members for sales form dropdown
+  app.get('/api/activity-members', requireActivity, async (req, res) => {
+    try {
+      const activityId = req.session.activityId;
+      
+      const members = await db.select({
+        id: users.id,
+        nome: users.nome,
+        cognome: users.cognome,
+        displayName: sql`${users.nome} || ' ' || ${users.cognome}`
+      }).from(activityUsers)
+        .innerJoin(users, eq(activityUsers.userId, users.id))
+        .where(eq(activityUsers.activityId, activityId!));
+      
+      res.json(members);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nel recupero dei membri" });
+    }
+  });
+
   app.get('/api/top-selling-items', requireActivity, async (req, res) => {
     try {
       const topItems = await storage.getTopSellingItemsByActivity(req.session.activityId!);
       res.json(topItems);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nel recupero degli articoli più venduti" });
+    }
+  });
+
+  // Profile image upload endpoints
+  app.post('/api/profile/upload-url', requireAuth, async (req, res) => {
+    try {
+      const objectStorageService = new ObjectStorageService();
+      const uploadURL = await objectStorageService.getProfileImageUploadURL();
+      res.json({ uploadURL });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nella generazione URL upload" });
+    }
+  });
+
+  app.post('/api/profile/update-image', requireAuth, async (req, res) => {
+    try {
+      const { imageUrl } = req.body;
+      const userId = req.session.userId;
+
+      if (!imageUrl) {
+        return res.status(400).json({ message: "URL immagine richiesta" });
+      }
+
+      const objectStorageService = new ObjectStorageService();
+      const normalizedPath = objectStorageService.normalizeObjectEntityPath(imageUrl);
+
+      // Update user profile image URL
+      const updatedUser = await storage.updateUserProfileImage(userId!, normalizedPath);
+
+      res.json({
+        message: "Immagine profilo aggiornata con successo",
+        profileImageUrl: normalizedPath
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nell'aggiornamento immagine profilo" });
+    }
+  });
+
+  // Profile update endpoint
+  app.post('/api/profile/update', requireAuth, async (req, res) => {
+    try {
+      const { nome, cognome, email } = req.body;
+      const userId = req.session.userId;
+
+      if (!nome || !cognome || !email) {
+        return res.status(400).json({ message: "Tutti i campi sono richiesti" });
+      }
+
+      const updatedUser = await storage.updateUserProfile(userId!, { nome, cognome, email });
+
+      res.json({
+        message: "Profilo aggiornato con successo",
+        user: updatedUser
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nell'aggiornamento profilo" });
+    }
+  });
+
+  // Serve profile images
+  app.get('/objects/:objectPath(*)', async (req, res) => {
+    try {
+      const objectStorageService = new ObjectStorageService();
+      const objectFile = await objectStorageService.getObjectEntityFile(req.path);
+      objectStorageService.downloadObject(objectFile, res);
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      return res.status(500).json({ error: "Internal server error" });
     }
   });
 
@@ -1281,6 +1432,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(chartData);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nel recupero dei dati del grafico" });
+    }
+  });
+
+  // Get activity members for dropdown selections
+  app.get("/api/activity-members", requireActivity, async (req, res) => {
+    try {
+      const activityId = req.session.currentActivityId || req.session.activityId;
+      const members = await storage.getActivityMembers(activityId);
+      res.json(members);
+    } catch (error: any) {
+      console.error('Error fetching activity members:', error);
+      res.status(500).json({ message: error.message || "Errore nel recupero dei membri dell'attività" });
     }
   });
 

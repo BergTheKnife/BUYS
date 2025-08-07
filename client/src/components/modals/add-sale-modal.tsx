@@ -44,6 +44,17 @@ export function AddSaleModal({ isOpen, onClose }: AddSaleModalProps) {
     enabled: isOpen,
   });
 
+  // Fetch activity members for "incassato da" dropdown
+  const { data: activityMembers = [] } = useQuery<Array<{
+    id: string;
+    nome: string;
+    cognome: string;
+    displayName: string;
+  }>>({
+    queryKey: ["/api/activity-members"],
+    enabled: isOpen,
+  });
+
   const form = useForm<SaleFormData>({
     resolver: zodResolver(saleFormSchema),
     defaultValues: {
@@ -190,8 +201,11 @@ export function AddSaleModal({ isOpen, onClose }: AddSaleModalProps) {
                 <SelectValue placeholder="Seleziona persona" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Alberto">Alberto</SelectItem>
-                <SelectItem value="Davide">Davide</SelectItem>
+                {activityMembers.map((member) => (
+                  <SelectItem key={member.id} value={member.displayName}>
+                    {member.displayName}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             {form.formState.errors.incassatoDa && (

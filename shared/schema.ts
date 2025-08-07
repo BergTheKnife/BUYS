@@ -11,6 +11,7 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
+  profileImageUrl: text("profile_image_url"),
   emailVerified: timestamp("email_verified"),
   isActive: integer("is_active").default(0), // 0 = pending verification, 1 = verified/active
   lastActivityId: uuid("last_activity_id"),
