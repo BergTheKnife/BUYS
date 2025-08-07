@@ -6,46 +6,76 @@
 
 /* Remove hover effects on touch devices */
 @media (hover: none) {
-  .hover\:bg-accent:hover {
+  /* Remove all Tailwind hover effects */
+  .hover\:bg-accent:hover,
+  [class*="hover:bg-accent"]:hover {
     background-color: inherit !important;
   }
   
-  .hover\:text-accent-foreground:hover {
+  .hover\:text-accent-foreground:hover,
+  [class*="hover:text-accent-foreground"]:hover {
     color: inherit !important;
   }
   
-  .hover\:bg-primary\/90:hover {
+  .hover\:bg-primary\/90:hover,
+  [class*="hover:bg-primary"]:hover {
     background-color: inherit !important;
   }
   
-  .hover\:bg-secondary\/80:hover {
+  .hover\:bg-secondary\/80:hover,
+  [class*="hover:bg-secondary"]:hover {
     background-color: inherit !important;
   }
   
-  .hover\:underline:hover {
+  .hover\:underline:hover,
+  [class*="hover:underline"]:hover {
     text-decoration: inherit !important;
   }
   
-  .hover\:bg-red-50:hover {
+  .hover\:bg-red-50:hover,
+  [class*="hover:bg-red"]:hover {
     background-color: inherit !important;
   }
   
-  .hover\:text-red-700:hover {
+  .hover\:text-red-700:hover,
+  [class*="hover:text-red"]:hover {
     color: inherit !important;
   }
   
-  .hover\:bg-yellow-700:hover {
+  .hover\:bg-yellow-700:hover,
+  [class*="hover:bg-yellow"]:hover {
     background-color: inherit !important;
   }
   
-  .hover\:bg-green-700:hover {
+  .hover\:bg-green-700:hover,
+  [class*="hover:bg-green"]:hover {
     background-color: inherit !important;
+  }
+
+  /* Remove all button hover effects globally */
+  button:hover,
+  .button:hover,
+  [role="button"]:hover {
+    background-color: inherit !important;
+    color: inherit !important;
+    text-decoration: inherit !important;
+    border-color: inherit !important;
+    box-shadow: inherit !important;
+    transform: inherit !important;
+    opacity: inherit !important;
+  }
+  
+  /* Specific override for shadcn button variants */
+  button[class*="outline"]:hover {
+    background-color: inherit !important;
+    color: inherit !important;
   }
   
   /* Remove focus ring on touch devices when not using keyboard */
   button:focus:not(:focus-visible) {
-    outline: none;
-    box-shadow: none;
+    outline: none !important;
+    box-shadow: none !important;
+    ring: none !important;
   }
 }
 
