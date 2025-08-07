@@ -13,6 +13,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import { DataProtectionService, dataProtectionMiddleware } from './dataProtection';
 import { 
   insertUserSchema, 
   loginUserSchema, 
@@ -133,8 +134,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Serve uploaded files
+  // Serve uploaded files  
   app.use('/uploads', express.static(uploadDir));
+  
+  // Add data protection middleware to log and protect all operations
+  app.use(dataProtectionMiddleware);
 
   // Auth middleware
   const requireAuth = (req: any, res: any, next: any) => {
@@ -1228,7 +1232,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete('/api/auth/account', requireAuth, async (req, res) => {
     try {
-      const deleted = await storage.deleteUser(req.session.userId!);
+      const userId = req.session.userId!;
+      
+      // SECURITY: Validate this is a user-initiated deletion
+      DataProtectionService.validateDeletionRequest('user', 'user', userId);
+      
+      // Check for protected data
+      const protection = await DataProtectionService.hasProtectedData(userId);
+      if (protection.hasData) {
+        return res.status(409).json({ 
+          message: `Impossibile eliminare account con dati esistenti: ${protection.protectedItems.join(', ')}`,
+          protectedData: protection.protectedItems,
+          counts: protection.counts
+        });
+      }
+      
+      // Create backup before deletion
+      await DataProtectionService.createBackup(userId, 'USER_INITIATED_ACCOUNT_DELETION');
+      
+      const deleted = await storage.deleteUser(userId);
       if (!deleted) {
         return res.status(404).json({ message: "Utente non trovato" });
       }
@@ -1239,8 +1261,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
 
+      DataProtectionService.logDataOperation('USER_ACCOUNT_DELETED', userId, { timestamp: new Date().toISOString() });
       res.json({ message: "Account eliminato con successo" });
     } catch (error: any) {
+      DataProtectionService.logDataOperation('USER_ACCOUNT_DELETION_FAILED', req.session.userId!, { error: error.message });
       res.status(500).json({ message: error.message || "Errore nell'eliminazione dell'account" });
     }
   });
