@@ -148,4 +148,23 @@
     backdrop-filter: blur(10px);
     background: hsla(0, 0%, 100%, 0.95);
   }
+
+  /* Fix checkbox display issues on mobile */
+  input[type="checkbox"] {
+    width: 1rem !important;
+    height: 1rem !important;
+    min-width: 1rem !important;
+    min-height: 1rem !important;
+    flex-shrink: 0 !important;
+    aspect-ratio: 1 / 1 !important;
+    border-radius: 0.25rem !important;
+  }
+
+  /* Ensure checkboxes stay square */
+  .checkbox-container input[type="checkbox"] {
+    width: 16px !important;
+    height: 16px !important;
+    min-width: 16px !important;
+    min-height: 16px !important;
+  }
 }
