@@ -149,7 +149,7 @@ export default function Expenses() {
             <Receipt className="h-8 w-8" />
             Spese
           </h1>
-          <Button onClick={() => setIsAddModalOpen(true)} className="bg-yellow-600 hover:bg-yellow-700">
+          <Button onClick={() => setIsAddModalOpen(true)} className="bg-yellow-600">
             <Plus className="h-4 w-4 mr-2" />
             Aggiungi Spesa
           </Button>
@@ -268,7 +268,7 @@ export default function Expenses() {
                 <p className="text-muted-foreground mb-4">
                   Inizia registrando la tua prima spesa
                 </p>
-                <Button onClick={() => setIsAddModalOpen(true)} className="bg-yellow-600 hover:bg-yellow-700">
+                <Button onClick={() => setIsAddModalOpen(true)} className="bg-yellow-600">
                   <Plus className="h-4 w-4 mr-2" />
                   Aggiungi Prima Spesa
                 </Button>

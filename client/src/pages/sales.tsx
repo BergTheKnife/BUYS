@@ -195,7 +195,7 @@ export default function Sales() {
             <ShoppingCart className="h-8 w-8" />
             Vendite
           </h1>
-          <Button onClick={() => setIsAddModalOpen(true)} className="bg-green-600 hover:bg-green-700">
+          <Button onClick={() => setIsAddModalOpen(true)} className="bg-green-600">
             <Plus className="h-4 w-4 mr-2" />
             Registra Vendita
           </Button>
@@ -316,7 +316,7 @@ export default function Sales() {
                 <p className="text-muted-foreground mb-4">
                   Inizia registrando la tua prima vendita
                 </p>
-                <Button onClick={() => setIsAddModalOpen(true)} className="bg-green-600 hover:bg-green-700">
+                <Button onClick={() => setIsAddModalOpen(true)} className="bg-green-600">
                   <Plus className="h-4 w-4 mr-2" />
                   Registra Prima Vendita
                 </Button>
@@ -379,7 +379,7 @@ export default function Sales() {
                               size="sm"
                               onClick={() => setDeleteSale(sale)}
                               title="Elimina vendita"
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              className="text-red-600"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>

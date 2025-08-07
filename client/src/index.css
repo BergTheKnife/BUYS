@@ -4,6 +4,51 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Remove hover effects on touch devices */
+@media (hover: none) {
+  .hover\:bg-accent:hover {
+    background-color: inherit !important;
+  }
+  
+  .hover\:text-accent-foreground:hover {
+    color: inherit !important;
+  }
+  
+  .hover\:bg-primary\/90:hover {
+    background-color: inherit !important;
+  }
+  
+  .hover\:bg-secondary\/80:hover {
+    background-color: inherit !important;
+  }
+  
+  .hover\:underline:hover {
+    text-decoration: inherit !important;
+  }
+  
+  .hover\:bg-red-50:hover {
+    background-color: inherit !important;
+  }
+  
+  .hover\:text-red-700:hover {
+    color: inherit !important;
+  }
+  
+  .hover\:bg-yellow-700:hover {
+    background-color: inherit !important;
+  }
+  
+  .hover\:bg-green-700:hover {
+    background-color: inherit !important;
+  }
+  
+  /* Remove focus ring on touch devices when not using keyboard */
+  button:focus:not(:focus-visible) {
+    outline: none;
+    box-shadow: none;
+  }
+}
+
 :root {
   --background: hsl(0, 0%, 100%);
   --foreground: hsl(224, 71%, 4%);
