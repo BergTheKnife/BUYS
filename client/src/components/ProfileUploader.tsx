@@ -4,6 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Upload, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { ProfileImageEditor } from "./ProfileImageEditor";
 
 interface ProfileUploaderProps {
   currentImageUrl?: string;
@@ -13,11 +14,16 @@ interface ProfileUploaderProps {
 export function ProfileUploader({ currentImageUrl, onImageUpdate }: ProfileUploaderProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(currentImageUrl);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [showEditor, setShowEditor] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const uploadMutation = useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: async (processedBlob: Blob) => {
+      // Convert blob to file
+      const file = new File([processedBlob], 'profile.jpg', { type: 'image/jpeg' });
+      
       // Get upload URL
       const uploadData = await apiRequest('/api/profile/upload-url', 'POST');
       const uploadURL = uploadData.uploadURL;
@@ -75,70 +81,91 @@ export function ProfileUploader({ currentImageUrl, onImageUpdate }: ProfileUploa
       return;
     }
 
-    // Validate file size (5MB limit)
-    if (file.size > 5 * 1024 * 1024) {
+    // Validate file size (10MB limit)
+    if (file.size > 10 * 1024 * 1024) {
       toast({
         title: "Errore",
-        description: "L'immagine deve essere più piccola di 5MB",
+        description: "L'immagine deve essere più piccola di 10MB",
         variant: "destructive",
       });
       return;
     }
 
-    // Show preview
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setPreviewUrl(e.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+    // Store file and show editor
+    setSelectedFile(file);
+    setShowEditor(true);
+  };
 
-    // Upload file
+  const handleEditorConfirm = async (croppedImageBlob: Blob) => {
+    setShowEditor(false);
     setIsUploading(true);
-    uploadMutation.mutate(file);
+    
+    // Create preview URL from blob
+    const previewUrl = URL.createObjectURL(croppedImageBlob);
+    setPreviewUrl(previewUrl);
+    
+    // Upload the processed image
+    uploadMutation.mutate(croppedImageBlob);
+  };
+
+  const handleEditorCancel = () => {
+    setShowEditor(false);
+    setSelectedFile(null);
   };
 
   return (
-    <div className="flex flex-col items-center space-y-4">
-      <div className="relative">
-        <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-gray-200 bg-gray-100 flex items-center justify-center">
-          {previewUrl ? (
-            <img
-              src={previewUrl}
-              alt="Foto profilo"
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <User className="w-8 h-8 text-gray-400" />
+    <>
+      <div className="flex flex-col items-center space-y-4">
+        <div className="relative">
+          <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-gray-200 bg-gray-100 flex items-center justify-center">
+            {previewUrl ? (
+              <img
+                src={previewUrl}
+                alt="Foto profilo"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <User className="w-8 h-8 text-gray-400" />
+            )}
+          </div>
+          {isUploading && (
+            <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center">
+              <Loader2 className="w-6 h-6 text-white animate-spin" />
+            </div>
           )}
         </div>
-        {isUploading && (
-          <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center">
-            <Loader2 className="w-6 h-6 text-white animate-spin" />
-          </div>
-        )}
+        
+        <div>
+          <input
+            type="file"
+            id="profile-image"
+            accept="image/*"
+            onChange={handleFileChange}
+            disabled={isUploading}
+            className="hidden"
+          />
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            disabled={isUploading}
+          >
+            <label htmlFor="profile-image" className="cursor-pointer">
+              <Upload className="w-4 h-4 mr-2" />
+              {previewUrl ? 'Cambia Foto' : 'Carica Foto'}
+            </label>
+          </Button>
+        </div>
       </div>
-      
-      <div>
-        <input
-          type="file"
-          id="profile-image"
-          accept="image/*"
-          onChange={handleFileChange}
-          disabled={isUploading}
-          className="hidden"
+
+      {/* Image Editor Modal */}
+      {showEditor && selectedFile && (
+        <ProfileImageEditor
+          imageFile={selectedFile}
+          onConfirm={handleEditorConfirm}
+          onCancel={handleEditorCancel}
         />
-        <Button
-          asChild
-          variant="outline"
-          size="sm"
-          disabled={isUploading}
-        >
-          <label htmlFor="profile-image" className="cursor-pointer">
-            <Upload className="w-4 h-4 mr-2" />
-            {previewUrl ? 'Cambia Foto' : 'Carica Foto'}
-          </label>
-        </Button>
-      </div>
-    </div>
+      )}
+    </>
   );
 }
