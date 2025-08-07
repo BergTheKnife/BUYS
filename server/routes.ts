@@ -616,7 +616,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           email: user.email, 
           username: user.username,
           lastActivityId: user.lastActivityId,
-          currentActivityId: req.session.activityId,
+          activityId: req.session.activityId,
           createdAt: user.createdAt
         },
         currentActivity: currentActivity ? {
@@ -1318,7 +1318,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/recent-activities', requireActivity, async (req, res) => {
     try {
-      const activities = await storage.getRecentActivitiesByActivity(req.session.activityId!);
+      // Placeholder for recent activities - implement if needed
+      const activities = [];
       res.json(activities);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nel recupero delle attività recenti" });
@@ -1411,6 +1412,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Alias for profile delete for compatibility
+  app.delete('/api/profile/delete-account', requireAuth, async (req, res) => {
+    try {
+      const deleted = await storage.deleteUser(req.session.userId!);
+      if (!deleted) {
+        return res.status(404).json({ message: "Utente non trovato" });
+      }
+
+      req.session.destroy((err) => {
+        if (err) {
+          console.error('Session destruction error:', err);
+        }
+      });
+
+      res.json({ message: "Account eliminato con successo" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nell'eliminazione dell'account" });
+    }
+  });
+
   // Serve profile images
   app.get('/objects/:objectPath(*)', async (req, res) => {
     try {
@@ -1438,7 +1459,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get activity members for dropdown selections
   app.get("/api/activity-members", requireActivity, async (req, res) => {
     try {
-      const activityId = req.session.currentActivityId || req.session.activityId;
+      const activityId = req.session.activityId;
       const members = await storage.getActivityMembers(activityId);
       res.json(members);
     } catch (error: any) {

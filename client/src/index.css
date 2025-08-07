@@ -62,8 +62,36 @@
     @apply border-border;
   }
 
-  body {
+  html, body {
     @apply font-sans antialiased bg-background text-foreground;
+    overflow-x: hidden;
+    width: 100%;
+    min-width: 320px; /* Minimum width for very small screens */
+  }
+
+  /* Prevent horizontal scroll on mobile */
+  * {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Ensure all containers respect viewport width */
+  .container {
+    max-width: 100%;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  /* Mobile-first responsive typography */
+  @media (max-width: 640px) {
+    h1 { font-size: 1.5rem; }
+    h2 { font-size: 1.25rem; }
+    h3 { font-size: 1.125rem; }
+    
+    /* Ensure buttons are touch-friendly */
+    button {
+      min-height: 44px;
+    }
   }
 
   /* Custom styles matching the design reference */

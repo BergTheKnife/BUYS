@@ -195,16 +195,17 @@ export default function Welcome() {
 
 
   return (
-    <div className="min-h-screen bg-primary flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <Card className="backdrop-blur-lg bg-white/95 shadow-2xl border-0">
-          <CardContent className="p-8">
+    <div className="min-h-screen bg-primary flex items-center justify-center p-4 overflow-x-hidden">
+      <div className="w-full max-w-md min-w-0">
+        <Card className="backdrop-blur-lg bg-white/95 shadow-2xl border-0 overflow-hidden">
+          <CardContent className="p-6 sm:p-8">
             <div className="text-center mb-4">
-              <div className="mb-2">
+              <div className="mb-2 flex justify-center">
                 <img 
                   src={buysLogoColorPath} 
                   alt="BUYS - Build Up Your Store" 
-                  className="w-80 h-auto mx-auto max-w-full"
+                  className="w-72 sm:w-80 h-auto max-w-full object-contain"
+                  style={{ maxWidth: 'calc(100vw - 6rem)' }}
                 />
               </div>
             </div>

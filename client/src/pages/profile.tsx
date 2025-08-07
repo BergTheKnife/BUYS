@@ -9,10 +9,21 @@ import { ProfileUploader } from "@/components/ProfileUploader";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { User, Mail, Edit3, Save, X } from "lucide-react";
+import { User, Mail, Edit3, Save, X, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export default function Profile() {
-  const { user, refetch } = useAuth();
+  const { user } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     nome: user?.nome || "",
@@ -38,6 +49,27 @@ export default function Profile() {
       toast({
         title: "Errore",
         description: error.message || "Errore nell'aggiornamento del profilo",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteAccountMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('/api/auth/account', 'DELETE', {});
+    },
+    onSuccess: () => {
+      toast({
+        title: "Account eliminato",
+        description: "Il tuo account è stato eliminato con successo",
+      });
+      // Redirect to home after successful deletion
+      window.location.href = '/';
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore nell'eliminazione dell'account",
         variant: "destructive",
       });
     },
@@ -104,7 +136,7 @@ export default function Profile() {
             </CardHeader>
             <CardContent className="flex justify-center">
               <ProfileUploader
-                currentImageUrl={user.profileImageUrl}
+                currentImageUrl={user.profileImageUrl || undefined}
                 onImageUpdate={handleImageUpdate}
               />
             </CardContent>
@@ -233,14 +265,56 @@ export default function Profile() {
                 <Label>Stato Account</Label>
                 <div className="flex items-center gap-2">
                   <div className={`px-2 py-1 rounded text-xs font-medium ${
-                    user.isActive === 1 
+                    (user.isActive === 1 && user.emailVerified) 
                       ? 'bg-green-100 text-green-800' 
                       : 'bg-yellow-100 text-yellow-800'
                   }`}>
-                    {user.isActive === 1 ? 'Attivo' : 'In attesa di verifica'}
+                    {(user.isActive === 1 && user.emailVerified) ? 'Attivo e Verificato' : 'In attesa di verifica'}
                   </div>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Danger Zone */}
+          <Card className="border-red-200">
+            <CardHeader>
+              <CardTitle className="text-red-600">Zona di Pericolo</CardTitle>
+              <CardDescription>
+                Azioni permanenti che non possono essere annullate
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" className="w-full sm:w-auto">
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Elimina Account
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Sei sicuro di voler eliminare il tuo account?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Questa azione non può essere annullata. Verranno eliminati permanentemente:
+                      <br />• Il tuo account utente
+                      <br />• Tutte le attività di cui sei proprietario
+                      <br />• Tutto l'inventario, vendite e spese associate
+                      <br />• La tua partecipazione alle attività di altri utenti
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Annulla</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={() => deleteAccountMutation.mutate()}
+                      disabled={deleteAccountMutation.isPending}
+                      className="bg-red-600 hover:bg-red-700"
+                    >
+                      {deleteAccountMutation.isPending ? "Eliminando..." : "Elimina Account"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </CardContent>
           </Card>
         </div>
