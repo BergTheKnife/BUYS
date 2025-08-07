@@ -30,8 +30,9 @@ export function ProfileUploader({ currentImageUrl, onImageUpdate }: ProfileUploa
         
         // Get upload URL
         console.log('📡 Requesting upload URL...');
-        const uploadData = await apiRequest('/api/profile/upload-url', 'POST');
-        const uploadURL = (uploadData as any).uploadURL;
+        const urlResponse = await apiRequest('POST', '/api/profile/upload-url');
+        const uploadData = await urlResponse.json();
+        const uploadURL = uploadData.uploadURL;
         console.log('✅ Upload URL received:', uploadURL);
 
         // Upload file to GCS
@@ -54,10 +55,11 @@ export function ProfileUploader({ currentImageUrl, onImageUpdate }: ProfileUploa
 
         // Update user profile with new image URL
         console.log('📡 Updating user profile...');
-        const result = await apiRequest('/api/profile/update-image', 'POST', {
+        const response = await apiRequest('POST', '/api/profile/update-image', {
           imageUrl: uploadURL.split('?')[0]
         });
         
+        const result = await response.json();
         console.log('✅ Profile updated successfully');
         return result;
       } catch (error) {
