@@ -177,7 +177,6 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-      
       <div className="container mx-auto py-8 px-4">
         {/* Welcome Header */}
         <div className="mb-8">
@@ -186,9 +185,7 @@ export default function Dashboard() {
               <h1 className="text-3xl font-bold mb-2">
                 Ciao, {user?.nome}!
               </h1>
-              <p className="text-white/80">
-                Benvenuto in BUYS - Build Up Your Store
-              </p>
+              <p className="text-white/80">Benvenuto in BUYS - Build Up Your Success</p>
             </CardContent>
           </Card>
         </div>
