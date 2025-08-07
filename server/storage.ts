@@ -717,9 +717,9 @@ export class DatabaseStorage implements IStorage {
         nome: users.nome,
         cognome: users.cognome
       })
-      .from(userActivities)
-      .innerJoin(users, eq(userActivities.userId, users.id))
-      .where(eq(userActivities.activityId, activityId));
+      .from(activityUsers)
+      .innerJoin(users, eq(activityUsers.userId, users.id))
+      .where(eq(activityUsers.activityId, activityId));
 
     return members.map(member => ({
       ...member,
@@ -751,12 +751,12 @@ export class DatabaseStorage implements IStorage {
         isActive: users.isActive,
         emailVerified: users.emailVerified,
         createdAt: users.createdAt,
-        activitiesCount: sql<number>`count(distinct ${userActivities.activityId})`,
+        activitiesCount: sql<number>`count(distinct ${activityUsers.activityId})`,
         salesCount: sql<number>`count(distinct ${vendite.id})`,
         inventoryCount: sql<number>`count(distinct ${inventario.id})`
       })
       .from(users)
-      .leftJoin(userActivities, eq(users.id, userActivities.userId))
+      .leftJoin(activityUsers, eq(users.id, activityUsers.userId))
       .leftJoin(vendite, eq(users.id, vendite.userId))
       .leftJoin(inventario, eq(users.id, inventario.userId))
       .groupBy(users.id, users.nome, users.cognome, users.email, users.username, users.isActive, users.emailVerified, users.createdAt)
@@ -796,14 +796,14 @@ export class DatabaseStorage implements IStorage {
         proprietarioNome: sql<string>`${users.nome} || ' ' || ${users.cognome}`,
         proprietarioEmail: users.email,
         createdAt: activities.createdAt,
-        membersCount: sql<number>`count(distinct ${userActivities.userId})`,
+        membersCount: sql<number>`count(distinct ${activityUsers.userId})`,
         inventoryCount: sql<number>`count(distinct ${inventario.id})`,
         salesCount: sql<number>`count(distinct ${vendite.id})`,
         expensesCount: sql<number>`count(distinct ${spese.id})`
       })
       .from(activities)
       .innerJoin(users, eq(activities.proprietarioId, users.id))
-      .leftJoin(userActivities, eq(activities.id, userActivities.activityId))
+      .leftJoin(activityUsers, eq(activities.id, activityUsers.activityId))
       .leftJoin(inventario, eq(activities.id, inventario.activityId))
       .leftJoin(vendite, eq(activities.id, vendite.activityId))
       .leftJoin(spese, eq(activities.id, spese.activityId))
