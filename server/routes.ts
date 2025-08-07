@@ -1496,10 +1496,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Profile image upload endpoints
   app.post('/api/profile/upload-url', requireAuth, async (req, res) => {
     try {
+      console.log('🚀 Profile upload URL endpoint called');
+      
+      // Check if object storage is available
+      if (!process.env.PRIVATE_OBJECT_DIR) {
+        console.log('❌ PRIVATE_OBJECT_DIR not configured');
+        return res.status(500).json({ 
+          message: "Object storage non configurato. Contatta l'amministratore." 
+        });
+      }
+
+      console.log('✅ Object storage configured:', process.env.PRIVATE_OBJECT_DIR);
+      
       const objectStorageService = new ObjectStorageService();
       const uploadURL = await objectStorageService.getProfileImageUploadURL();
+      
+      console.log('✅ Upload URL generated:', uploadURL);
       res.json({ uploadURL });
     } catch (error: any) {
+      console.error('❌ Profile upload URL error:', error);
       res.status(500).json({ message: error.message || "Errore nella generazione URL upload" });
     }
   });

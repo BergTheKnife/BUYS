@@ -21,30 +21,49 @@ export function ProfileUploader({ currentImageUrl, onImageUpdate }: ProfileUploa
 
   const uploadMutation = useMutation({
     mutationFn: async (processedBlob: Blob) => {
-      // Convert blob to file
-      const file = new File([processedBlob], 'profile.jpg', { type: 'image/jpeg' });
-      
-      // Get upload URL
-      const uploadData = await apiRequest('/api/profile/upload-url', 'POST');
-      const uploadURL = (uploadData as any).uploadURL;
+      try {
+        console.log('🚀 Starting profile image upload...');
+        
+        // Convert blob to file
+        const file = new File([processedBlob], 'profile.jpg', { type: 'image/jpeg' });
+        console.log('✅ File created:', file.size, 'bytes');
+        
+        // Get upload URL
+        console.log('📡 Requesting upload URL...');
+        const uploadData = await apiRequest('/api/profile/upload-url', 'POST');
+        const uploadURL = (uploadData as any).uploadURL;
+        console.log('✅ Upload URL received:', uploadURL);
 
-      // Upload file to GCS
-      const uploadResponse = await fetch(uploadURL, {
-        method: 'PUT',
-        body: file,
-        headers: {
-          'Content-Type': file.type,
+        // Upload file to GCS
+        console.log('📤 Uploading file to storage...');
+        const uploadResponse = await fetch(uploadURL, {
+          method: 'PUT',
+          body: file,
+          headers: {
+            'Content-Type': file.type,
+          }
+        });
+
+        if (!uploadResponse.ok) {
+          const errorText = await uploadResponse.text();
+          console.error('❌ Upload failed:', uploadResponse.status, errorText);
+          throw new Error(`Errore durante l'upload dell'immagine: ${uploadResponse.status} ${errorText}`);
         }
-      });
 
-      if (!uploadResponse.ok) {
-        throw new Error('Errore durante l\'upload dell\'immagine');
+        console.log('✅ File uploaded successfully');
+
+        // Update user profile with new image URL
+        console.log('📡 Updating user profile...');
+        const result = await apiRequest('/api/profile/update-image', 'POST', {
+          imageUrl: uploadURL.split('?')[0]
+        });
+        
+        console.log('✅ Profile updated successfully');
+        return result;
+      } catch (error) {
+        console.error('❌ Upload mutation error:', error);
+        throw error;
       }
-
-      // Update user profile with new image URL
-      return await apiRequest('/api/profile/update-image', 'POST', {
-        imageUrl: uploadURL.split('?')[0]
-      });
     },
     onSuccess: (data: any) => {
       toast({
