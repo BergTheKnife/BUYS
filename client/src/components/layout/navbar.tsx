@@ -214,7 +214,7 @@ export function Navbar() {
             <img 
               src={buysLogoWhitePath} 
               alt="BUYS" 
-              className="h-6 sm:h-8 w-auto"
+              className="h-8 sm:h-10 w-auto"
             />
           </Button>
 

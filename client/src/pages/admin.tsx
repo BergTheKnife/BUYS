@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Shield, Users, Activity, Trash2, Lock, Eye } from "lucide-react";
+import { Shield, Users, Activity, Trash2, Lock, Eye, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { z } from "zod";
@@ -151,9 +151,24 @@ export function AdminPage() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        {/* Back Navigation */}
+        <div className="container mx-auto">
+          <div className="pt-6 pb-4">
+            <Button 
+              variant="ghost" 
+              onClick={() => window.history.back()}
+              className="flex items-center gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Torna indietro
+            </Button>
+          </div>
+        </div>
+        
+        <div className="flex items-center justify-center min-h-[calc(100vh-120px)]">
+          <Card className="w-full max-w-md">
+            <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
               <Shield className="h-12 w-12 text-blue-600" />
             </div>
@@ -187,13 +202,26 @@ export function AdminPage() {
               </Button>
             </form>
           </CardContent>
-        </Card>
+          </Card>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="container mx-auto py-6 px-4">
+      {/* Back Navigation */}
+      <div className="pb-4">
+        <Button 
+          variant="ghost" 
+          onClick={() => window.history.back()}
+          className="flex items-center gap-2"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Torna indietro
+        </Button>
+      </div>
+      
       <div className="flex items-center gap-3 mb-6">
         <Shield className="h-8 w-8 text-blue-600" />
         <div>
