@@ -1811,6 +1811,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put('/api/vendite/:id', requireActivity, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Convert form data types
+      const formData = {
+        inventarioId: req.body.inventarioId,
+        quantita: parseInt(req.body.quantita) || 1,
+        prezzoVendita: req.body.prezzoVendita,
+        incassatoDa: req.body.incassatoDa,
+        incassatoSu: req.body.incassatoSu,
+        data: new Date(req.body.data)
+      };
+      
+      const updates = insertVenditaSchema.partial().parse(formData);
+      
+      // Get existing sale to compare quantities and calculate margin difference
+      const existingSale = await storage.getSaleById(id, req.session.activityId!);
+      if (!existingSale) {
+        return res.status(404).json({ message: "Vendita non trovata" });
+      }
+      
+      // Get inventory item to check availability and calculate new margin
+      const inventoryItem = await storage.getInventoryItem(updates.inventarioId || existingSale.inventarioId, req.session.activityId!);
+      if (!inventoryItem) {
+        return res.status(404).json({ message: "Articolo non trovato nell'inventario" });
+      }
+      
+      const oldQuantity = existingSale.quantita;
+      const newQuantity = updates.quantita || oldQuantity;
+      const quantityDifference = newQuantity - oldQuantity;
+      
+      // Check if we have enough inventory for the quantity change
+      if (quantityDifference > 0 && inventoryItem.quantita < quantityDifference) {
+        return res.status(400).json({ message: "Quantità insufficiente in magazzino per questa modifica" });
+      }
+      
+      // Calculate new margin if price or quantity changed
+      const newPrice = updates.prezzoVendita || existingSale.prezzoVendita;
+      const marginePerUnit = Number(newPrice) - Number(inventoryItem.costo);
+      const margineTotal = marginePerUnit * newQuantity;
+      
+      // Update sale with new margin and article info
+      const updatedSale = await storage.updateSale(id, req.session.activityId!, {
+        ...updates,
+        nomeArticolo: inventoryItem.nomeArticolo,
+        taglia: inventoryItem.taglia,
+        margine: margineTotal.toString(),
+      });
+      
+      // Update inventory quantity based on the difference
+      if (quantityDifference !== 0) {
+        await storage.updateInventoryQuantity(inventoryItem.id, inventoryItem.quantita - quantityDifference);
+      }
+      
+      res.json(updatedSale);
+    } catch (error: any) {
+      console.error('Sale update error:', error);
+      res.status(400).json({ message: error.message || "Errore nell'aggiornamento della vendita" });
+    }
+  });
+
   app.delete('/api/vendite/:id', requireActivity, async (req, res) => {
     try {
       const { id } = req.params;

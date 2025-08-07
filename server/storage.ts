@@ -492,6 +492,25 @@ export class DatabaseStorage implements IStorage {
     return newSale;
   }
 
+  async getSaleById(id: string, activityId: string): Promise<Vendita | null> {
+    const [sale] = await db
+      .select()
+      .from(vendite)
+      .where(and(eq(vendite.id, id), eq(vendite.activityId, activityId)));
+    
+    return sale || null;
+  }
+
+  async updateSale(id: string, activityId: string, updates: Partial<InsertVendita> & { nomeArticolo?: string; taglia?: string; margine?: string }): Promise<Vendita | null> {
+    const [updatedSale] = await db
+      .update(vendite)
+      .set(updates)
+      .where(and(eq(vendite.id, id), eq(vendite.activityId, activityId)))
+      .returning();
+    
+    return updatedSale || null;
+  }
+
   async deleteSale(id: string, activityId: string): Promise<boolean> {
     // Get the sale data to restore inventory quantity
     const [sale] = await db

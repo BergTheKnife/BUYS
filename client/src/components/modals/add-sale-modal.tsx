@@ -21,12 +21,13 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { insertVenditaSchema } from "@shared/schema";
-import type { InsertVendita, Inventario } from "@shared/schema";
+import type { InsertVendita, Inventario, Vendita } from "@shared/schema";
 import { z } from "zod";
 
 interface AddSaleModalProps {
   isOpen: boolean;
   onClose: () => void;
+  editingSale?: Vendita | null;
 }
 
 const saleFormSchema = insertVenditaSchema.extend({
@@ -35,7 +36,7 @@ const saleFormSchema = insertVenditaSchema.extend({
 
 type SaleFormData = z.infer<typeof saleFormSchema>;
 
-export function AddSaleModal({ isOpen, onClose }: AddSaleModalProps) {
+export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -57,7 +58,14 @@ export function AddSaleModal({ isOpen, onClose }: AddSaleModalProps) {
 
   const form = useForm<SaleFormData>({
     resolver: zodResolver(saleFormSchema),
-    defaultValues: {
+    defaultValues: editingSale ? {
+      inventarioId: editingSale.inventarioId,
+      quantita: editingSale.quantita,
+      prezzoVendita: editingSale.prezzoVendita,
+      incassatoDa: editingSale.incassatoDa,
+      incassatoSu: editingSale.incassatoSu,
+      data: new Date(editingSale.data).toISOString().split('T')[0],
+    } : {
       inventarioId: "",
       quantita: 1,
       prezzoVendita: "0",
@@ -72,7 +80,10 @@ export function AddSaleModal({ isOpen, onClose }: AddSaleModalProps) {
   const mutation = useMutation({
     mutationFn: async (data: SaleFormData) => {
       console.log('Sale form data being sent:', data);
-      const response = await apiRequest("POST", "/api/vendite", {
+      const method = editingSale ? "PUT" : "POST";
+      const url = editingSale ? `/api/vendite/${editingSale.id}` : "/api/vendite";
+      
+      const response = await apiRequest(method, url, {
         inventarioId: data.inventarioId,
         quantita: data.quantita,
         prezzoVendita: data.prezzoVendita,
@@ -88,7 +99,7 @@ export function AddSaleModal({ isOpen, onClose }: AddSaleModalProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
       toast({
         title: "Successo",
-        description: "Vendita registrata con successo",
+        description: editingSale ? "Vendita aggiornata con successo" : "Vendita registrata con successo",
       });
       onClose();
       form.reset();
@@ -112,9 +123,12 @@ export function AddSaleModal({ isOpen, onClose }: AddSaleModalProps) {
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Registra Vendita</DialogTitle>
+          <DialogTitle>{editingSale ? "Modifica Vendita" : "Registra Vendita"}</DialogTitle>
           <DialogDescription>
-            Seleziona un articolo e inserisci i dettagli della vendita.
+            {editingSale 
+              ? "Modifica i dettagli della vendita selezionata."
+              : "Seleziona un articolo e inserisci i dettagli della vendita."
+            }
           </DialogDescription>
         </DialogHeader>
 

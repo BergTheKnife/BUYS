@@ -22,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ShoppingCart, Plus, Filter, Repeat, Trash2 } from "lucide-react";
+import { ShoppingCart, Plus, Filter, Repeat, Edit, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -47,6 +47,7 @@ export default function Sales() {
     taglia: "",
   });
   const [repeatSale, setRepeatSale] = useState<Vendita | null>(null);
+  const [editingSale, setEditingSale] = useState<Vendita | null>(null);
   const [deleteSale, setDeleteSale] = useState<Vendita | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -365,23 +366,33 @@ export default function Sales() {
                           {formatCurrency(sale.margine)}
                         </TableCell>
                         <TableCell>
-                          <div className="flex gap-2">
+                          <div className="flex space-x-2">
                             <Button
-                              variant="outline"
                               size="sm"
+                              variant="outline"
                               onClick={() => setRepeatSale(sale)}
                               title="Ripeti vendita"
+                              className="min-w-[36px] h-9 p-2"
                             >
-                              <Repeat className="h-4 w-4" />
+                              <Repeat className="h-6 w-6 text-blue-600" />
                             </Button>
                             <Button
-                              variant="outline"
                               size="sm"
+                              variant="outline"
+                              onClick={() => setEditingSale(sale)}
+                              title="Modifica vendita"
+                              className="min-w-[36px] h-9 p-2"
+                            >
+                              <Edit className="h-6 w-6 text-green-600" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
                               onClick={() => setDeleteSale(sale)}
                               title="Elimina vendita"
-                              className="text-red-600"
+                              className="min-w-[36px] h-9 p-2"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-6 w-6 text-red-600" />
                             </Button>
                           </div>
                         </TableCell>
@@ -395,8 +406,12 @@ export default function Sales() {
         </Card>
 
         <AddSaleModal
-          isOpen={isAddModalOpen}
-          onClose={() => setIsAddModalOpen(false)}
+          isOpen={isAddModalOpen || !!editingSale}
+          onClose={() => {
+            setIsAddModalOpen(false);
+            setEditingSale(null);
+          }}
+          editingSale={editingSale}
         />
 
         {/* Repeat Sale Dialog */}
