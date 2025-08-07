@@ -22,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ShoppingCart, Plus, Filter, Repeat } from "lucide-react";
+import { ShoppingCart, Plus, Filter, Repeat, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -47,6 +47,7 @@ export default function Sales() {
     taglia: "",
   });
   const [repeatSale, setRepeatSale] = useState<Vendita | null>(null);
+  const [deleteSale, setDeleteSale] = useState<Vendita | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -125,6 +126,31 @@ export default function Sales() {
     },
   });
 
+  // Delete sale mutation
+  const deleteSaleMutation = useMutation({
+    mutationFn: async (saleId: string) => {
+      const response = await apiRequest("DELETE", `/api/vendite/${saleId}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/vendite"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      toast({
+        title: "Successo",
+        description: "Vendita eliminata con successo",
+      });
+      setDeleteSale(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore nell'eliminazione della vendita",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleRepeatSale = () => {
     if (repeatSale) {
       repeatSaleMutation.mutate({
@@ -136,6 +162,12 @@ export default function Sales() {
         incassatoSu: repeatSale.incassatoSu,
         data: new Date().toISOString()
       });
+    }
+  };
+
+  const handleDeleteSale = () => {
+    if (deleteSale) {
+      deleteSaleMutation.mutate(deleteSale.id);
     }
   };
 
@@ -333,14 +365,25 @@ export default function Sales() {
                           {formatCurrency(sale.margine)}
                         </TableCell>
                         <TableCell>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setRepeatSale(sale)}
-                            title="Ripeti vendita"
-                          >
-                            <Repeat className="h-4 w-4" />
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setRepeatSale(sale)}
+                              title="Ripeti vendita"
+                            >
+                              <Repeat className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setDeleteSale(sale)}
+                              title="Elimina vendita"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -398,6 +441,56 @@ export default function Sales() {
                 disabled={repeatSaleMutation.isPending}
               >
                 {repeatSaleMutation.isPending ? "Ripetendo..." : "Conferma Ripetizione"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Sale Dialog */}
+        <Dialog open={!!deleteSale} onOpenChange={() => setDeleteSale(null)}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Elimina Vendita</DialogTitle>
+              <DialogDescription>
+                Sei sicuro di voler eliminare questa vendita? L'azione ripristinerà la quantità nell'inventario e non può essere annullata.
+              </DialogDescription>
+            </DialogHeader>
+            {deleteSale && (
+              <div className="grid gap-4 py-4">
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium">Articolo:</span> {deleteSale.nomeArticolo}
+                    </div>
+                    <div>
+                      <span className="font-medium">Taglia:</span> {deleteSale.taglia}
+                    </div>
+                    <div>
+                      <span className="font-medium">Quantità:</span> {deleteSale.quantita}
+                    </div>
+                    <div>
+                      <span className="font-medium">Prezzo:</span> {formatCurrency(deleteSale.prezzoVendita)}
+                    </div>
+                    <div>
+                      <span className="font-medium">Data:</span> {formatDate(deleteSale.data.toString())}
+                    </div>
+                    <div>
+                      <span className="font-medium">Margine:</span> {formatCurrency(deleteSale.margine)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteSale(null)}>
+                Annulla
+              </Button>
+              <Button 
+                variant="destructive"
+                onClick={handleDeleteSale}
+                disabled={deleteSaleMutation.isPending}
+              >
+                {deleteSaleMutation.isPending ? "Eliminando..." : "Elimina Vendita"}
               </Button>
             </DialogFooter>
           </DialogContent>

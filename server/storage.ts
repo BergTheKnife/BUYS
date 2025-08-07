@@ -33,7 +33,7 @@ export interface IStorage {
   getUserByEmailOrUsername(emailOrUsername: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<User>): Promise<User | undefined>;
-  deleteUser(id: string): Promise<boolean>;
+
   verifyUserEmail(id: string): Promise<User | undefined>;
   
   // Email verification methods  
@@ -176,11 +176,10 @@ export class DatabaseStorage implements IStorage {
     return user || undefined;
   }
 
-  async deleteUser(id: string): Promise<boolean> {
-    const result = await db
+  async deleteUser(id: string): Promise<void> {
+    await db
       .delete(users)
       .where(eq(users.id, id));
-    return result.rowCount! > 0;
   }
 
   async verifyUserEmail(id: string): Promise<User | undefined> {
@@ -388,21 +387,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(activities.createdAt);
   }
 
-  async getActivityMembers(activityId: string) {
-    return await db
-      .select({
-        userId: users.id,
-        nome: users.nome,
-        cognome: users.cognome,
-        email: users.email,
-        username: users.username,
-        joinedAt: activityUsers.joinedAt
-      })
-      .from(activityUsers)
-      .innerJoin(users, eq(activityUsers.userId, users.id))
-      .where(eq(activityUsers.activityId, activityId))
-      .orderBy(activityUsers.joinedAt);
-  }
+
 
   async getUserActivities(userId: string) {
     return await db
@@ -458,9 +443,32 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteInventoryItem(id: string, activityId: string): Promise<boolean> {
+    // Get the inventory item to check for related data
+    const item = await this.getInventoryItem(id, activityId);
+    if (!item) return false;
+
+    // First, delete all related sales to avoid foreign key constraint
+    await db
+      .delete(vendite)
+      .where(eq(vendite.inventarioId, id));
+
+    // Find and delete the related expense for inventory addition
+    // Look for expenses with the same article name, size, and cost (inventory cost)
+    await db
+      .delete(spese)
+      .where(and(
+        eq(spese.activityId, activityId),
+        eq(spese.categoria, "Aggiunta articolo"),
+        like(spese.voce, `%${item.nomeArticolo}%`),
+        like(spese.voce, `%${item.taglia}%`),
+        eq(spese.importo, item.costo)
+      ));
+
+    // Finally, delete the inventory item
     const result = await db
       .delete(inventario)
       .where(and(eq(inventario.id, id), eq(inventario.activityId, activityId)));
+    
     return (result.rowCount ?? 0) > 0;
   }
 
@@ -485,9 +493,27 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteSale(id: string, activityId: string): Promise<boolean> {
+    // Get the sale data to restore inventory quantity
+    const [sale] = await db
+      .select()
+      .from(vendite)
+      .where(and(eq(vendite.id, id), eq(vendite.activityId, activityId)));
+    
+    if (!sale) return false;
+
+    // Restore the inventory quantity
+    await db
+      .update(inventario)
+      .set({ 
+        quantita: sql`${inventario.quantita} + ${sale.quantita}`
+      })
+      .where(eq(inventario.id, sale.inventarioId));
+
+    // Delete the sale
     const result = await db
       .delete(vendite)
       .where(and(eq(vendite.id, id), eq(vendite.activityId, activityId)));
+    
     return (result.rowCount ?? 0) > 0;
   }
 
@@ -514,6 +540,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteExpense(id: string, activityId: string): Promise<boolean> {
+    // Check if this expense is for inventory addition - these should not be deleted manually
+    const [expense] = await db
+      .select()
+      .from(spese)
+      .where(and(eq(spese.id, id), eq(spese.activityId, activityId)));
+    
+    if (!expense) return false;
+
+    // Prevent deletion of inventory-related expenses
+    if (expense.categoria === "Aggiunta articolo") {
+      throw new Error("Non è possibile eliminare manualmente le spese relative all'aggiunta di articoli. Elimina l'articolo dal magazzino per rimuovere automaticamente la spesa correlata.");
+    }
+
     const result = await db
       .delete(spese)
       .where(and(eq(spese.id, id), eq(spese.activityId, activityId)));
@@ -759,6 +798,7 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
+
   // Admin methods implementation
   async getAdminUsers(): Promise<Array<{
     id: string;
@@ -894,10 +934,7 @@ export class DatabaseStorage implements IStorage {
     return Number(inventoryCount.count) > 0 || Number(salesCount.count) > 0 || Number(expensesCount.count) > 0;
   }
 
-  async deleteUser(userId: string): Promise<void> {
-    // Delete user and all related data (cascading deletes should handle most)
-    await db.delete(users).where(eq(users.id, userId));
-  }
+
 
   async deleteActivity(activityId: string): Promise<void> {
     // Delete activity and all related data (cascading deletes should handle most)

@@ -1811,6 +1811,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete('/api/vendite/:id', requireActivity, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteSale(id, req.session.activityId!);
+      
+      if (!deleted) {
+        return res.status(404).json({ message: "Vendita non trovata" });
+      }
+
+      res.json({ message: "Vendita eliminata con successo" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nell'eliminazione della vendita" });
+    }
+  });
+
   // Expenses routes
   app.get('/api/spese', requireActivity, async (req, res) => {
     try {
