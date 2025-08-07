@@ -1710,7 +1710,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { password } = req.body;
       // Simple admin password check - in production, use environment variable
-      const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
+      const adminPassword = process.env.ADMIN_PASSWORD || "Alby1989@";
       
       if (password !== adminPassword) {
         return res.status(401).json({ message: "Password amministratore non corretta" });
