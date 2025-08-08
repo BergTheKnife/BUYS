@@ -179,7 +179,7 @@ export function Navbar() {
           <Button
             key={item.name}
             variant={isActive ? "secondary" : "ghost"}
-            className={`${mobile ? "w-full justify-start" : ""} ${
+            className={`${mobile ? "w-full justify-start py-4" : "py-3 px-4 text-base"} ${
               mobile 
                 ? isActive 
                   ? "bg-blue-100 text-blue-900 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-100 dark:hover:bg-blue-800" 
@@ -193,7 +193,7 @@ export function Navbar() {
               onItemClick?.();
             }}
           >
-            <Icon className="h-4 w-4 mr-2" />
+            <Icon className={`${mobile ? "h-4 w-4" : "h-5 w-5"} mr-2`} />
             {item.name}
           </Button>
         );
@@ -204,42 +204,42 @@ export function Navbar() {
   return (
     <nav className="bg-primary text-white shadow-lg sticky top-0 z-50 safe-top">
       <div className="container mx-auto px-2 sm:px-4">
-        <div className="flex items-center justify-between h-14 sm:h-16">
+        <div className="flex items-center justify-between h-20 sm:h-24">
           {/* Logo */}
           <Button
             variant="ghost"
-            className="text-white hover:bg-white/10 p-1 sm:p-2 min-h-[44px] flex items-center"
+            className="text-white hover:bg-white/10 p-2 sm:p-3 min-h-[52px] flex items-center"
             onClick={() => setLocation("/dashboard")}
           >
             <img 
               src={buysLogoWhitePath} 
               alt="BUYS" 
-              className="h-8 sm:h-10 w-auto"
+              className="h-12 sm:h-16 w-auto"
             />
           </Button>
 
           {/* Desktop Navigation - only show if user has activity */}
           {showNavigation && (
-            <div className="hidden lg:flex items-center space-x-1">
+            <div className="hidden lg:flex items-center space-x-2">
               <NavigationItems />
             </div>
           )}
 
           {/* Activity Selector & User Menu */}
-          <div className="flex items-center space-x-1 sm:space-x-2 lg:space-x-4">
+          <div className="flex items-center space-x-2 sm:space-x-3 lg:space-x-5">
             {/* Activity Dropdown */}
             {currentActivity && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="text-white hover:bg-white/10 min-h-[44px] text-xs sm:text-sm px-2 sm:px-3">
-                    <Building2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" />
-                    <span className="hidden xs:block sm:hidden lg:block truncate max-w-[80px] sm:max-w-[120px]">
+                  <Button variant="ghost" className="text-white hover:bg-white/10 min-h-[52px] text-sm sm:text-base px-3 sm:px-4 py-3">
+                    <Building2 className="h-4 w-4 sm:h-5 sm:w-5 mr-2 flex-shrink-0" />
+                    <span className="hidden xs:block sm:hidden lg:block truncate max-w-[100px] sm:max-w-[140px]">
                       {currentActivity.nome}
                     </span>
                     <span className="xs:hidden sm:block lg:hidden">
-                      {currentActivity.nome.slice(0, 8)}...
+                      {currentActivity.nome.slice(0, 10)}...
                     </span>
-                    <ChevronDown className="h-2 w-2 sm:h-3 sm:w-3 ml-1 flex-shrink-0" />
+                    <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 ml-2 flex-shrink-0" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
@@ -292,9 +292,9 @@ export function Navbar() {
             {/* User Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="text-white hover:bg-white/10 min-h-[44px] text-xs sm:text-sm px-2 sm:px-3">
-                  <User className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" />
-                  <span className="hidden sm:block truncate max-w-[100px]">{user?.username}</span>
+                <Button variant="ghost" className="text-white hover:bg-white/10 min-h-[52px] text-sm sm:text-base px-3 sm:px-4 py-3">
+                  <User className="h-4 w-4 sm:h-5 sm:w-5 mr-2 flex-shrink-0" />
+                  <span className="hidden sm:block truncate max-w-[120px]">{user?.username}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -318,8 +318,8 @@ export function Navbar() {
             {/* Mobile Menu */}
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="lg:hidden text-white hover:bg-white/10 min-h-[44px] w-10 px-2">
-                  <Menu className="h-5 w-5" />
+                <Button variant="ghost" size="icon" className="lg:hidden text-white hover:bg-white/10 min-h-[52px] w-12 px-3">
+                  <Menu className="h-6 w-6" />
                 </Button>
               </SheetTrigger>
               <SheetContent side="right" className="w-[280px] xs:w-[300px] sm:w-[400px] bg-white dark:bg-gray-900">
