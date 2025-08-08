@@ -310,6 +310,7 @@ export default function Sales() {
                     <SelectItem value="contanti">Contanti</SelectItem>
                     <SelectItem value="carta">Carta</SelectItem>
                     <SelectItem value="paypal">PayPal</SelectItem>
+                    <SelectItem value="vinted">Vinted</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

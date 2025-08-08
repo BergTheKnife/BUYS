@@ -243,6 +243,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
                 <SelectItem value="Carta">Carta</SelectItem>
                 <SelectItem value="Bonifico">Bonifico</SelectItem>
                 <SelectItem value="PayPal">PayPal</SelectItem>
+                <SelectItem value="Vinted">Vinted</SelectItem>
               </SelectContent>
             </Select>
             {form.formState.errors.incassatoSu && (
