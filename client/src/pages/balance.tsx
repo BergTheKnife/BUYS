@@ -164,7 +164,7 @@ export default function Balance() {
     return (
       <div className="min-h-screen bg-gray-50">
         <Navbar />
-        <div className="container mx-auto py-8 px-4">
+        <div className="container mx-auto py-8 px-4 page-with-navbar">
           <div className="animate-pulse space-y-4">
             <div className="h-8 bg-gray-200 rounded w-1/4"></div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -181,8 +181,8 @@ export default function Balance() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-      
-      <div className="container mx-auto py-8 px-4">
+
+      <div className="container mx-auto py-8 px-4 page-with-navbar">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <TrendingUp className="h-8 w-8" />
@@ -233,16 +233,16 @@ export default function Balance() {
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Andamento Finanziario</CardTitle>
                 <div className="flex space-x-2">
-                  <Button 
-                    variant={chartView === "line" ? "default" : "outline"} 
+                  <Button
+                    variant={chartView === "line" ? "default" : "outline"}
                     size="sm"
                     onClick={() => setChartView("line")}
                   >
                     <LineChart className="h-4 w-4 mr-1" />
                     Linea
                   </Button>
-                  <Button 
-                    variant={chartView === "bar" ? "default" : "outline"} 
+                  <Button
+                    variant={chartView === "bar" ? "default" : "outline"}
                     size="sm"
                     onClick={() => setChartView("bar")}
                   >
@@ -282,9 +282,9 @@ export default function Balance() {
                 <CardTitle>Azioni</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Button 
+                <Button
                   onClick={exportToCSV}
-                  className="w-full" 
+                  className="w-full"
                   variant="outline"
                 >
                   <Download className="h-4 w-4 mr-2" />

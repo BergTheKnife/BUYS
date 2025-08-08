@@ -63,13 +63,13 @@ function Router() {
 }
 
 function AppContent() {
-  const { user, hasActivity } = useAuth();
+  const { isAuthenticated, hasActivity } = useAuth();
   const [location] = useLocation();
 
   return (
     <>
-      {user && <Navbar />}
-      <div className={user ? "pt-20 sm:pt-24" : ""}>
+      {isAuthenticated && <Navbar />}
+      <div className={isAuthenticated ? "pt-24 sm:pt-28" : ""}>
         <Switch>
           <Route path="/" component={HomeRedirect} />
           <Route path="/attivita" component={ActivitySelection} />

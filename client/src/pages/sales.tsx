@@ -186,7 +186,7 @@ export default function Sales() {
     return (
       <div className="min-h-screen bg-gray-50">
         <Navbar />
-        <div className="container mx-auto py-8 px-4">
+        <div className="container mx-auto py-8 px-4 page-with-navbar">
           <div className="animate-pulse space-y-4">
             <div className="h-8 bg-gray-200 rounded w-1/4"></div>
             <div className="h-96 bg-gray-200 rounded-lg"></div>
@@ -199,8 +199,8 @@ export default function Sales() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-      
-      <div className="container mx-auto py-8 px-4">
+
+      <div className="container mx-auto py-8 px-4 page-with-navbar">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <ShoppingCart className="h-8 w-8" />

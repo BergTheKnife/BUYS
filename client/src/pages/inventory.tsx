@@ -201,7 +201,7 @@ export default function Inventory() {
     return (
       <div className="min-h-screen bg-gray-50">
         <Navbar />
-        <div className="container mx-auto py-8 px-4">
+        <div className="container mx-auto py-8 px-4 page-with-navbar">
           <div className="animate-pulse space-y-4">
             <div className="h-8 bg-gray-200 rounded w-1/4"></div>
             <div className="h-96 bg-gray-200 rounded-lg"></div>
@@ -214,8 +214,8 @@ export default function Inventory() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-      
-      <div className="container mx-auto py-8 px-4">
+
+      <div className="container mx-auto py-8 px-4 page-with-navbar">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Package className="h-8 w-8" />
@@ -248,7 +248,7 @@ export default function Inventory() {
                   className="w-full"
                 />
               </div>
-              
+
               {/* Seconda riga - Taglia e Disponibilità */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -274,7 +274,7 @@ export default function Inventory() {
                   </Select>
                 </div>
               </div>
-              
+
               {/* Terza riga - Range Costi */}
               <div className="space-y-2">
                 <Label>Range Costi</Label>
@@ -293,7 +293,7 @@ export default function Inventory() {
                   />
                 </div>
               </div>
-              
+
               {/* Quarta riga - Range Quantità */}
               <div className="space-y-2">
                 <Label>Range Quantità</Label>
@@ -313,7 +313,7 @@ export default function Inventory() {
                 </div>
               </div>
             </div>
-            
+
             {/* Azioni e risultati */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t">
               <Button
