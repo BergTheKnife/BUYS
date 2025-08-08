@@ -561,6 +561,45 @@ export class DatabaseStorage implements IStorage {
       .delete(inventario)
       .where(and(eq(inventario.id, id), eq(inventario.activityId, activityId)));
 
+    // After deleting the inventory item, clean up orphaned expenses
+    // Get all remaining inventory items for this activity
+    const remainingInventoryItems = await db
+      .select({
+        nomeArticolo: inventario.nomeArticolo,
+        taglia: inventario.taglia
+      })
+      .from(inventario)
+      .where(eq(inventario.activityId, activityId));
+
+    // Get all inventory-related expenses for this activity
+    const inventoryExpenses = await db
+      .select()
+      .from(spese)
+      .where(and(
+        eq(spese.activityId, activityId),
+        sql`(${spese.categoria} = 'Aggiunta articolo' OR ${spese.categoria} = 'Inventario')`
+      ));
+
+    // Find orphaned expenses (expenses that don't match any remaining inventory item)
+    for (const expense of inventoryExpenses) {
+      let isOrphaned = true;
+
+      for (const inventoryItem of remainingInventoryItems) {
+        const itemSignature = `${inventoryItem.nomeArticolo} - ${inventoryItem.taglia}`;
+        if (expense.voce.includes(itemSignature)) {
+          isOrphaned = false;
+          break;
+        }
+      }
+
+      // Delete orphaned expense
+      if (isOrphaned) {
+        await db
+          .delete(spese)
+          .where(eq(spese.id, expense.id));
+      }
+    }
+
     return (result.rowCount ?? 0) > 0;
   }
 
