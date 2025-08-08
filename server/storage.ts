@@ -513,7 +513,7 @@ export class DatabaseStorage implements IStorage {
           activityId: activityId,
           voce: `Rifornimento: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (+${quantityDifference} pz)`,
           importo: totalCostDifference.toString(),
-          categoria: "Aggiunta articolo",
+          categoria: "Inventario",
           data: new Date(),
         });
       } else {
@@ -523,7 +523,7 @@ export class DatabaseStorage implements IStorage {
           activityId: activityId,
           voce: `Riduzione inventario: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${quantityDifference} pz)`,
           importo: totalCostDifference.toString(), // This will be negative
-          categoria: "Aggiunta articolo",
+          categoria: "Inventario",
           data: new Date(),
         });
       }
@@ -548,10 +548,9 @@ export class DatabaseStorage implements IStorage {
       .delete(spese)
       .where(and(
         eq(spese.activityId, activityId),
-        eq(spese.categoria, "Aggiunta articolo"),
+        sql`(${spese.categoria} = 'Aggiunta articolo' OR ${spese.categoria} = 'Inventario')`,
         like(spese.voce, `%${item.nomeArticolo}%`),
-        like(spese.voce, `%${item.taglia}%`),
-        eq(spese.importo, item.costo)
+        like(spese.voce, `%${item.taglia}%`)
       ));
 
     // Finally, delete the inventory item
@@ -658,8 +657,8 @@ export class DatabaseStorage implements IStorage {
     if (!expense) return false;
 
     // Prevent deletion of inventory-related expenses
-    if (expense.categoria === "Aggiunta articolo") {
-      throw new Error("Non è possibile eliminare manualmente le spese relative all'aggiunta di articoli. Elimina l'articolo dal magazzino per rimuovere automaticamente la spesa correlata.");
+    if (expense.categoria === "Aggiunta articolo" || expense.categoria === "Inventario") {
+      throw new Error("Non è possibile eliminare manualmente le spese relative all'inventario. Gestisci l'inventario dalla sezione Magazzino per aggiornare automaticamente le spese correlate.");
     }
 
     const result = await db

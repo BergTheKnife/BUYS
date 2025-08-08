@@ -302,7 +302,7 @@ export default function Expenses() {
                         </TableCell>
                         <TableCell>
                           <div className="flex space-x-2">
-                            {expense.categoria !== "Aggiunta articolo" && (
+                            {(expense.categoria !== "Aggiunta articolo" && expense.categoria !== "Inventario") && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -313,12 +313,12 @@ export default function Expenses() {
                                 <Edit className="h-6 w-6 text-green-600" />
                               </Button>
                             )}
-                            {expense.categoria === "Aggiunta articolo" && (
+                            {(expense.categoria === "Aggiunta articolo" || expense.categoria === "Inventario") && (
                               <div className="flex items-center justify-center min-w-[76px] h-9 px-2 text-xs text-muted-foreground bg-gray-100 rounded border">
                                 Auto
                               </div>
                             )}
-                            {expense.categoria !== "Aggiunta articolo" && (
+                            {(expense.categoria !== "Aggiunta articolo" && expense.categoria !== "Inventario") && (
                               <Button
                                 size="sm"
                                 variant="outline"
