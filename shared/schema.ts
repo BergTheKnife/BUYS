@@ -30,6 +30,18 @@ export const emailVerificationTokens = pgTable("email_verification_tokens", {
   index("email_verification_tokens_token_idx").on(table.token),
 ]);
 
+// Password reset tokens (reusing email verification tokens structure)
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("password_reset_tokens_user_idx").on(table.userId),
+  index("password_reset_tokens_token_idx").on(table.token),
+]);
+
 // Activities table
 export const activities = pgTable("activities", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -93,6 +105,13 @@ export const spese = pgTable("spese", {
 export const emailVerificationTokensRelations = relations(emailVerificationTokens, ({ one }) => ({
   user: one(users, {
     fields: [emailVerificationTokens.userId],
+    references: [users.id],
+  }),
+}));
+
+export const passwordResetTokensRelations = relations(passwordResetTokens, ({ one }) => ({
+  user: one(users, {
+    fields: [passwordResetTokens.userId],
     references: [users.id],
   }),
 }));
@@ -201,6 +220,17 @@ export const updateUsernameSchema = z.object({
   username: z.string().min(3, "Username deve essere di almeno 3 caratteri"),
 });
 
+export const forgotPasswordSchema = z.object({
+  emailOrUsername: z.string().min(1, "Email o username richiesto"),
+});
+
+export const resetPasswordSchema = z.object({
+  newPassword: z.string()
+    .min(6, "La password deve essere di almeno 6 caratteri")
+    .regex(/(?=.*[A-Z])/, "La password deve contenere almeno una lettera maiuscola")
+    .regex(/(?=.*\d)/, "La password deve contenere almeno un numero"),
+});
+
 // Activity schemas
 export const insertActivitySchema = createInsertSchema(activities, {
   nome: z.string().min(1, "Nome attività richiesto").max(100, "Nome troppo lungo"),
@@ -261,3 +291,7 @@ export type ActivityUser = typeof activityUsers.$inferSelect;
 export type InsertActivityUser = typeof activityUsers.$inferInsert;
 export type EmailVerificationToken = typeof emailVerificationTokens.$inferSelect;
 export type InsertEmailVerificationToken = typeof emailVerificationTokens.$inferInsert;
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;
+export type ForgotPassword = z.infer<typeof forgotPasswordSchema>;
+export type ResetPassword = z.infer<typeof resetPasswordSchema>;

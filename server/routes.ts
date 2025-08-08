@@ -471,6 +471,141 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Password reset request endpoint
+  app.post('/api/auth/forgot-password', async (req, res) => {
+    try {
+      const { emailOrUsername } = req.body;
+      
+      if (!emailOrUsername) {
+        return res.status(400).json({ message: "Email o username richiesto" });
+      }
+
+      // Find user by email or username
+      const user = await storage.getUserByEmailOrUsername(emailOrUsername);
+      
+      // Always return success to prevent user enumeration
+      if (!user) {
+        return res.json({ 
+          message: "Se l'account esiste, riceverai un'email con le istruzioni per il reset della password.",
+          success: true
+        });
+      }
+
+      // Check if user is verified
+      if (user.isActive === 0) {
+        return res.status(400).json({ 
+          message: "L'account non è stato verificato. Completa prima la verifica email.",
+          needsVerification: true
+        });
+      }
+
+      // Delete any existing reset tokens for this user
+      await storage.deletePasswordResetTokensByUserId(user.id);
+
+      // Generate password reset token
+      const { generatePasswordResetToken, getTokenExpiration, sendPasswordResetEmail } = await import('./emailService');
+      const resetToken = generatePasswordResetToken();
+      
+      // Store reset token (reuse email verification tokens table structure)
+      await storage.createPasswordResetToken({
+        userId: user.id,
+        token: resetToken,
+        expiresAt: getTokenExpiration(), // 24 hours
+      });
+
+      // Send password reset email
+      try {
+        await sendPasswordResetEmail(user.email, user.nome, user.cognome, resetToken);
+        
+        res.json({ 
+          message: "Se l'account esiste, riceverai un'email con le istruzioni per il reset della password.",
+          success: true
+        });
+      } catch (emailError) {
+        console.error('Failed to send password reset email:', emailError);
+        res.status(500).json({ 
+          message: "Errore nell'invio dell'email. Riprova più tardi.",
+          success: false
+        });
+      }
+      
+    } catch (error: any) {
+      console.error('Password reset request error:', error);
+      res.status(500).json({ 
+        message: "Errore nella richiesta di reset password. Riprova più tardi.",
+        success: false
+      });
+    }
+  });
+
+  // Password reset confirmation endpoint
+  app.post('/api/auth/reset-password/:token', async (req, res) => {
+    try {
+      const { token } = req.params;
+      const { newPassword } = req.body;
+      
+      if (!newPassword || newPassword.length < 6) {
+        return res.status(400).json({ 
+          message: "La nuova password deve essere di almeno 6 caratteri" 
+        });
+      }
+
+      // Clean up expired tokens first
+      await storage.deleteExpiredPasswordResetTokens();
+      
+      // Find the reset token
+      const resetToken = await storage.getPasswordResetToken(token);
+      if (!resetToken) {
+        return res.status(400).json({ 
+          message: "Token di reset non valido o scaduto" 
+        });
+      }
+
+      // Check if token is expired
+      if (new Date() > resetToken.expiresAt) {
+        await storage.deletePasswordResetToken(token);
+        return res.status(400).json({ 
+          message: "Il link di reset password è scaduto. Richiedi un nuovo reset." 
+        });
+      }
+
+      // Get user
+      const user = await storage.getUser(resetToken.userId);
+      if (!user) {
+        return res.status(404).json({ 
+          message: "Utente non trovato" 
+        });
+      }
+
+      // Update password
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await storage.updateUser(user.id, { password: hashedPassword });
+
+      // Delete the used token
+      await storage.deletePasswordResetToken(token);
+      
+      // Send confirmation email
+      try {
+        const { sendPasswordChangeConfirmationEmail } = await import('./emailService');
+        await sendPasswordChangeConfirmationEmail(user.email, user.nome, user.cognome);
+      } catch (emailError) {
+        console.error('Failed to send password change confirmation:', emailError);
+      }
+
+      res.json({ 
+        message: "Password aggiornata con successo. Ora puoi accedere con la nuova password.",
+        success: true
+      });
+      
+    } catch (error: any) {
+      console.error('Password reset error:', error);
+      res.status(500).json({ 
+        message: "Errore nell'aggiornamento della password. Riprova più tardi.",
+        success: false
+      });
+    }
+  });
+
   // Resend verification email endpoint
   app.post('/api/auth/resend-verification', async (req, res) => {
     try {

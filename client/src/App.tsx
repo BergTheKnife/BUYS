@@ -24,7 +24,7 @@ function HomeRedirect() {
 
   useEffect(() => {
     if (isLoading) return;
-    
+
     if (user && hasActivity) {
       // User is authenticated and has an activity - go to dashboard
       setLocation("/dashboard");
@@ -44,6 +44,8 @@ function Router() {
     <Switch>
       <Route path="/" component={HomeRedirect} />
       <Route path="/attivita" component={ActivitySelection} />
+      <Route path="/forgot-password" component={() => import('./pages/forgot-password').then(m => m.default)} />
+      <Route path="/reset-password/:token" component={() => import('./pages/reset-password').then(m => m.default)} />
       <Route path="/dashboard" component={() => <ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/inventario" component={() => <ProtectedRoute><Inventory /></ProtectedRoute>} />
       <Route path="/vendite" component={() => <ProtectedRoute><Sales /></ProtectedRoute>} />

@@ -6,6 +6,7 @@ import {
   activities,
   activityUsers,
   emailVerificationTokens,
+  passwordResetTokens, // Import the new table
   type User, 
   type InsertUser,
   type Inventario,
@@ -20,7 +21,9 @@ import {
   type ActivityUser,
   type InsertActivityUser,
   type EmailVerificationToken,
-  type InsertEmailVerificationToken
+  type InsertEmailVerificationToken,
+  type PasswordResetToken, // Import the new type
+  type InsertPasswordResetToken // Import the new type
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sum, sql, gte, lt, lte, or, like, ilike } from "drizzle-orm";
@@ -43,6 +46,13 @@ export interface IStorage {
   deleteEmailVerificationTokensByUserId(userId: string): Promise<void>;
   deleteExpiredTokens(): Promise<void>;
 
+  // Password reset methods
+  createPasswordResetToken(token: InsertPasswordResetToken): Promise<PasswordResetToken>;
+  getPasswordResetToken(token: string): Promise<PasswordResetToken | undefined>;
+  deletePasswordResetToken(token: string): Promise<boolean>;
+  deletePasswordResetTokensByUserId(userId: string): Promise<void>;
+  deleteExpiredPasswordResetTokens(): Promise<void>;
+
   // Activity methods
   createActivity(activity: InsertActivity & { proprietarioId: string }): Promise<Activity>;
   getActivitiesByUserId(userId: string): Promise<Activity[]>;
@@ -62,7 +72,9 @@ export interface IStorage {
 
   // Sales methods (now with activity context)
   getSalesByActivity(activityId: string): Promise<Vendita[]>;
-  createSale(sale: InsertVendita & { userId: string; activityId: string }): Promise<Vendita>;
+  createSale(sale: InsertVendita & { userId: string; activityId: string; nomeArticolo: string; taglia: string; margine: string }): Promise<Vendita>;
+  getSaleById(id: string, activityId: string): Promise<Vendita | null>;
+  updateSale(id: string, activityId: string, updates: Partial<InsertVendita> & { nomeArticolo?: string; taglia?: string; margine?: string }): Promise<Vendita | null>;
   deleteSale(id: string, activityId: string): Promise<boolean>;
 
   // Expenses methods (now with activity context)
@@ -134,6 +146,14 @@ export interface IStorage {
   activityHasData(activityId: string): Promise<boolean>;
   deleteUser(userId: string): Promise<void>;
   deleteActivity(activityId: string): Promise<void>;
+  updateUserProfileImage(userId: string, profileImageUrl: string): Promise<User>;
+  updateUserProfile(userId: string, profileData: { nome: string; cognome: string; email: string }): Promise<User>;
+  getChartDataByActivity(activityId: string): Promise<{
+    salesData: Array<{date: string, amount: number}>;
+    expensesData: Array<{date: string, amount: number}>;
+    marginData: Array<{date: string, amount: number}>;
+    months: string[];
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -228,6 +248,42 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(emailVerificationTokens)
       .where(sql`${emailVerificationTokens.expiresAt} < NOW()`);
+  }
+
+  // Password reset methods
+  async createPasswordResetToken(token: InsertPasswordResetToken): Promise<PasswordResetToken> {
+    const [newToken] = await db
+      .insert(passwordResetTokens)
+      .values(token)
+      .returning();
+    return newToken;
+  }
+
+  async getPasswordResetToken(token: string): Promise<PasswordResetToken | undefined> {
+    const [passwordToken] = await db
+      .select()
+      .from(passwordResetTokens)
+      .where(eq(passwordResetTokens.token, token));
+    return passwordToken || undefined;
+  }
+
+  async deletePasswordResetToken(token: string): Promise<boolean> {
+    const result = await db
+      .delete(passwordResetTokens)
+      .where(eq(passwordResetTokens.token, token));
+    return result.rowCount! > 0;
+  }
+
+  async deletePasswordResetTokensByUserId(userId: string): Promise<void> {
+    await db
+      .delete(passwordResetTokens)
+      .where(eq(passwordResetTokens.userId, userId));
+  }
+
+  async deleteExpiredPasswordResetTokens(): Promise<void> {
+    await db
+      .delete(passwordResetTokens)
+      .where(sql`${passwordResetTokens.expiresAt} < NOW()`);
   }
 
   // Activity methods

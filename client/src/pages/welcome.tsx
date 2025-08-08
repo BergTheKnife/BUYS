@@ -16,6 +16,7 @@ import { insertUserSchema, loginUserSchema } from "@shared/schema";
 import type { InsertUser, LoginUser } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
+import { Link } from "wouter";
 
 export default function Welcome() {
   const [isLogin, setIsLogin] = useState(true);
@@ -109,7 +110,7 @@ export default function Welcome() {
     }
 
     setUsernameStatus({ checking: true, available: null, message: "Controllo disponibilità..." });
-    
+
     try {
       const result = await checkUsernameMutation.mutateAsync(username);
       setUsernameStatus({
@@ -132,12 +133,12 @@ export default function Welcome() {
         },
         body: JSON.stringify({ email })
       });
-      
+
       if (!response.ok) {
         const error = await response.json().catch(() => ({ message: 'Errore di rete' }));
         throw new Error(error.message);
       }
-      
+
       return response.json();
     },
     onSuccess: () => {
@@ -171,7 +172,7 @@ export default function Welcome() {
 
       const response = await apiRequest("POST", "/api/auth/register", data);
       const result = await response.json();
-      
+
       if (result.message?.includes("Controlla la tua email")) {
         setVerificationMessage(`Registrazione completata! Abbiamo inviato un'email di verifica a ${data.email}. Clicca sul link nella email per attivare il tuo account.`);
         toast({
@@ -266,6 +267,16 @@ export default function Welcome() {
                   <LogIn className="mr-2 h-4 w-4" />
                   Accedi
                 </Button>
+
+                {/* Forgot password link */}
+                <div className="text-center">
+                  <Link href="/forgot-password">
+                    <Button variant="ghost" type="button" className="text-sm text-blue-600 hover:text-blue-800">
+                      Password dimenticata?
+                    </Button>
+                  </Link>
+                </div>
+
 
                 {/* Show verification message and resend button */}
                 {verificationMessage && (
