@@ -294,18 +294,5 @@ export type InsertEmailVerificationToken = typeof emailVerificationTokens.$infer
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;
 
-// Forgot password schema
-export const forgotPasswordSchema = z.object({
-  emailOrUsername: z.string().min(1, "Email o username richiesto"),
-});
-
-export type ForgotPassword = z.infer<typeof forgotPasswordSchema>;
-
-// Reset password schema  
-export const resetPasswordSchema = z.object({
-  newPassword: z.string().min(6, "La password deve essere di almeno 6 caratteri"),
-});
-
-export type ResetPassword = z.infer<typeof resetPasswordSchema>;
 export type ForgotPassword = z.infer<typeof forgotPasswordSchema>;
 export type ResetPassword = z.infer<typeof resetPasswordSchema>;
