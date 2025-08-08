@@ -19,7 +19,7 @@ import ForgotPassword from "@/pages/forgot-password";
 import ResetPassword from "@/pages/reset-password";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
-import Navbar from "@/components/Navbar";
+import { Navbar } from "@/components/layout/navbar";
 
 function HomeRedirect() {
   const { user, hasActivity, isLoading } = useAuth();
@@ -63,13 +63,13 @@ function Router() {
 }
 
 function AppContent() {
-  const { isAuthenticated, hasActivity } = useAuth();
+  const { user, hasActivity } = useAuth();
   const [location] = useLocation();
 
   return (
     <>
-      {isAuthenticated && <Navbar />}
-      <div className={isAuthenticated ? "pt-20 sm:pt-24" : ""}>
+      {user && <Navbar />}
+      <div className={user ? "pt-20 sm:pt-24" : ""}>
         <Switch>
           <Route path="/" component={HomeRedirect} />
           <Route path="/attivita" component={ActivitySelection} />
