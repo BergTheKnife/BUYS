@@ -208,7 +208,7 @@ export function Navbar() {
           {/* Logo */}
           <Button
             variant="ghost"
-            className="text-white hover:bg-white/10 p-2 sm:p-3 min-h-[52px] flex items-center"
+            className="text-white hover:bg-white/10 p-1 sm:p-2 min-h-[52px] flex items-center"
             onClick={() => setLocation("/dashboard")}
           >
             <img 
