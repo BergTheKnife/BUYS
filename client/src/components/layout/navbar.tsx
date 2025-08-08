@@ -202,7 +202,7 @@ export function Navbar() {
   );
 
   return (
-    <nav className="bg-primary text-white shadow-lg sticky top-0 z-50 safe-top">
+    <nav className="bg-primary text-white shadow-lg fixed top-0 left-0 right-0 z-50">
       <div className="container mx-auto px-2 sm:px-4">
         <div className="flex items-center justify-between h-20 sm:h-24">
           {/* Logo */}

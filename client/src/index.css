@@ -276,6 +276,17 @@
     max-width: 65ch;
   }
 
+  /* Fixed navbar spacing */
+  body {
+    padding-top: 80px; /* Height of navbar on mobile */
+  }
+  
+  @media (min-width: 640px) {
+    body {
+      padding-top: 96px; /* Height of navbar on desktop */
+    }
+  }
+
   /* Loading states */
   .loading {
     background: linear-gradient(90deg, var(--muted) 25%, transparent 37%, var(--muted) 63%);
