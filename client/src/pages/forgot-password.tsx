@@ -26,25 +26,30 @@ export default function ForgotPassword() {
 
   const forgotPasswordMutation = useMutation({
     mutationFn: async (data: ForgotPassword) => {
-      const response = await fetch('/api/auth/forgot-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-      });
-      
-      const result = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(result.message || 'Errore nella richiesta');
+      try {
+        const response = await fetch('/api/auth/forgot-password', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(result.message || 'Errore nella richiesta');
+        }
+        
+        return result;
+      } catch (error) {
+        console.error('Forgot password error:', error);
+        throw error;
       }
-      
-      return result;
     },
     onSuccess: (data) => {
       setSubmitted(true);
-      if (data.needsVerification) {
+      if (data?.needsVerification) {
         toast({
           title: "Account non verificato",
           description: "Completa prima la verifica email per richiedere il reset password.",
@@ -53,9 +58,10 @@ export default function ForgotPassword() {
       }
     },
     onError: (error: any) => {
+      console.error('Mutation error:', error);
       toast({
         title: "Errore",
-        description: error.message || "Errore nella richiesta di reset password",
+        description: error?.message || "Errore nella richiesta di reset password",
         variant: "destructive",
       });
     }

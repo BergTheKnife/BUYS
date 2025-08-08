@@ -517,13 +517,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         await sendPasswordResetEmail(user.email, user.nome, user.cognome, resetToken);
         
-        res.json({ 
+        return res.json({ 
           message: "Se l'account esiste, riceverai un'email con le istruzioni per il reset della password.",
           success: true
         });
       } catch (emailError) {
         console.error('Failed to send password reset email:', emailError);
-        res.status(500).json({ 
+        return res.status(500).json({ 
           message: "Errore nell'invio dell'email. Riprova più tardi.",
           success: false
         });
