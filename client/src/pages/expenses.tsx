@@ -302,24 +302,33 @@ export default function Expenses() {
                         </TableCell>
                         <TableCell>
                           <div className="flex space-x-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setEditingExpense(expense)}
-                              title="Modifica spesa"
-                              className="min-w-[36px] h-9 p-2"
-                            >
-                              <Edit className="h-6 w-6 text-green-600" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setExpenseToDelete(expense)}
-                              title="Elimina spesa"
-                              className="min-w-[36px] h-9 p-2"
-                            >
-                              <Trash2 className="h-6 w-6 text-red-600" />
-                            </Button>
+                            {expense.categoria !== "Aggiunta articolo" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setEditingExpense(expense)}
+                                title="Modifica spesa"
+                                className="min-w-[36px] h-9 p-2"
+                              >
+                                <Edit className="h-6 w-6 text-green-600" />
+                              </Button>
+                            )}
+                            {expense.categoria === "Aggiunta articolo" && (
+                              <div className="flex items-center justify-center min-w-[76px] h-9 px-2 text-xs text-muted-foreground bg-gray-100 rounded border">
+                                Auto
+                              </div>
+                            )}
+                            {expense.categoria !== "Aggiunta articolo" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setExpenseToDelete(expense)}
+                                title="Elimina spesa"
+                                className="min-w-[36px] h-9 p-2"
+                              >
+                                <Trash2 className="h-6 w-6 text-red-600" />
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
