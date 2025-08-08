@@ -48,14 +48,15 @@ export default function ForgotPassword() {
       }
     },
     onSuccess: (data) => {
-      setSubmitted(true);
       if (data?.needsVerification) {
         toast({
           title: "Account non verificato",
           description: "Completa prima la verifica email per richiedere il reset password.",
           variant: "destructive",
         });
+        return;
       }
+      setSubmitted(true);
     },
     onError: (error: any) => {
       console.error('Mutation error:', error);

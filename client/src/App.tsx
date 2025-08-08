@@ -15,6 +15,8 @@ import Balance from "@/pages/balance";
 import Profile from "@/pages/profile";
 import ActivitySettings from "@/pages/activity-settings";
 import { AdminPage } from "@/pages/admin";
+import ForgotPassword from "@/pages/forgot-password";
+import ResetPassword from "@/pages/reset-password";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
 

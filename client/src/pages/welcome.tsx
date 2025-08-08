@@ -9,14 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { Store, User, Lock, Mail, UserPlus, LogIn, Check, X, AlertCircle } from "lucide-react";
 import buysLogoColorPath from "@assets/Buys colore_1754472538088.png";
 import { insertUserSchema, loginUserSchema } from "@shared/schema";
 import type { InsertUser, LoginUser } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
-import { Link } from "wouter";
 
 export default function Welcome() {
   const [isLogin, setIsLogin] = useState(true);
@@ -271,7 +270,7 @@ export default function Welcome() {
                 {/* Forgot password link */}
                 <div className="text-center">
                   <Link href="/forgot-password">
-                    <Button variant="ghost" type="button" className="text-sm text-blue-600 hover:text-blue-800">
+                    <Button variant="link" className="text-sm text-blue-600 hover:text-blue-800">
                       Password dimenticata?
                     </Button>
                   </Link>
