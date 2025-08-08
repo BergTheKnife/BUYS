@@ -276,16 +276,7 @@
     max-width: 65ch;
   }
 
-  /* Fixed navbar spacing */
-  body {
-    padding-top: 80px; /* Height of navbar on mobile */
-  }
-  
-  @media (min-width: 640px) {
-    body {
-      padding-top: 96px; /* Height of navbar on desktop */
-    }
-  }
+  /* Fixed navbar spacing - moved to App component */
 
   /* Loading states */
   .loading {

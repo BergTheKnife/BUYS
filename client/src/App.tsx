@@ -19,6 +19,7 @@ import ForgotPassword from "@/pages/forgot-password";
 import ResetPassword from "@/pages/reset-password";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
+import Navbar from "@/components/Navbar";
 
 function HomeRedirect() {
   const { user, hasActivity, isLoading } = useAuth();
@@ -56,10 +57,39 @@ function Router() {
       <Route path="/profilo" component={() => <UserOnlyRoute><Profile /></UserOnlyRoute>} />
       <Route path="/impostazioni-attivita" component={() => <ProtectedRoute><ActivitySettings /></ProtectedRoute>} />
       <Route path="/admin" component={() => <UserOnlyRoute><AdminPage /></UserOnlyRoute>} />
-      <Route component={NotFound} />
+      <Route path="*" component={NotFound} />
     </Switch>
   );
 }
+
+function AppContent() {
+  const { isAuthenticated, hasActivity } = useAuth();
+  const [location] = useLocation();
+
+  return (
+    <>
+      {isAuthenticated && <Navbar />}
+      <div className={isAuthenticated ? "pt-20 sm:pt-24" : ""}>
+        <Switch>
+          <Route path="/" component={HomeRedirect} />
+          <Route path="/attivita" component={ActivitySelection} />
+          <Route path="/forgot-password" component={ForgotPassword} />
+          <Route path="/reset-password/:token" component={ResetPassword} />
+          <Route path="/dashboard" component={() => <ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/inventario" component={() => <ProtectedRoute><Inventory /></ProtectedRoute>} />
+          <Route path="/vendite" component={() => <ProtectedRoute><Sales /></ProtectedRoute>} />
+          <Route path="/spese" component={() => <ProtectedRoute><Expenses /></ProtectedRoute>} />
+          <Route path="/bilancio" component={() => <ProtectedRoute><Balance /></ProtectedRoute>} />
+          <Route path="/profilo" component={() => <UserOnlyRoute><Profile /></UserOnlyRoute>} />
+          <Route path="/impostazioni-attivita" component={() => <ProtectedRoute><ActivitySettings /></ProtectedRoute>} />
+          <Route path="/admin" component={() => <UserOnlyRoute><AdminPage /></UserOnlyRoute>} />
+          <Route path="*" component={NotFound} />
+        </Switch>
+      </div>
+    </>
+  );
+}
+
 
 function App() {
   return (
@@ -67,7 +97,7 @@ function App() {
       <TooltipProvider>
         <AuthProvider>
           <Toaster />
-          <Router />
+          <AppContent />
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
