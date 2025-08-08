@@ -56,6 +56,16 @@ export default function Sales() {
     queryKey: ["/api/vendite"],
   });
 
+  // Fetch activity members for filters
+  const { data: activityMembers = [] } = useQuery<Array<{
+    id: string;
+    nome: string;
+    cognome: string;
+    displayName: string;
+  }>>({
+    queryKey: ["/api/activity-members"],
+  });
+
   const formatCurrency = (amount: string | number) => {
     return new Intl.NumberFormat("it-IT", {
       style: "currency",
@@ -280,8 +290,11 @@ export default function Sales() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="tutti">Tutti</SelectItem>
-                    <SelectItem value="Alberto">Alberto</SelectItem>
-                    <SelectItem value="Davide">Davide</SelectItem>
+                    {activityMembers.map((member) => (
+                      <SelectItem key={member.id} value={member.displayName}>
+                        {member.displayName}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
