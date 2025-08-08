@@ -1678,7 +1678,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/inventario/:id', requireActivity, upload.single('immagine'), async (req, res) => {
     try {
       const { id } = req.params;
-      const updates = insertInventarioSchema.partial().parse(req.body);
+      console.log('DEBUG: PUT inventario body:', req.body);
+      console.log('DEBUG: PUT inventario file:', req.file ? 'File present' : 'No file');
+      
+      // Handle FormData properly - extract only the fields we need
+      const updateData: any = {};
+      if (req.body.nomeArticolo) updateData.nomeArticolo = req.body.nomeArticolo;
+      if (req.body.taglia) updateData.taglia = req.body.taglia;
+      if (req.body.costo) updateData.costo = parseFloat(req.body.costo);
+      if (req.body.quantita) updateData.quantita = parseInt(req.body.quantita);
+      
+      console.log('DEBUG: Cleaned update data:', updateData);
+      
+      const updates = insertInventarioSchema.partial().parse(updateData);
       
       if (req.file) {
         const filename = `${Date.now()}-${req.file.originalname}`;
@@ -1694,6 +1706,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(item);
     } catch (error: any) {
+      console.error('DEBUG: PUT inventario error:', error);
       res.status(400).json({ message: error.message || "Errore nell'aggiornamento dell'articolo" });
     }
   });
