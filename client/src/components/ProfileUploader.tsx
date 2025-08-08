@@ -19,6 +19,11 @@ export function ProfileUploader({ currentImageUrl, onImageUpdate }: ProfileUploa
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Update preview URL when currentImageUrl changes
+  useState(() => {
+    setPreviewUrl(currentImageUrl);
+  }, [currentImageUrl]);
+
   const uploadMutation = useMutation({
     mutationFn: async (processedBlob: Blob) => {
       try {

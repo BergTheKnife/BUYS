@@ -322,7 +322,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             cognome: user.cognome, 
             email: user.email, 
             username: user.username,
-            createdAt: user.createdAt
+            createdAt: user.createdAt,
+            profileImageUrl: user.profileImageUrl
           },
           hasActivity: !!restoredActivity,
           currentActivity: restoredActivity ? {
@@ -628,7 +629,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           username: user.username,
           lastActivityId: user.lastActivityId,
           activityId: req.session.activityId,
-          createdAt: user.createdAt
+          createdAt: user.createdAt,
+          profileImageUrl: user.profileImageUrl
         },
         currentActivity: currentActivity ? {
           id: currentActivity.id,

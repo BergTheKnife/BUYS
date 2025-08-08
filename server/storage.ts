@@ -35,14 +35,14 @@ export interface IStorage {
   updateUser(id: string, updates: Partial<User>): Promise<User | undefined>;
 
   verifyUserEmail(id: string): Promise<User | undefined>;
-  
+
   // Email verification methods  
   createEmailVerificationToken(token: InsertEmailVerificationToken): Promise<EmailVerificationToken>;
   getEmailVerificationToken(token: string): Promise<EmailVerificationToken | undefined>;
   deleteEmailVerificationToken(token: string): Promise<boolean>;
   deleteEmailVerificationTokensByUserId(userId: string): Promise<void>;
   deleteExpiredTokens(): Promise<void>;
-  
+
   // Activity methods
   createActivity(activity: InsertActivity & { proprietarioId: string }): Promise<Activity>;
   getActivitiesByUserId(userId: string): Promise<Activity[]>;
@@ -51,7 +51,7 @@ export interface IStorage {
   joinActivity(activityId: string, userId: string): Promise<void>;
   addUserToActivity(userId: string, activityId: string): Promise<void>;
   removeUserFromActivity(userId: string, activityId: string): Promise<void>;
-  
+
   // Inventory methods (now with activity context)
   getInventoryByActivity(activityId: string): Promise<Inventario[]>;
   getInventoryItem(id: string, activityId: string): Promise<Inventario | undefined>;
@@ -59,18 +59,18 @@ export interface IStorage {
   updateInventoryItem(id: string, activityId: string, updates: Partial<InsertInventario>): Promise<Inventario | undefined>;
   deleteInventoryItem(id: string, activityId: string): Promise<boolean>;
   updateInventoryQuantity(id: string, newQuantity: number): Promise<void>;
-  
+
   // Sales methods (now with activity context)
   getSalesByActivity(activityId: string): Promise<Vendita[]>;
   createSale(sale: InsertVendita & { userId: string; activityId: string }): Promise<Vendita>;
   deleteSale(id: string, activityId: string): Promise<boolean>;
-  
+
   // Expenses methods (now with activity context)
   getExpensesByActivity(activityId: string): Promise<Spesa[]>;
   createExpense(expense: InsertSpesa & { userId: string; activityId: string }): Promise<Spesa>;
   updateExpense(id: string, activityId: string, updates: Partial<InsertSpesa>): Promise<Spesa | undefined>;
   deleteExpense(id: string, activityId: string): Promise<boolean>;
-  
+
   // Statistics methods (now with activity context)
   getActivityStats(activityId: string): Promise<{
     inventoryCount: number;
@@ -236,19 +236,19 @@ export class DatabaseStorage implements IStorage {
       .insert(activities)
       .values(activity)
       .returning();
-    
+
     // Add creator as member
     await db.insert(activityUsers).values({
       activityId: newActivity.id,
       userId: activity.proprietarioId,
     });
-    
+
     // Update user's last activity
     await db
       .update(users)
       .set({ lastActivityId: newActivity.id })
       .where(eq(users.id, activity.proprietarioId));
-    
+
     return newActivity;
   }
 
@@ -265,7 +265,7 @@ export class DatabaseStorage implements IStorage {
       .from(activities)
       .innerJoin(activityUsers, eq(activities.id, activityUsers.activityId))
       .where(eq(activityUsers.userId, userId));
-    
+
     return userActivities;
   }
 
@@ -294,14 +294,14 @@ export class DatabaseStorage implements IStorage {
         eq(activityUsers.activityId, activityId),
         eq(activityUsers.userId, userId)
       ));
-    
+
     if (!existingMembership) {
       await db.insert(activityUsers).values({
         activityId,
         userId,
       });
     }
-    
+
     // Update user's last activity
     await db
       .update(users)
@@ -317,7 +317,7 @@ export class DatabaseStorage implements IStorage {
         eq(activityUsers.activityId, activityId),
         eq(activityUsers.userId, userId)
       ));
-    
+
     // Update user's last activity to null if it was this activity
     await db
       .update(users)
@@ -337,7 +337,7 @@ export class DatabaseStorage implements IStorage {
         eq(activityUsers.userId, userId),
         eq(activityUsers.activityId, activityId)
       ));
-    
+
     if (!existingMembership) {
       await db.insert(activityUsers).values({
         userId,
@@ -354,7 +354,7 @@ export class DatabaseStorage implements IStorage {
         eq(activityUsers.userId, userId),
         eq(activityUsers.activityId, activityId)
       ));
-    
+
     // Update user's last activity to null if it was this activity
     await db
       .update(users)
@@ -468,7 +468,7 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .delete(inventario)
       .where(and(eq(inventario.id, id), eq(inventario.activityId, activityId)));
-    
+
     return (result.rowCount ?? 0) > 0;
   }
 
@@ -497,7 +497,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(vendite)
       .where(and(eq(vendite.id, id), eq(vendite.activityId, activityId)));
-    
+
     return sale || null;
   }
 
@@ -507,7 +507,7 @@ export class DatabaseStorage implements IStorage {
       .set(updates)
       .where(and(eq(vendite.id, id), eq(vendite.activityId, activityId)))
       .returning();
-    
+
     return updatedSale || null;
   }
 
@@ -517,7 +517,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(vendite)
       .where(and(eq(vendite.id, id), eq(vendite.activityId, activityId)));
-    
+
     if (!sale) return false;
 
     // Restore the inventory quantity
@@ -532,7 +532,7 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .delete(vendite)
       .where(and(eq(vendite.id, id), eq(vendite.activityId, activityId)));
-    
+
     return (result.rowCount ?? 0) > 0;
   }
 
@@ -564,7 +564,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(spese)
       .where(and(eq(spese.id, id), eq(spese.activityId, activityId)));
-    
+
     if (!expense) return false;
 
     // Prevent deletion of inventory-related expenses
@@ -628,7 +628,7 @@ export class DatabaseStorage implements IStorage {
   }>> {
     // Build date conditions based on filter
     let dateConditions: any[] = [];
-    
+
     if (filter === 'today') {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -781,7 +781,7 @@ export class DatabaseStorage implements IStorage {
       .set({ profileImageUrl })
       .where(eq(users.id, userId))
       .returning();
-    
+
     return updatedUser;
   }
 
@@ -791,7 +791,7 @@ export class DatabaseStorage implements IStorage {
       .set(profileData)
       .where(eq(users.id, userId))
       .returning();
-    
+
     return updatedUser;
   }
 

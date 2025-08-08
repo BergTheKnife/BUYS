@@ -56,18 +56,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Invalidate all activity-specific data queries
       const activityQueries = [
         "/api/stats",
-        "/api/inventario", 
+        "/api/inventario",
         "/api/vendite",
         "/api/spese",
         "/api/recent-activities",
         "/api/top-selling-items",
         "/api/chart-data"
       ];
-      
+
       activityQueries.forEach(queryKey => {
         queryClient.removeQueries({ queryKey: [queryKey] });
       });
-      
+
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       setLocation("/dashboard");
     },
