@@ -61,7 +61,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     cookie: {
       secure: false, // Set to true in production with HTTPS
       httpOnly: true,
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days default
     },
   }));
 
@@ -262,7 +262,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/auth/login', async (req, res) => {
     try {
-      const { emailOrUsername, password } = loginUserSchema.parse(req.body);
+      const { emailOrUsername, password, rememberMe } = req.body;
       
       const user = await storage.getUserByEmailOrUsername(emailOrUsername);
       if (!user) {
@@ -281,6 +281,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           needsVerification: true,
           userEmail: user.email
         });
+      }
+
+      // Set session duration based on remember me checkbox
+      if (rememberMe) {
+        req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
+      } else {
+        req.session.cookie.maxAge = 8 * 60 * 60 * 1000; // 8 hours if not remembered
       }
 
       // Set session

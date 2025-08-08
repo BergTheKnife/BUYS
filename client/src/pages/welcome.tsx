@@ -50,11 +50,12 @@ export default function Welcome() {
   // Welcome page now only handles form submission, not redirects
   // Redirects are handled by HomeRedirect component in App.tsx
 
-  const loginForm = useForm<LoginUser>({
+  const loginForm = useForm<LoginUser & { rememberMe?: boolean }>({
     resolver: zodResolver(loginUserSchema),
     defaultValues: {
       emailOrUsername: "",
       password: "",
+      rememberMe: false,
     },
   });
 
@@ -69,7 +70,7 @@ export default function Welcome() {
     },
   });
 
-  const onLogin = async (data: LoginUser) => {
+  const onLogin = async (data: LoginUser & { rememberMe?: boolean }) => {
     try {
       await login(data);
       toast({
@@ -251,7 +252,11 @@ export default function Welcome() {
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  <Checkbox id="remember" />
+                  <Checkbox 
+                    id="remember" 
+                    checked={loginForm.watch("rememberMe")}
+                    onCheckedChange={(checked) => loginForm.setValue("rememberMe", !!checked)}
+                  />
                   <Label htmlFor="remember" className="text-sm">
                     Ricorda le mie credenziali
                   </Label>
