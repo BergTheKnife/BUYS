@@ -235,76 +235,87 @@ export default function Inventory() {
               Filtri
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-4">
+          <CardContent className="space-y-4">
+            {/* Mobile-first layout with proper spacing */}
+            <div className="space-y-4">
+              {/* Prima riga - Ricerca principale */}
               <div className="space-y-2">
                 <Label>Nome Articolo</Label>
                 <Input
                   placeholder="Cerca per nome..."
                   value={filters.nomeArticolo}
                   onChange={(e) => setFilters(prev => ({ ...prev, nomeArticolo: e.target.value }))}
+                  className="w-full"
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Taglia</Label>
-                <Input
-                  placeholder="Cerca per taglia..."
-                  value={filters.taglia}
-                  onChange={(e) => setFilters(prev => ({ ...prev, taglia: e.target.value }))}
-                />
+              
+              {/* Seconda riga - Taglia e Disponibilità */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Taglia</Label>
+                  <Input
+                    placeholder="Cerca per taglia..."
+                    value={filters.taglia}
+                    onChange={(e) => setFilters(prev => ({ ...prev, taglia: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Disponibilità</Label>
+                  <Select value={filters.disponibilita} onValueChange={(value) => setFilters(prev => ({ ...prev, disponibilita: value }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Tutti" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="tutti">Tutti</SelectItem>
+                      <SelectItem value="disponibili">Disponibili</SelectItem>
+                      <SelectItem value="esauriti">Esauriti</SelectItem>
+                      <SelectItem value="scorte_basse">Scorte Basse (≤3)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
+              
+              {/* Terza riga - Range Costi */}
               <div className="space-y-2">
-                <Label>Costo Min</Label>
-                <Input
-                  type="number"
-                  placeholder="€ 0"
-                  value={filters.costoMin}
-                  onChange={(e) => setFilters(prev => ({ ...prev, costoMin: e.target.value }))}
-                />
+                <Label>Range Costi</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    type="number"
+                    placeholder="€ Min"
+                    value={filters.costoMin}
+                    onChange={(e) => setFilters(prev => ({ ...prev, costoMin: e.target.value }))}
+                  />
+                  <Input
+                    type="number"
+                    placeholder="€ Max"
+                    value={filters.costoMax}
+                    onChange={(e) => setFilters(prev => ({ ...prev, costoMax: e.target.value }))}
+                  />
+                </div>
               </div>
+              
+              {/* Quarta riga - Range Quantità */}
               <div className="space-y-2">
-                <Label>Costo Max</Label>
-                <Input
-                  type="number"
-                  placeholder="€ 100"
-                  value={filters.costoMax}
-                  onChange={(e) => setFilters(prev => ({ ...prev, costoMax: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Qta Min</Label>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={filters.quantitaMin}
-                  onChange={(e) => setFilters(prev => ({ ...prev, quantitaMin: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Qta Max</Label>
-                <Input
-                  type="number"
-                  placeholder="100"
-                  value={filters.quantitaMax}
-                  onChange={(e) => setFilters(prev => ({ ...prev, quantitaMax: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Disponibilità</Label>
-                <Select value={filters.disponibilita} onValueChange={(value) => setFilters(prev => ({ ...prev, disponibilita: value }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Tutti" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="tutti">Tutti</SelectItem>
-                    <SelectItem value="disponibili">Disponibili</SelectItem>
-                    <SelectItem value="esauriti">Esauriti</SelectItem>
-                    <SelectItem value="scorte_basse">Scorte Basse (≤3)</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Range Quantità</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    type="number"
+                    placeholder="Qta Min"
+                    value={filters.quantitaMin}
+                    onChange={(e) => setFilters(prev => ({ ...prev, quantitaMin: e.target.value }))}
+                  />
+                  <Input
+                    type="number"
+                    placeholder="Qta Max"
+                    value={filters.quantitaMax}
+                    onChange={(e) => setFilters(prev => ({ ...prev, quantitaMax: e.target.value }))}
+                  />
+                </div>
               </div>
             </div>
-            <div className="flex gap-2 mt-4">
+            
+            {/* Azioni e risultati */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t">
               <Button
                 variant="outline"
                 onClick={() => setFilters({
@@ -316,11 +327,12 @@ export default function Inventory() {
                   quantitaMax: "",
                   disponibilita: "tutti"
                 })}
+                className="w-full sm:w-auto"
               >
                 Cancella Filtri
               </Button>
-              <div className="flex items-center text-sm text-muted-foreground">
-                Risultati: {filteredInventory.length} di {inventory.length}
+              <div className="text-sm text-muted-foreground text-center sm:text-left">
+                Risultati: <span className="font-medium">{filteredInventory.length}</span> di <span className="font-medium">{inventory.length}</span>
               </div>
             </div>
           </CardContent>
