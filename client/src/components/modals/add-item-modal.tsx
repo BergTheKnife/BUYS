@@ -221,7 +221,19 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="immagine">Immagine</Label>
+            <Label htmlFor="immagine">
+              Immagine {editingItem && "(lascia vuoto per mantenere l'immagine attuale)"}
+            </Label>
+            {editingItem && editingItem.immagineUrl && (
+              <div className="mb-2">
+                <p className="text-sm text-muted-foreground mb-2">Immagine attuale:</p>
+                <img
+                  src={editingItem.immagineUrl}
+                  alt={editingItem.nomeArticolo}
+                  className="w-20 h-20 object-cover rounded-lg border"
+                />
+              </div>
+            )}
             <Input
               id="immagine"
               type="file"

@@ -1852,6 +1852,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const updates = insertInventarioSchema.partial().parse(req.body);
       
+      // Solo aggiorna l'immagine se è stata fornita una nuova immagine
       if (req.file) {
         try {
           // Use Object Storage for inventory images
@@ -1886,6 +1887,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           (updates as any).immagineUrl = `/uploads/${filename}`;
         }
       }
+      // Se non è stata fornita una nuova immagine, l'immagineUrl esistente rimane invariata
 
       const item = await storage.updateInventoryItem(id, req.session.activityId!, updates);
       if (!item) {
