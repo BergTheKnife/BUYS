@@ -71,11 +71,16 @@
     color: inherit !important;
   }
   
-  /* Remove focus ring on touch devices when not using keyboard */
-  button:focus:not(:focus-visible) {
+  /* Remove all focus states on touch devices */
+  *:focus:not(:focus-visible) {
     outline: none !important;
     box-shadow: none !important;
-    ring: none !important;
+  }
+  
+  /* Force remove focus states completely */
+  *:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
   }
 }
 
@@ -174,10 +179,27 @@
     scroll-behavior: smooth;
   }
 
-  /* Better focus states for accessibility */
+  /* Remove all focus outlines */
   *:focus {
-    outline: 2px solid var(--ring);
-    outline-offset: 2px;
+    outline: none !important;
+    box-shadow: none !important;
+  }
+  
+  /* Specifically target input elements */
+  input:focus,
+  textarea:focus,
+  select:focus {
+    outline: none !important;
+    box-shadow: none !important;
+    border-color: inherit !important;
+  }
+  
+  /* Remove focus states from buttons and interactive elements */
+  button:focus,
+  [role="button"]:focus,
+  a:focus {
+    outline: none !important;
+    box-shadow: none !important;
   }
 
   /* Mobile-specific optimizations */
@@ -375,6 +397,33 @@
     height: 16px !important;
     min-width: 16px !important;
     min-height: 16px !important;
+  }
+
+  /* Remove focus from all shadcn components */
+  [class*="focus-visible:outline-none"]:focus,
+  [class*="focus-visible:ring"]:focus,
+  [class*="focus:outline-none"]:focus {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+  
+  /* Specifically target toast notifications */
+  [data-state="open"]:focus,
+  [data-state="closed"]:focus,
+  [role="alert"]:focus,
+  [role="status"]:focus {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+  
+  /* Remove ring classes completely */
+  .ring-2,
+  .ring-ring,
+  .ring-offset-2,
+  .focus-visible\\:ring-2,
+  .focus-visible\\:ring-ring,
+  .focus-visible\\:ring-offset-2 {
+    box-shadow: none !important;
   }
 }
 
