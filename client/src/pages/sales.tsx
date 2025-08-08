@@ -99,7 +99,7 @@ export default function Sales() {
     return true;
   });
 
-  const totalSales = filteredSales.reduce((sum: number, sale: Vendita) => sum + Number(sale.prezzoVendita), 0);
+  const totalSales = filteredSales.reduce((sum: number, sale: Vendita) => sum + (Number(sale.prezzoVendita) * Number(sale.quantita)), 0);
   const totalMargin = filteredSales.reduce((sum: number, sale: Vendita) => sum + Number(sale.margine), 0);
 
   // Repeat sale mutation
@@ -207,7 +207,7 @@ export default function Sales() {
           <Card>
             <CardContent className="p-6">
               <div className="text-center">
-                <p className="text-sm font-medium text-muted-foreground">Vendite Totali</p>
+                <p className="text-sm font-medium text-muted-foreground">Valore Totale Vendite</p>
                 <p className="text-2xl font-bold text-green-600">{formatCurrency(totalSales)}</p>
               </div>
             </CardContent>
