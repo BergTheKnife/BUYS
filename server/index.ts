@@ -51,9 +51,9 @@ app.use((req, res, next) => {
     throw err;
   });
 
-  // Setup vite in development or when REPLIT_DOMAINS is present (for live editing)
-  // This allows hot reloading on deployed apps for development
-  if (app.get("env") === "development" || process.env.REPLIT_DOMAINS) {
+  // Setup vite only in development environment
+  // In production, serve static files for better performance
+  if (app.get("env") === "development") {
     await setupVite(app, server);
   } else {
     serveStatic(app);
