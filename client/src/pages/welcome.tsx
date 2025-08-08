@@ -16,6 +16,7 @@ import { insertUserSchema, loginUserSchema } from "@shared/schema";
 import type { InsertUser, LoginUser } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
+import { capitalizeWords } from "@/lib/utils";
 
 export default function Welcome() {
   const [isLogin, setIsLogin] = useState(true);
@@ -202,9 +203,9 @@ export default function Welcome() {
           <CardContent className="p-6 sm:p-8">
             <div className="text-center mb-4">
               <div className="mb-2 flex justify-center">
-                <img 
-                  src={buysLogoColorPath} 
-                  alt="BUYS - Build Up Your Store" 
+                <img
+                  src={buysLogoColorPath}
+                  alt="BUYS - Build Up Your Store"
                   className="w-72 sm:w-80 h-auto max-w-full object-contain"
                   style={{ maxWidth: 'calc(100vw - 6rem)' }}
                 />
@@ -252,8 +253,8 @@ export default function Welcome() {
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  <Checkbox 
-                    id="remember" 
+                  <Checkbox
+                    id="remember"
                     checked={loginForm.watch("rememberMe")}
                     onCheckedChange={(checked) => loginForm.setValue("rememberMe", !!checked)}
                   />
@@ -330,8 +331,13 @@ export default function Welcome() {
                     <Label htmlFor="nome">Nome</Label>
                     <Input
                       id="nome"
-                      placeholder="Nome"
+                      className="pl-10"
+                      placeholder="Il tuo nome"
                       {...registerForm.register("nome")}
+                      onChange={(e) => {
+                        const capitalizedValue = capitalizeWords(e.target.value);
+                        registerForm.setValue("nome", capitalizedValue);
+                      }}
                     />
                     {registerForm.formState.errors.nome && (
                       <p className="text-sm text-destructive">
@@ -343,8 +349,13 @@ export default function Welcome() {
                     <Label htmlFor="cognome">Cognome</Label>
                     <Input
                       id="cognome"
-                      placeholder="Cognome"
+                      className="pl-10"
+                      placeholder="Il tuo cognome"
                       {...registerForm.register("cognome")}
+                      onChange={(e) => {
+                        const capitalizedValue = capitalizeWords(e.target.value);
+                        registerForm.setValue("cognome", capitalizedValue);
+                      }}
                     />
                     {registerForm.formState.errors.cognome && (
                       <p className="text-sm text-destructive">
@@ -435,9 +446,9 @@ export default function Welcome() {
                   )}
                 </div>
 
-                <Button 
-                  type="submit" 
-                  className="w-full bg-green-600 hover:bg-green-700" 
+                <Button
+                  type="submit"
+                  className="w-full bg-green-600 hover:bg-green-700"
                   disabled={registerForm.formState.isSubmitting || !usernameStatus.available}
                 >
                   <UserPlus className="mr-2 h-4 w-4" />

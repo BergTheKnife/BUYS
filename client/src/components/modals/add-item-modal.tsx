@@ -24,6 +24,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { insertInventarioSchema } from "@shared/schema";
 import type { InsertInventario, Inventario } from "@shared/schema";
 import { useEffect } from "react";
+import { capitalizeWords } from "@/lib/utils";
 
 interface AddItemModalProps {
   isOpen: boolean;
@@ -143,6 +144,10 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
                 id="nomeArticolo"
                 placeholder="Es. T-shirt Blu"
                 {...form.register("nomeArticolo")}
+                onChange={(e) => {
+                  const capitalizedValue = capitalizeWords(e.target.value);
+                  form.setValue("nomeArticolo", capitalizedValue);
+                }}
               />
               {form.formState.errors.nomeArticolo && (
                 <p className="text-sm text-destructive">
@@ -153,8 +158,8 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
 
             <div className="space-y-2">
               <Label htmlFor="taglia">Taglia</Label>
-              <Select 
-                value={form.watch("taglia")} 
+              <Select
+                value={form.watch("taglia")}
                 onValueChange={(value) => form.setValue("taglia", value)}
               >
                 <SelectTrigger>
@@ -252,10 +257,10 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
               Annulla
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending 
-                ? "Salvando..." 
-                : editingItem 
-                  ? "Aggiorna Articolo" 
+              {mutation.isPending
+                ? "Salvando..."
+                : editingItem
+                  ? "Aggiorna Articolo"
                   : "Salva Articolo"
               }
             </Button>

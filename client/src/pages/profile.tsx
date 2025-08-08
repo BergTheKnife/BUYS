@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Navbar } from "@/components/layout/navbar";
 import { ProfileUploader } from "@/components/ProfileUploader";
 import { useAuth } from "@/hooks/use-auth";
+import { capitalizeWords } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { User, Mail, Edit3, Save, X, Trash2, Key } from "lucide-react";
@@ -124,7 +125,7 @@ export default function Profile() {
       });
       return;
     }
-    
+
     if (passwordData.newPassword.length < 6) {
       toast({
         title: "Errore",
@@ -169,7 +170,7 @@ export default function Profile() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-      
+
       <div className="container mx-auto py-8 px-4">
         <div className="max-w-2xl mx-auto space-y-6">
           {/* Header */}
@@ -228,7 +229,10 @@ export default function Profile() {
                     <Input
                       id="nome"
                       value={formData.nome}
-                      onChange={(e) => setFormData(prev => ({ ...prev, nome: e.target.value }))}
+                      onChange={(e) => {
+                        const capitalizedValue = capitalizeWords(e.target.value);
+                        setFormData(prev => ({ ...prev, nome: capitalizedValue }));
+                      }}
                       placeholder="Il tuo nome"
                     />
                   ) : (
@@ -237,14 +241,17 @@ export default function Profile() {
                     </div>
                   )}
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="cognome">Cognome</Label>
                   {isEditing ? (
                     <Input
                       id="cognome"
                       value={formData.cognome}
-                      onChange={(e) => setFormData(prev => ({ ...prev, cognome: e.target.value }))}
+                      onChange={(e) => {
+                        const capitalizedValue = capitalizeWords(e.target.value);
+                        setFormData(prev => ({ ...prev, cognome: capitalizedValue }));
+                      }}
                       placeholder="Il tuo cognome"
                     />
                   ) : (
@@ -309,7 +316,7 @@ export default function Profile() {
                     {user.username}
                   </div>
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label>Data Registrazione</Label>
                   <div className="px-3 py-2 bg-gray-50 rounded-md border">
@@ -355,7 +362,7 @@ export default function Profile() {
                       placeholder="Inserisci la password attuale"
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="newPassword">Nuova Password</Label>
                     <Input
@@ -366,7 +373,7 @@ export default function Profile() {
                       placeholder="Inserisci la nuova password (min. 6 caratteri)"
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="confirmPassword">Conferma Nuova Password</Label>
                     <Input

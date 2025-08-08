@@ -24,6 +24,7 @@ import { insertSpesaSchema } from "@shared/schema";
 import type { InsertSpesa, Spesa } from "@shared/schema";
 import { z } from "zod";
 import { useEffect } from "react";
+import { capitalizeWords } from "@/lib/utils";
 
 interface AddExpenseModalProps {
   isOpen: boolean;
@@ -73,7 +74,7 @@ export function AddExpenseModal({ isOpen, onClose, editingExpense }: AddExpenseM
     mutationFn: async (data: ExpenseFormData) => {
       const url = editingExpense ? `/api/spese/${editingExpense.id}` : "/api/spese";
       const method = editingExpense ? "PUT" : "POST";
-      
+
       const response = await apiRequest(method, url, {
         ...data,
         data: new Date(data.data).toISOString(),
@@ -124,6 +125,10 @@ export function AddExpenseModal({ isOpen, onClose, editingExpense }: AddExpenseM
               id="voce"
               placeholder="Es. Affitto negozio"
               {...form.register("voce")}
+              onChange={(e) => {
+                const capitalizedValue = capitalizeWords(e.target.value);
+                form.setValue("voce", capitalizedValue);
+              }}
             />
             {form.formState.errors.voce && (
               <p className="text-sm text-destructive">

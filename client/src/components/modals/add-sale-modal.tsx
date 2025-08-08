@@ -23,6 +23,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { insertVenditaSchema } from "@shared/schema";
 import type { InsertVendita, Inventario, Vendita } from "@shared/schema";
 import { z } from "zod";
+import { capitalizeWords } from "@/lib/utils";
 
 interface AddSaleModalProps {
   isOpen: boolean;
@@ -82,7 +83,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
       console.log('Sale form data being sent:', data);
       const method = editingSale ? "PUT" : "POST";
       const url = editingSale ? `/api/vendite/${editingSale.id}` : "/api/vendite";
-      
+
       const response = await apiRequest(method, url, {
         inventarioId: data.inventarioId,
         quantita: data.quantita,
