@@ -87,6 +87,8 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/spese"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/activity-history"] });
       toast({
         title: "Successo",
         description: editingItem ? "Articolo aggiornato con successo" : "Articolo aggiunto con successo",

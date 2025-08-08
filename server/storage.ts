@@ -490,11 +490,45 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateInventoryItem(id: string, activityId: string, updates: Partial<InsertInventario>): Promise<Inventario | undefined> {
+    // Get the current item to compare quantities
+    const currentItem = await this.getInventoryItem(id, activityId);
+    if (!currentItem) return undefined;
+
     const [updatedItem] = await db
       .update(inventario)
       .set(updates)
       .where(and(eq(inventario.id, id), eq(inventario.activityId, activityId)))
       .returning();
+
+    // If quantity changed, create/update expense entry
+    if (updates.quantita !== undefined && updates.quantita !== currentItem.quantita) {
+      const quantityDifference = updates.quantita - currentItem.quantita;
+      const costPerUnit = Number(updates.costo || currentItem.costo);
+      const totalCostDifference = costPerUnit * quantityDifference;
+
+      if (quantityDifference > 0) {
+        // Quantity increased - add expense for additional stock
+        await this.createExpense({
+          userId: updatedItem.userId,
+          activityId: activityId,
+          voce: `Rifornimento: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (+${quantityDifference} pz)`,
+          importo: totalCostDifference.toString(),
+          categoria: "Aggiunta articolo",
+          data: new Date(),
+        });
+      } else {
+        // Quantity decreased - add negative expense (reduction)
+        await this.createExpense({
+          userId: updatedItem.userId,
+          activityId: activityId,
+          voce: `Riduzione inventario: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${quantityDifference} pz)`,
+          importo: totalCostDifference.toString(), // This will be negative
+          categoria: "Aggiunta articolo",
+          data: new Date(),
+        });
+      }
+    }
+
     return updatedItem || undefined;
   }
 

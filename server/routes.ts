@@ -1892,6 +1892,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Articolo non trovato" });
       }
 
+      // Invalidate expenses query to reflect the automatic expense update
       res.json(item);
     } catch (error: any) {
       res.status(400).json({ message: error.message || "Errore nell'aggiornamento dell'articolo" });
