@@ -542,15 +542,18 @@ export class DatabaseStorage implements IStorage {
       .delete(vendite)
       .where(eq(vendite.inventarioId, id));
 
-    // Find and delete the related expense for inventory addition
-    // Look for expenses with the same article name, size, and cost (inventory cost)
+    // Find and delete all related expenses for this inventory item
+    // This includes initial addition and any quantity updates (rifornimenti/riduzioni)
     await db
       .delete(spese)
       .where(and(
         eq(spese.activityId, activityId),
         sql`(${spese.categoria} = 'Aggiunta articolo' OR ${spese.categoria} = 'Inventario')`,
-        like(spese.voce, `%${item.nomeArticolo}%`),
-        like(spese.voce, `%${item.taglia}%`)
+        or(
+          like(spese.voce, `%${item.nomeArticolo} - ${item.taglia}%`),
+          like(spese.voce, `%Rifornimento: ${item.nomeArticolo} - ${item.taglia}%`),
+          like(spese.voce, `%Riduzione inventario: ${item.nomeArticolo} - ${item.taglia}%`)
+        )
       ));
 
     // Finally, delete the inventory item
