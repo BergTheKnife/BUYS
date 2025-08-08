@@ -70,7 +70,7 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
     mutationFn: async (data: FormData) => {
       const url = editingItem ? `/api/inventario/${editingItem.id}` : "/api/inventario";
       const method = editingItem ? "PUT" : "POST";
-      
+
       const response = await fetch(url, {
         method,
         credentials: "include",
@@ -108,13 +108,13 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
   const onSubmit = (data: InsertInventario & { immagine?: FileList }) => {
     console.log('Form submitted with data:', data);
     console.log('Form errors:', form.formState.errors);
-    
+
     const formData = new FormData();
     formData.append("nomeArticolo", data.nomeArticolo);
     formData.append("taglia", data.taglia);
     formData.append("costo", data.costo);
     formData.append("quantita", data.quantita.toString());
-    
+
     if (data.immagine && data.immagine.length > 0) {
       formData.append("immagine", data.immagine[0]);
     }

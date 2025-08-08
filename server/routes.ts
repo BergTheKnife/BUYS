@@ -1850,7 +1850,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/inventario/:id', requireActivity, upload.single('immagine'), async (req, res) => {
     try {
       const { id } = req.params;
-      const updates = insertInventarioSchema.partial().parse(req.body);
+      
+      // Convert form data types properly for updates
+      const formData: any = {};
+      if (req.body.nomeArticolo !== undefined) formData.nomeArticolo = req.body.nomeArticolo;
+      if (req.body.taglia !== undefined) formData.taglia = req.body.taglia;
+      if (req.body.costo !== undefined) formData.costo = req.body.costo;
+      if (req.body.quantita !== undefined) formData.quantita = parseInt(req.body.quantita);
+      
+      const updates = insertInventarioSchema.partial().parse(formData);
       
       // Solo aggiorna l'immagine se è stata fornita una nuova immagine
       if (req.file) {
