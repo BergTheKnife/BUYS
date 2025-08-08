@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,9 +34,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Package, Plus, Edit, Trash2, ImageIcon, PackagePlus } from "lucide-react";
+import { Package, Plus, Edit, Trash2, ImageIcon, PackagePlus, Filter } from "lucide-react";
 import type { Inventario } from "@shared/schema";
 
 export default function Inventory() {
@@ -49,6 +56,17 @@ export default function Inventory() {
   const queryClient = useQueryClient();
   const { currentActivity } = useAuth();
 
+  // Filtri
+  const [filters, setFilters] = useState({
+    nomeArticolo: "",
+    taglia: "",
+    costoMin: "",
+    costoMax: "",
+    quantitaMin: "",
+    quantitaMax: "",
+    disponibilita: "tutti" // tutti, disponibili, esauriti, scorte_basse
+  });
+
   // Force refetch when currentActivity changes
   useEffect(() => {
     if (currentActivity) {
@@ -60,6 +78,54 @@ export default function Inventory() {
     queryKey: ["/api/inventario"],
     enabled: !!currentActivity?.id,
   });
+
+  // Applica i filtri all'inventario
+  const filteredInventory = useMemo(() => {
+    return inventory.filter((item: Inventario) => {
+      // Filtro per nome articolo
+      if (filters.nomeArticolo && !item.nomeArticolo.toLowerCase().includes(filters.nomeArticolo.toLowerCase())) {
+        return false;
+      }
+
+      // Filtro per taglia
+      if (filters.taglia && !item.taglia.toLowerCase().includes(filters.taglia.toLowerCase())) {
+        return false;
+      }
+
+      // Filtro per costo minimo
+      if (filters.costoMin && Number(item.costo) < Number(filters.costoMin)) {
+        return false;
+      }
+
+      // Filtro per costo massimo
+      if (filters.costoMax && Number(item.costo) > Number(filters.costoMax)) {
+        return false;
+      }
+
+      // Filtro per quantità minima
+      if (filters.quantitaMin && item.quantita < Number(filters.quantitaMin)) {
+        return false;
+      }
+
+      // Filtro per quantità massima
+      if (filters.quantitaMax && item.quantita > Number(filters.quantitaMax)) {
+        return false;
+      }
+
+      // Filtro per disponibilità
+      if (filters.disponibilita === "disponibili" && item.quantita === 0) {
+        return false;
+      }
+      if (filters.disponibilita === "esauriti" && item.quantita > 0) {
+        return false;
+      }
+      if (filters.disponibilita === "scorte_basse" && item.quantita > 3) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [inventory, filters]);
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -161,6 +227,105 @@ export default function Inventory() {
           </Button>
         </div>
 
+        {/* Filtri */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Filter className="h-5 w-5" />
+              Filtri
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-4">
+              <div className="space-y-2">
+                <Label>Nome Articolo</Label>
+                <Input
+                  placeholder="Cerca per nome..."
+                  value={filters.nomeArticolo}
+                  onChange={(e) => setFilters(prev => ({ ...prev, nomeArticolo: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Taglia</Label>
+                <Input
+                  placeholder="Cerca per taglia..."
+                  value={filters.taglia}
+                  onChange={(e) => setFilters(prev => ({ ...prev, taglia: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Costo Min</Label>
+                <Input
+                  type="number"
+                  placeholder="€ 0"
+                  value={filters.costoMin}
+                  onChange={(e) => setFilters(prev => ({ ...prev, costoMin: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Costo Max</Label>
+                <Input
+                  type="number"
+                  placeholder="€ 100"
+                  value={filters.costoMax}
+                  onChange={(e) => setFilters(prev => ({ ...prev, costoMax: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Qta Min</Label>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={filters.quantitaMin}
+                  onChange={(e) => setFilters(prev => ({ ...prev, quantitaMin: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Qta Max</Label>
+                <Input
+                  type="number"
+                  placeholder="100"
+                  value={filters.quantitaMax}
+                  onChange={(e) => setFilters(prev => ({ ...prev, quantitaMax: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Disponibilità</Label>
+                <Select value={filters.disponibilita} onValueChange={(value) => setFilters(prev => ({ ...prev, disponibilita: value }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Tutti" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="tutti">Tutti</SelectItem>
+                    <SelectItem value="disponibili">Disponibili</SelectItem>
+                    <SelectItem value="esauriti">Esauriti</SelectItem>
+                    <SelectItem value="scorte_basse">Scorte Basse (≤3)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <Button
+                variant="outline"
+                onClick={() => setFilters({
+                  nomeArticolo: "",
+                  taglia: "",
+                  costoMin: "",
+                  costoMax: "",
+                  quantitaMin: "",
+                  quantitaMax: "",
+                  disponibilita: "tutti"
+                })}
+              >
+                Cancella Filtri
+              </Button>
+              <div className="flex items-center text-sm text-muted-foreground">
+                Risultati: {filteredInventory.length} di {inventory.length}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Inventario Articoli</CardTitle>
@@ -178,6 +343,28 @@ export default function Inventory() {
                   Aggiungi Primo Articolo
                 </Button>
               </div>
+            ) : filteredInventory.length === 0 ? (
+              <div className="text-center py-12">
+                <Package className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="text-lg font-semibold mb-2">Nessun articolo trovato</h3>
+                <p className="text-muted-foreground mb-4">
+                  Prova a modificare i filtri per trovare gli articoli desiderati
+                </p>
+                <Button 
+                  variant="outline"
+                  onClick={() => setFilters({
+                    nomeArticolo: "",
+                    taglia: "",
+                    costoMin: "",
+                    costoMax: "",
+                    quantitaMin: "",
+                    quantitaMax: "",
+                    disponibilita: "tutti"
+                  })}
+                >
+                  Cancella Filtri
+                </Button>
+              </div>
             ) : (
               <div className="rounded-md border">
                 <Table>
@@ -193,7 +380,7 @@ export default function Inventory() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {inventory.map((item: Inventario) => (
+                    {filteredInventory.map((item: Inventario) => (
                       <TableRow key={item.id}>
                         <TableCell>
                           {item.immagineUrl ? (
