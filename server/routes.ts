@@ -1651,10 +1651,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       let immagineUrl = null;
       if (req.file) {
-        const filename = `${Date.now()}-${req.file.originalname}`;
-        const filepath = path.join(uploadDir, filename);
-        fs.renameSync(req.file.path, filepath);
-        immagineUrl = `/uploads/${filename}`;
+        try {
+          // Use Object Storage for inventory images
+          const objectStorageService = new ObjectStorageService();
+          const uploadURL = await objectStorageService.getInventoryImageUploadURL();
+          
+          // Upload file to Object Storage
+          const fileBuffer = fs.readFileSync(req.file.path);
+          const uploadResponse = await fetch(uploadURL, {
+            method: 'PUT',
+            body: fileBuffer,
+            headers: {
+              'Content-Type': req.file.mimetype,
+            }
+          });
+
+          if (uploadResponse.ok) {
+            // Normalize the URL for our system
+            immagineUrl = objectStorageService.normalizeObjectEntityPath(uploadURL.split('?')[0]);
+          } else {
+            console.error('Failed to upload to Object Storage:', uploadResponse.status);
+          }
+          
+          // Clean up temp file
+          fs.unlinkSync(req.file.path);
+        } catch (storageError) {
+          console.error('Object Storage error:', storageError);
+          // Fallback to local storage for now
+          const filename = `${Date.now()}-${req.file.originalname}`;
+          const filepath = path.join(uploadDir, filename);
+          fs.renameSync(req.file.path, filepath);
+          immagineUrl = `/uploads/${filename}`;
+        }
       }
 
       const item = await storage.createInventoryItem({
@@ -1688,10 +1716,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updates = insertInventarioSchema.partial().parse(req.body);
       
       if (req.file) {
-        const filename = `${Date.now()}-${req.file.originalname}`;
-        const filepath = path.join(uploadDir, filename);
-        fs.renameSync(req.file.path, filepath);
-        (updates as any).immagineUrl = `/uploads/${filename}`;
+        try {
+          // Use Object Storage for inventory images
+          const objectStorageService = new ObjectStorageService();
+          const uploadURL = await objectStorageService.getInventoryImageUploadURL();
+          
+          // Upload file to Object Storage
+          const fileBuffer = fs.readFileSync(req.file.path);
+          const uploadResponse = await fetch(uploadURL, {
+            method: 'PUT',
+            body: fileBuffer,
+            headers: {
+              'Content-Type': req.file.mimetype,
+            }
+          });
+
+          if (uploadResponse.ok) {
+            // Normalize the URL for our system
+            (updates as any).immagineUrl = objectStorageService.normalizeObjectEntityPath(uploadURL.split('?')[0]);
+          } else {
+            console.error('Failed to upload to Object Storage:', uploadResponse.status);
+          }
+          
+          // Clean up temp file
+          fs.unlinkSync(req.file.path);
+        } catch (storageError) {
+          console.error('Object Storage error:', storageError);
+          // Fallback to local storage for now
+          const filename = `${Date.now()}-${req.file.originalname}`;
+          const filepath = path.join(uploadDir, filename);
+          fs.renameSync(req.file.path, filepath);
+          (updates as any).immagineUrl = `/uploads/${filename}`;
+        }
       }
 
       const item = await storage.updateInventoryItem(id, req.session.activityId!, updates);
