@@ -46,8 +46,8 @@ function Router() {
     <Switch>
       <Route path="/" component={HomeRedirect} />
       <Route path="/attivita" component={ActivitySelection} />
-      <Route path="/forgot-password" component={() => import('./pages/forgot-password').then(m => m.default)} />
-      <Route path="/reset-password/:token" component={() => import('./pages/reset-password').then(m => m.default)} />
+      <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/reset-password/:token" component={ResetPassword} />
       <Route path="/dashboard" component={() => <ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/inventario" component={() => <ProtectedRoute><Inventory /></ProtectedRoute>} />
       <Route path="/vendite" component={() => <ProtectedRoute><Sales /></ProtectedRoute>} />
