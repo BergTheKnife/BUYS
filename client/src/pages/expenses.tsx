@@ -143,8 +143,8 @@ export default function Expenses() {
     <div className="min-h-screen bg-gray-50">
       <Navbar />
 
-      <div className="container mx-auto py-8 px-4 page-with-navbar">
-        <div className="flex justify-between items-center mb-8">
+      <div className="container mx-auto py-6 px-4 page-with-navbar">
+        <div className="flex justify-between items-center mb-8 mt-4">
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Receipt className="h-8 w-8" />
             Spese

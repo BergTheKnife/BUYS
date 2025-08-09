@@ -11,42 +11,42 @@
   [class*="hover:bg-accent"]:hover {
     background-color: inherit !important;
   }
-  
+
   .hover\:text-accent-foreground:hover,
   [class*="hover:text-accent-foreground"]:hover {
     color: inherit !important;
   }
-  
+
   .hover\:bg-primary\/90:hover,
   [class*="hover:bg-primary"]:hover {
     background-color: inherit !important;
   }
-  
+
   .hover\:bg-secondary\/80:hover,
   [class*="hover:bg-secondary"]:hover {
     background-color: inherit !important;
   }
-  
+
   .hover\:underline:hover,
   [class*="hover:underline"]:hover {
     text-decoration: inherit !important;
   }
-  
+
   .hover\:bg-red-50:hover,
   [class*="hover:bg-red"]:hover {
     background-color: inherit !important;
   }
-  
+
   .hover\:text-red-700:hover,
   [class*="hover:text-red"]:hover {
     color: inherit !important;
   }
-  
+
   .hover\:bg-yellow-700:hover,
   [class*="hover:bg-yellow"]:hover {
     background-color: inherit !important;
   }
-  
+
   .hover\:bg-green-700:hover,
   [class*="hover:bg-green"]:hover {
     background-color: inherit !important;
@@ -64,19 +64,19 @@
     transform: inherit !important;
     opacity: inherit !important;
   }
-  
+
   /* Specific override for shadcn button variants */
   button[class*="outline"]:hover {
     background-color: inherit !important;
     color: inherit !important;
   }
-  
+
   /* Remove all focus states on touch devices */
   *:focus:not(:focus-visible) {
     outline: none !important;
     box-shadow: none !important;
   }
-  
+
   /* Force remove focus states completely */
   *:focus-visible {
     outline: none !important;
@@ -159,7 +159,7 @@
     box-sizing: border-box;
     max-width: 100%;
   }
-  
+
   #root {
     width: 100%;
     height: 100%;
@@ -184,7 +184,7 @@
     outline: none !important;
     box-shadow: none !important;
   }
-  
+
   /* Specifically target input elements */
   input:focus,
   textarea:focus,
@@ -193,7 +193,7 @@
     box-shadow: none !important;
     border-color: inherit !important;
   }
-  
+
   /* Remove focus states from buttons and interactive elements */
   button:focus,
   [role="button"]:focus,
@@ -209,7 +209,7 @@
       -webkit-text-size-adjust: 100%;
       -webkit-font-smoothing: antialiased;
     }
-    
+
     /* Better spacing on mobile */
     .container {
       padding-left: 1rem;
@@ -238,17 +238,17 @@
     width: 8px;
     height: 8px;
   }
-  
+
   ::-webkit-scrollbar-track {
     background: var(--muted);
     border-radius: 4px;
   }
-  
+
   ::-webkit-scrollbar-thumb {
     background: var(--border);
     border-radius: 4px;
   }
-  
+
   ::-webkit-scrollbar-thumb:hover {
     background: var(--muted-foreground);
   }
@@ -259,7 +259,7 @@
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 1rem;
   }
-  
+
   @media (max-width: 640px) {
     .responsive-grid {
       grid-template-columns: 1fr;
@@ -270,20 +270,31 @@
   h1, h2, h3, h4, h5, h6 {
     text-wrap: balance;
   }
-  
+
   p {
     text-wrap: pretty;
     max-width: 65ch;
   }
 
   /* Fixed navbar spacing */
-  .page-with-navbar {
-    padding-top: 6rem; /* 96px for mobile */
+  body {
+    padding-top: 100px; /* Height of navbar on mobile + extra space */
   }
-  
+
+  @media (min-width: 640px) {
+    body {
+      padding-top: 120px; /* Height of navbar on desktop + extra space */
+    }
+  }
+
+  /* Page with navbar utility class */
+  .page-with-navbar {
+    padding-top: 2rem; /* Extra padding for page content */
+  }
+
   @media (min-width: 640px) {
     .page-with-navbar {
-      padding-top: 7rem; /* 112px for desktop */
+      padding-top: 2.5rem;
     }
   }
 
@@ -293,7 +304,7 @@
     background-size: 400% 100%;
     animation: shimmer 1.5s ease-in-out infinite;
   }
-  
+
   @keyframes shimmer {
     0% { background-position: 100% 50%; }
     100% { background-position: 0% 50%; }
@@ -317,7 +328,7 @@
     h1 { font-size: 1.5rem; }
     h2 { font-size: 1.25rem; }
     h3 { font-size: 1.125rem; }
-    
+
     /* Ensure buttons are touch-friendly */
     button {
       min-height: 44px;
@@ -340,7 +351,7 @@
   .stat-card {
     transition: transform 0.2s ease;
   }
-  
+
   .stat-card:hover {
     transform: translateY(-2px);
   }
@@ -417,7 +428,7 @@
     outline: none !important;
     box-shadow: none !important;
   }
-  
+
   /* Specifically target toast notifications */
   [data-state="open"]:focus,
   [data-state="closed"]:focus,
@@ -426,7 +437,7 @@
     outline: none !important;
     box-shadow: none !important;
   }
-  
+
   /* Remove ring classes completely */
   .ring-2,
   .ring-ring,

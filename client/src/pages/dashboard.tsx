@@ -180,7 +180,7 @@ export default function Dashboard() {
     <div className="min-h-screen-safe bg-gray-50 dark:bg-gray-900">
       <Navbar />
       <div className="page-with-navbar">
-        <div className="container mx-auto py-4 sm:py-6 lg:py-8 px-3 sm:px-4 lg:px-6 max-w-full">
+        <div className="container mx-auto py-6 sm:py-8 lg:py-10 px-3 sm:px-4 lg:px-6 max-w-full">
           {/* Welcome Header */}
           <div className="mb-6 sm:mb-8">
             <Card className="bg-primary text-white border-0">
