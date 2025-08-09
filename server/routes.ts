@@ -61,7 +61,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     cookie: {
       secure: false, // Set to true in production with HTTPS
       httpOnly: true,
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days default
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours default (will be extended if rememberMe is true)
     },
   }));
 
@@ -283,15 +283,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // Set session
+      req.session.userId = user.id;
+      
       // Set session duration based on remember me checkbox
       if (rememberMe) {
         req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
       } else {
-        req.session.cookie.maxAge = 8 * 60 * 60 * 1000; // 8 hours if not remembered
+        req.session.cookie.maxAge = 24 * 60 * 60 * 1000; // 24 hours if not remembered
       }
-
-      // Set session
-      req.session.userId = user.id;
       
       // If user has a last activity, auto-restore it in session
       let restoredActivity = null;

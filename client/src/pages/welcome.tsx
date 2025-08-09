@@ -17,6 +17,9 @@ import type { InsertUser, LoginUser } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { capitalizeWords } from "@/lib/utils";
+import { z } from "zod";
+import { FormField, FormItem, FormControl, FormLabel } from "@/components/ui/form";
+
 
 export default function Welcome() {
   const [isLogin, setIsLogin] = useState(true);
@@ -51,23 +54,18 @@ export default function Welcome() {
   // Welcome page now only handles form submission, not redirects
   // Redirects are handled by HomeRedirect component in App.tsx
 
-  const loginForm = useForm<LoginUser & { rememberMe?: boolean }>({
-    resolver: zodResolver(loginUserSchema),
+  const loginSchema = z.object({
+    emailOrUsername: z.string().min(1, "Email o username richiesto"),
+    password: z.string().min(1, "Password richiesta"),
+    rememberMe: z.boolean().optional(),
+  });
+
+  const form = useForm<z.infer<typeof loginSchema>>({
+    resolver: zodResolver(loginSchema),
     defaultValues: {
       emailOrUsername: "",
       password: "",
       rememberMe: false,
-    },
-  });
-
-  const registerForm = useForm<InsertUser>({
-    resolver: zodResolver(insertUserSchema),
-    defaultValues: {
-      nome: "",
-      cognome: "",
-      email: "",
-      username: "",
-      password: "",
     },
   });
 
@@ -215,55 +213,76 @@ export default function Welcome() {
 
 
             {isLogin ? (
-              <form onSubmit={loginForm.handleSubmit(onLogin)} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="emailOrUsername">Email o Username</Label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="emailOrUsername"
-                      className="pl-10"
-                      placeholder="Inserisci email o username"
-                      {...loginForm.register("emailOrUsername")}
-                    />
-                  </div>
-                  {loginForm.formState.errors.emailOrUsername && (
-                    <p className="text-sm text-destructive">
-                      {loginForm.formState.errors.emailOrUsername.message}
-                    </p>
+              <form onSubmit={form.handleSubmit(onLogin)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="emailOrUsername"
+                  render={({ field }) => (
+                    <FormItem>
+                      <Label htmlFor="emailOrUsername">Email o Username</Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="emailOrUsername"
+                          className="pl-10"
+                          placeholder="Inserisci email o username"
+                          {...field}
+                        />
+                      </div>
+                      {form.formState.errors.emailOrUsername && (
+                        <p className="text-sm text-destructive">
+                          {form.formState.errors.emailOrUsername.message}
+                        </p>
+                      )}
+                    </FormItem>
                   )}
-                </div>
+                />
 
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground z-10" />
-                    <PasswordInput
-                      id="password"
-                      className="pl-10"
-                      placeholder="Inserisci password"
-                      {...loginForm.register("password")}
-                    />
-                  </div>
-                  {loginForm.formState.errors.password && (
-                    <p className="text-sm text-destructive">
-                      {loginForm.formState.errors.password.message}
-                    </p>
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <Label htmlFor="password">Password</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground z-10" />
+                        <PasswordInput
+                          id="password"
+                          className="pl-10"
+                          placeholder="Inserisci password"
+                          {...field}
+                        />
+                      </div>
+                      {form.formState.errors.password && (
+                        <p className="text-sm text-destructive">
+                          {form.formState.errors.password.message}
+                        </p>
+                      )}
+                    </FormItem>
                   )}
-                </div>
+                />
 
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="remember"
-                    checked={loginForm.watch("rememberMe")}
-                    onCheckedChange={(checked) => loginForm.setValue("rememberMe", !!checked)}
-                  />
-                  <Label htmlFor="remember" className="text-sm">
-                    Ricorda le mie credenziali
-                  </Label>
-                </div>
+                <FormField
+                  control={form.control}
+                  name="rememberMe"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value || false}
+                          onCheckedChange={(e) => field.onChange(e.target.checked)}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel className="text-sm font-normal">
+                          Ricorda le mie credenziali
+                        </FormLabel>
+                      </div>
+                    </FormItem>
+                  )}
+                />
 
-                <Button type="submit" className="w-full" disabled={loginForm.formState.isSubmitting}>
+                <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
                   <LogIn className="mr-2 h-4 w-4" />
                   Accedi
                 </Button>
