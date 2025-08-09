@@ -43,12 +43,12 @@ function HomeRedirect() {
 }
 
 function AppContent() {
-  const { isAuthenticated } = useAuth();
+  const { user } = useAuth();
 
   return (
     <>
-      {isAuthenticated && <Navbar />}
-      <div>
+      {user && <Navbar />}
+      <div className={user ? "pt-20 sm:pt-24" : ""}>
         <Switch>
           <Route path="/" component={HomeRedirect} />
           <Route path="/attivita" component={ActivitySelection} />
