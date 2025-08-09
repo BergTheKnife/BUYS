@@ -1,3 +1,4 @@
+import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -59,14 +60,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
 
   const form = useForm<SaleFormData>({
     resolver: zodResolver(saleFormSchema),
-    defaultValues: editingSale ? {
-      inventarioId: editingSale.inventarioId,
-      quantita: editingSale.quantita,
-      prezzoVendita: editingSale.prezzoVendita,
-      incassatoDa: editingSale.incassatoDa,
-      incassatoSu: editingSale.incassatoSu,
-      data: new Date(editingSale.data).toISOString().split('T')[0],
-    } : {
+    defaultValues: {
       inventarioId: "",
       quantita: 1,
       prezzoVendita: "0",
@@ -75,6 +69,29 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
       data: new Date().toISOString().split('T')[0],
     },
   });
+
+  // Reset form when editingSale changes
+  React.useEffect(() => {
+    if (editingSale) {
+      form.reset({
+        inventarioId: editingSale.inventarioId,
+        quantita: editingSale.quantita,
+        prezzoVendita: editingSale.prezzoVendita.toString(),
+        incassatoDa: editingSale.incassatoDa,
+        incassatoSu: editingSale.incassatoSu,
+        data: new Date(editingSale.data).toISOString().split('T')[0],
+      });
+    } else {
+      form.reset({
+        inventarioId: "",
+        quantita: 1,
+        prezzoVendita: "0",
+        incassatoDa: "",
+        incassatoSu: "",
+        data: new Date().toISOString().split('T')[0],
+      });
+    }
+  }, [editingSale, form]);
 
   const selectedItem = inventory.find((item: Inventario) => item.id === form.watch("inventarioId"));
 
@@ -103,7 +120,14 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
         description: editingSale ? "Vendita aggiornata con successo" : "Vendita registrata con successo",
       });
       onClose();
-      form.reset();
+      form.reset({
+        inventarioId: "",
+        quantita: 1,
+        prezzoVendita: "0",
+        incassatoDa: "",
+        incassatoSu: "",
+        data: new Date().toISOString().split('T')[0],
+      });
     },
     onError: (error: any) => {
       toast({
