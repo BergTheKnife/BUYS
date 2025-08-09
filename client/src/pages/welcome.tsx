@@ -18,7 +18,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { capitalizeWords } from "@/lib/utils";
 import { z } from "zod";
-import { FormField, FormItem, FormControl, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormField, FormItem, FormControl, FormLabel, FormMessage } from "@/components/ui/form";
 
 
 export default function Welcome() {
@@ -225,7 +225,8 @@ export default function Welcome() {
 
 
             {isLogin ? (
-              <form onSubmit={form.handleSubmit(onLogin)} className="space-y-4">
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onLogin)} className="space-y-4">
                 <FormField
                   control={form.control}
                   name="emailOrUsername"
@@ -354,9 +355,11 @@ export default function Welcome() {
                     Registrati
                   </Button>
                 </div>
-              </form>
+                </form>
+              </Form>
             ) : (
-              <form onSubmit={registerForm.handleSubmit(onRegister)} className="space-y-4">
+              <Form {...registerForm}>
+                <form onSubmit={registerForm.handleSubmit(onRegister)} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={registerForm.control}
@@ -511,7 +514,8 @@ export default function Welcome() {
                     Accedi
                   </Button>
                 </div>
-              </form>
+                </form>
+              </Form>
             )}
           </CardContent>
         </Card>
