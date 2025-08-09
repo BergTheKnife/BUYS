@@ -41,6 +41,17 @@ export async function testEmailConnection(): Promise<boolean> {
   }
 }
 
+// Validate email format
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const testDomains = ['test.com', 'example.com', 'fake.com', 'dummy.com'];
+  
+  if (!emailRegex.test(email)) return false;
+  
+  const domain = email.split('@')[1]?.toLowerCase();
+  return !testDomains.includes(domain);
+}
+
 // Send verification email
 export async function sendVerificationEmail(
   email: string,
@@ -48,6 +59,11 @@ export async function sendVerificationEmail(
   cognome: string,
   token: string
 ): Promise<void> {
+  // Validate email before sending
+  if (!isValidEmail(email)) {
+    console.log(`⚠️ Skipping email send to invalid/test address: ${email}`);
+    throw new Error(`Indirizzo email non valido o di test: ${email}`);
+  }
   // Use the correct URL - always use public Replit URL if available
   const baseUrl = process.env.REPLIT_DOMAINS 
     ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
@@ -154,6 +170,10 @@ export async function sendWelcomeEmail(
   nome: string,
   cognome: string
 ): Promise<void> {
+  if (!isValidEmail(email)) {
+    console.log(`⚠️ Skipping welcome email to invalid/test address: ${email}`);
+    return;
+  }
   const loginUrl = `${process.env.NODE_ENV === 'production' 
     ? `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}` 
     : 'http://localhost:5000'}/`;
@@ -232,6 +252,10 @@ export async function sendPasswordResetEmail(
   cognome: string,
   token: string
 ): Promise<void> {
+  if (!isValidEmail(email)) {
+    console.log(`⚠️ Skipping password reset email to invalid/test address: ${email}`);
+    throw new Error(`Indirizzo email non valido o di test: ${email}`);
+  }
   const baseUrl = process.env.REPLIT_DOMAINS 
     ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
     : 'http://localhost:5000';
