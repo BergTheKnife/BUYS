@@ -87,6 +87,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const currentActivity = (authData as { currentActivity?: any })?.currentActivity || null;
   const hasActivity = !!currentActivity;
 
+  // Prefetch critical data when user has an activity
+  useEffect(() => {
+    if (hasActivity && currentActivity?.id) {
+      // Prefetch main pages data to make navigation instant
+      queryClient.prefetchQuery({
+        queryKey: ["/api/inventario"],
+        staleTime: 5 * 60 * 1000, // 5 minutes
+      });
+      queryClient.prefetchQuery({
+        queryKey: ["/api/vendite"],
+        staleTime: 5 * 60 * 1000, // 5 minutes
+      });
+      queryClient.prefetchQuery({
+        queryKey: ["/api/spese"],
+        staleTime: 5 * 60 * 1000, // 5 minutes
+      });
+      queryClient.prefetchQuery({
+        queryKey: ["/api/stats"],
+        staleTime: 2 * 60 * 1000, // 2 minutes
+      });
+    }
+  }, [hasActivity, currentActivity?.id, queryClient]);
+
   const value = {
     user,
     currentActivity,
