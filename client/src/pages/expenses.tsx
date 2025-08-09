@@ -1,10 +1,18 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Receipt, Plus, Filter, Edit, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Navbar } from "@/components/layout/navbar";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
 import { AddExpenseModal } from "@/components/modals/add-expense-modal";
+import { Navbar } from "@/components/layout/navbar";
+import { capitalizeWords } from "@/lib/utils";
+import { apiRequest } from "@/lib/queryClient";
+import { useActionHistory } from "@/hooks/use-action-history";
+import { ActionHistoryControls } from "@/components/ui/action-history-controls";
 import {
   Table,
   TableBody,
@@ -13,20 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Receipt, Plus, Edit, Trash2, Filter } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import type { Spesa } from "@shared/schema";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,6 +47,7 @@ export default function Expenses() {
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { addAction, undo, redo, canUndo, canRedo } = useActionHistory('expenses');
 
   const { data: expenses = [], isLoading } = useQuery<Spesa[]>({
     queryKey: ["/api/spese"],
@@ -59,7 +55,19 @@ export default function Expenses() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await apiRequest("DELETE", `/api/spese/${id}`);
+      // Salva i dati della spesa prima di eliminarla per l'undo
+      const expenseToDelete = expenses?.find((expense: any) => expense.id === id);
+      if (expenseToDelete) {
+        addAction({
+          description: `Spesa eliminata: ${expenseToDelete.voce}`,
+          data: expenseToDelete,
+          action: 'delete',
+          entityType: 'expense'
+        });
+      }
+
+      const response = await apiRequest("DELETE", `/api/spese/${id}`);
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/spese"] });
@@ -125,6 +133,48 @@ export default function Expenses() {
 
   const totalExpenses = filteredExpenses.reduce((sum: number, expense: Spesa) => sum + Number(expense.importo), 0);
 
+  const handleUndo = async () => {
+    const actionToUndo = await undo();
+    if (actionToUndo) {
+      if (actionToUndo.action === 'delete' && actionToUndo.entityType === 'expense') {
+        // Ricrea la spesa eliminata
+        try {
+          const expenseData = {
+            voce: actionToUndo.data.voce,
+            importo: actionToUndo.data.importo,
+            categoria: actionToUndo.data.categoria,
+            data: actionToUndo.data.data,
+          };
+
+          await apiRequest("POST", "/api/spese", expenseData);
+          queryClient.invalidateQueries({ queryKey: ["/api/spese"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+
+          toast({
+            title: "Azione annullata",
+            description: `Spesa "${actionToUndo.data.voce}" ripristinata`,
+          });
+        } catch (error: any) {
+          toast({
+            title: "Errore",
+            description: "Impossibile annullare l'azione",
+            variant: "destructive",
+          });
+        }
+      }
+    }
+  };
+
+  const handleRedo = async () => {
+    const actionToRedo = await redo();
+    if (actionToRedo) {
+      toast({
+        title: "Azione ripetuta",
+        description: actionToRedo.description,
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -145,10 +195,18 @@ export default function Expenses() {
 
       <div className="container mx-auto py-6 px-4 page-with-navbar container-with-navbar">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Receipt className="h-8 w-8" />
-            Spese
-          </h1>
+          <div className="flex items-center gap-4">
+            <h1 className="text-3xl font-bold flex items-center gap-2">
+              <Receipt className="h-8 w-8" />
+              Spese
+            </h1>
+            <ActionHistoryControls
+              canUndo={canUndo}
+              canRedo={canRedo}
+              onUndo={handleUndo}
+              onRedo={handleRedo}
+            />
+          </div>
           <Button onClick={() => setIsAddModalOpen(true)} className="bg-yellow-600">
             <Plus className="h-4 w-4 mr-2" />
             Aggiungi Spesa

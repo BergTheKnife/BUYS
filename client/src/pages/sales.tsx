@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ShoppingCart, Plus, Filter, Repeat, Edit, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -22,7 +22,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ShoppingCart, Plus, Filter, Repeat, Edit, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -31,10 +30,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Vendita } from "@shared/schema";
+import { useActionHistory } from "@/hooks/use-action-history";
+import { ActionHistoryControls } from "@/components/ui/action-history-controls";
 
 export default function Sales() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -51,6 +51,7 @@ export default function Sales() {
   const [deleteSale, setDeleteSale] = useState<Vendita | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { addAction, undo, redo, canUndo, canRedo } = useActionHistory('sales');
 
   const { data: sales = [], isLoading } = useQuery<Vendita[]>({
     queryKey: ["/api/vendite"],
@@ -138,9 +139,20 @@ export default function Sales() {
   });
 
   // Delete sale mutation
-  const deleteSaleMutation = useMutation({
-    mutationFn: async (saleId: string) => {
-      const response = await apiRequest("DELETE", `/api/vendite/${saleId}`);
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      // Salva i dati della vendita prima di eliminarla per l'undo
+      const saleToDelete = sales?.find((sale: any) => sale.id === id);
+      if (saleToDelete) {
+        addAction({
+          description: `Vendita eliminata: ${saleToDelete.nomeArticolo} - ${saleToDelete.taglia}`,
+          data: saleToDelete,
+          action: 'delete',
+          entityType: 'sale'
+        });
+      }
+
+      const response = await apiRequest("DELETE", `/api/vendite/${id}`);
       return response.json();
     },
     onSuccess: () => {
@@ -178,7 +190,58 @@ export default function Sales() {
 
   const handleDeleteSale = () => {
     if (deleteSale) {
-      deleteSaleMutation.mutate(deleteSale.id);
+      deleteMutation.mutate(deleteSale.id);
+    }
+  };
+
+  const handleDelete = (id: string) => {
+    if (window.confirm("Sei sicuro di voler eliminare questa vendita?")) {
+      deleteMutation.mutate(id);
+    }
+  };
+
+  const handleUndo = async () => {
+    const actionToUndo = await undo();
+    if (actionToUndo) {
+      if (actionToUndo.action === 'delete' && actionToUndo.entityType === 'sale') {
+        // Ricrea la vendita eliminata
+        try {
+          const saleData = {
+            inventarioId: actionToUndo.data.inventarioId,
+            quantita: actionToUndo.data.quantita,
+            prezzoVendita: actionToUndo.data.prezzoVendita,
+            incassatoDa: actionToUndo.data.incassatoDa,
+            incassatoSu: actionToUndo.data.incassatoSu,
+            data: actionToUndo.data.data,
+          };
+
+          await apiRequest("POST", "/api/vendite", saleData);
+          queryClient.invalidateQueries({ queryKey: ["/api/vendite"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+
+          toast({
+            title: "Azione annullata",
+            description: `Vendita "${actionToUndo.data.nomeArticolo}" ripristinata`,
+          });
+        } catch (error: any) {
+          toast({
+            title: "Errore",
+            description: "Impossibile annullare l'azione",
+            variant: "destructive",
+          });
+        }
+      }
+    }
+  };
+
+  const handleRedo = async () => {
+    const actionToRedo = await redo();
+    if (actionToRedo) {
+      toast({
+        title: "Azione ripetuta",
+        description: actionToRedo.description,
+      });
     }
   };
 
@@ -206,10 +269,18 @@ export default function Sales() {
             <ShoppingCart className="h-8 w-8" />
             Vendite
           </h1>
-          <Button onClick={() => setIsAddModalOpen(true)} className="bg-green-600">
-            <Plus className="h-4 w-4 mr-2" />
-            Registra Vendita
-          </Button>
+          <div className="flex items-center gap-4">
+            <ActionHistoryControls 
+              canUndo={canUndo}
+              canRedo={canRedo}
+              onUndo={handleUndo}
+              onRedo={handleRedo}
+            />
+            <Button onClick={() => setIsAddModalOpen(true)} className="bg-green-600">
+              <Plus className="h-4 w-4 mr-2" />
+              Registra Vendita
+            </Button>
+          </div>
         </div>
 
         {/* Summary Cards */}
@@ -517,9 +588,9 @@ export default function Sales() {
               <Button 
                 variant="destructive"
                 onClick={handleDeleteSale}
-                disabled={deleteSaleMutation.isPending}
+                disabled={deleteMutation.isPending}
               >
-                {deleteSaleMutation.isPending ? "Eliminando..." : "Elimina Vendita"}
+                {deleteMutation.isPending ? "Eliminando..." : "Elimina Vendita"}
               </Button>
             </DialogFooter>
           </DialogContent>

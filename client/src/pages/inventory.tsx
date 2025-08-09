@@ -45,6 +45,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Package, Plus, Edit, Trash2, ImageIcon, PackagePlus, Filter } from "lucide-react";
 import type { Inventario } from "@shared/schema";
+import { useActionHistory } from "@/hooks/use-action-history";
+import { ActionHistoryControls } from "@/components/ui/action-history-controls";
 
 export default function Inventory() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -55,6 +57,7 @@ export default function Inventory() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentActivity } = useAuth();
+  const { addAction, undo, redo, canUndo, canRedo } = useActionHistory('inventory');
 
   // Filtri
   const [filters, setFilters] = useState({
@@ -129,7 +132,19 @@ export default function Inventory() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await apiRequest("DELETE", `/api/inventario/${id}`);
+      // Salva i dati dell'articolo prima di eliminarlo per l'undo
+      const itemToDelete = inventory?.find((item: any) => item.id === id);
+      if (itemToDelete) {
+        addAction({
+          description: `Eliminato: ${itemToDelete.nomeArticolo} - ${itemToDelete.taglia}`,
+          data: itemToDelete,
+          action: 'delete',
+          entityType: 'inventory'
+        });
+      }
+
+      const response = await apiRequest("DELETE", `/api/inventario/${id}`);
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
@@ -138,12 +153,11 @@ export default function Inventory() {
         title: "Successo",
         description: "Articolo eliminato con successo",
       });
-      setItemToDelete(null);
     },
     onError: (error: any) => {
       toast({
         title: "Errore",
-        description: error.message || "Errore nell'eliminazione",
+        description: error.message || "Errore nell'eliminazione dell'articolo",
         variant: "destructive",
       });
     },
@@ -183,6 +197,55 @@ export default function Inventory() {
     }
   };
 
+  const handleDelete = (id: string) => {
+    if (window.confirm("Sei sicuro di voler eliminare questo articolo?")) {
+      deleteMutation.mutate(id);
+    }
+  };
+
+  const handleUndo = async () => {
+    const actionToUndo = await undo();
+    if (actionToUndo) {
+      if (actionToUndo.action === 'delete' && actionToUndo.entityType === 'inventory') {
+        // Ricrea l'articolo eliminato
+        try {
+          const formData = new FormData();
+          formData.append('nomeArticolo', actionToUndo.data.nomeArticolo);
+          formData.append('taglia', actionToUndo.data.taglia);
+          formData.append('costo', actionToUndo.data.costo);
+          formData.append('quantita', actionToUndo.data.quantita.toString());
+
+          await apiRequest("POST", "/api/inventario", formData);
+          queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+
+          toast({
+            title: "Azione annullata",
+            description: `Articolo "${actionToUndo.data.nomeArticolo}" ripristinato`,
+          });
+        } catch (error: any) {
+          toast({
+            title: "Errore",
+            description: "Impossibile annullare l'azione",
+            variant: "destructive",
+          });
+        }
+      }
+    }
+  };
+
+  const handleRedo = async () => {
+    const actionToRedo = await redo();
+    if (actionToRedo) {
+      // Implementa la logica di redo se necessario
+      toast({
+        title: "Azione ripetuta",
+        description: actionToRedo.description,
+      });
+    }
+  };
+
+
   const formatCurrency = (amount: string | number) => {
     return new Intl.NumberFormat("it-IT", {
       style: "currency",
@@ -221,10 +284,18 @@ export default function Inventory() {
             <Package className="h-8 w-8" />
             Magazzino
           </h1>
-          <Button onClick={() => setIsAddModalOpen(true)} className="ml-[38px] mr-[38px]">
-            <Plus className="h-4 w-4 mr-2" />
-            Aggiungi Articolo
-          </Button>
+          <div className="flex items-center gap-4">
+            <ActionHistoryControls 
+              canUndo={canUndo} 
+              canRedo={canRedo} 
+              onUndo={handleUndo} 
+              onRedo={handleRedo} 
+            />
+            <Button onClick={() => setIsAddModalOpen(true)} className="ml-[38px] mr-[38px]">
+              <Plus className="h-4 w-4 mr-2" />
+              Aggiungi Articolo
+            </Button>
+          </div>
         </div>
 
         {/* Filtri */}
