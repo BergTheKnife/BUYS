@@ -177,9 +177,8 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen-safe bg-gray-50 dark:bg-gray-900">
-      <Navbar />
-      <div className="page-with-navbar">
+    <div className="page-with-navbar bg-gray-50 dark:bg-gray-900">
+      <div>
         <div className="container mx-auto py-6 sm:py-8 lg:py-10 px-3 sm:px-4 lg:px-6 max-w-full container-with-navbar">
           {/* Welcome Header */}
           <div className="mb-6 sm:mb-8">

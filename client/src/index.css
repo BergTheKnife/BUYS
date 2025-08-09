@@ -276,87 +276,56 @@
     max-width: 65ch;
   }
 
-  /* Fixed navbar spacing - responsive for all devices */
+  /* Remove body padding - we'll handle it in App.tsx */
   body {
-    padding-top: 88px; /* Base padding for smallest screens */
+    padding-top: 0;
+  }
+
+  /* Page with navbar utility class - proper spacing for content below fixed navbar */
+  .page-with-navbar {
+    padding-top: 88px; /* Base navbar height */
+    min-height: 100vh;
   }
 
   /* iPhone SE and small devices */
   @media (min-width: 375px) {
-    body {
+    .page-with-navbar {
       padding-top: 92px;
     }
   }
 
   /* Standard mobile devices */
   @media (min-width: 480px) {
-    body {
+    .page-with-navbar {
       padding-top: 96px;
     }
   }
 
   /* Tablets and small laptops */
   @media (min-width: 640px) {
-    body {
+    .page-with-navbar {
       padding-top: 108px;
     }
   }
 
   /* Desktop and larger screens */
   @media (min-width: 1024px) {
-    body {
+    .page-with-navbar {
       padding-top: 112px;
     }
   }
 
   /* Large desktop screens */
   @media (min-width: 1440px) {
-    body {
+    .page-with-navbar {
       padding-top: 116px;
     }
   }
 
-  /* Page with navbar utility class - additional spacing for content */
-  .page-with-navbar {
-    padding-top: 1rem; /* Reduced extra padding */
-    min-height: calc(100vh - 88px); /* Ensure full height minus navbar */
-  }
-
-  @media (min-width: 375px) {
-    .page-with-navbar {
-      min-height: calc(100vh - 92px);
-    }
-  }
-
-  @media (min-width: 480px) {
-    .page-with-navbar {
-      min-height: calc(100vh - 96px);
-    }
-  }
-
-  @media (min-width: 640px) {
-    .page-with-navbar {
-      padding-top: 1.5rem;
-      min-height: calc(100vh - 108px);
-    }
-  }
-
-  @media (min-width: 1024px) {
-    .page-with-navbar {
-      padding-top: 2rem;
-      min-height: calc(100vh - 112px);
-    }
-  }
-
-  @media (min-width: 1440px) {
-    .page-with-navbar {
-      min-height: calc(100vh - 116px);
-    }
-  }
-
-  /* Ensure content containers have proper top spacing */
+  /* Content containers - additional spacing inside pages */
   .container-with-navbar {
     padding-top: 1rem;
+    padding-bottom: 2rem;
   }
 
   @media (min-width: 640px) {
@@ -373,36 +342,36 @@
 
   /* Safe area support for devices with notches */
   @supports (padding-top: env(safe-area-inset-top)) {
-    body {
+    .page-with-navbar {
       padding-top: calc(88px + env(safe-area-inset-top));
     }
 
     @media (min-width: 375px) {
-      body {
+      .page-with-navbar {
         padding-top: calc(92px + env(safe-area-inset-top));
       }
     }
 
     @media (min-width: 480px) {
-      body {
+      .page-with-navbar {
         padding-top: calc(96px + env(safe-area-inset-top));
       }
     }
 
     @media (min-width: 640px) {
-      body {
+      .page-with-navbar {
         padding-top: calc(108px + env(safe-area-inset-top));
       }
     }
 
     @media (min-width: 1024px) {
-      body {
+      .page-with-navbar {
         padding-top: calc(112px + env(safe-area-inset-top));
       }
     }
 
     @media (min-width: 1440px) {
-      body {
+      .page-with-navbar {
         padding-top: calc(116px + env(safe-area-inset-top));
       }
     }

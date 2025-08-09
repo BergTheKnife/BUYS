@@ -48,7 +48,7 @@ function AppContent() {
   return (
     <>
       {isAuthenticated && <Navbar />}
-      <div className={isAuthenticated ? "pt-24 sm:pt-28" : ""}>
+      <div>
         <Switch>
           <Route path="/" component={HomeRedirect} />
           <Route path="/attivita" component={ActivitySelection} />
