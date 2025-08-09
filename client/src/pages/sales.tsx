@@ -200,8 +200,8 @@ export default function Sales() {
     <div className="min-h-screen bg-gray-50">
       <Navbar />
 
-      <div className="container mx-auto py-6 px-4 page-with-navbar">
-        <div className="flex justify-between items-center mb-8 mt-4">
+      <div className="container mx-auto py-6 px-4 page-with-navbar container-with-navbar">
+        <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <ShoppingCart className="h-8 w-8" />
             Vendite

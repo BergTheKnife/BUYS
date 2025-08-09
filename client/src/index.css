@@ -276,25 +276,135 @@
     max-width: 65ch;
   }
 
-  /* Fixed navbar spacing */
+  /* Fixed navbar spacing - responsive for all devices */
   body {
-    padding-top: 100px; /* Height of navbar on mobile + extra space */
+    padding-top: 88px; /* Base padding for smallest screens */
   }
 
-  @media (min-width: 640px) {
+  /* iPhone SE and small devices */
+  @media (min-width: 375px) {
     body {
-      padding-top: 120px; /* Height of navbar on desktop + extra space */
+      padding-top: 92px;
     }
   }
 
-  /* Page with navbar utility class */
+  /* Standard mobile devices */
+  @media (min-width: 480px) {
+    body {
+      padding-top: 96px;
+    }
+  }
+
+  /* Tablets and small laptops */
+  @media (min-width: 640px) {
+    body {
+      padding-top: 108px;
+    }
+  }
+
+  /* Desktop and larger screens */
+  @media (min-width: 1024px) {
+    body {
+      padding-top: 112px;
+    }
+  }
+
+  /* Large desktop screens */
+  @media (min-width: 1440px) {
+    body {
+      padding-top: 116px;
+    }
+  }
+
+  /* Page with navbar utility class - additional spacing for content */
   .page-with-navbar {
-    padding-top: 2rem; /* Extra padding for page content */
+    padding-top: 1rem; /* Reduced extra padding */
+    min-height: calc(100vh - 88px); /* Ensure full height minus navbar */
+  }
+
+  @media (min-width: 375px) {
+    .page-with-navbar {
+      min-height: calc(100vh - 92px);
+    }
+  }
+
+  @media (min-width: 480px) {
+    .page-with-navbar {
+      min-height: calc(100vh - 96px);
+    }
   }
 
   @media (min-width: 640px) {
     .page-with-navbar {
-      padding-top: 2.5rem;
+      padding-top: 1.5rem;
+      min-height: calc(100vh - 108px);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .page-with-navbar {
+      padding-top: 2rem;
+      min-height: calc(100vh - 112px);
+    }
+  }
+
+  @media (min-width: 1440px) {
+    .page-with-navbar {
+      min-height: calc(100vh - 116px);
+    }
+  }
+
+  /* Ensure content containers have proper top spacing */
+  .container-with-navbar {
+    padding-top: 1rem;
+  }
+
+  @media (min-width: 640px) {
+    .container-with-navbar {
+      padding-top: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .container-with-navbar {
+      padding-top: 2rem;
+    }
+  }
+
+  /* Safe area support for devices with notches */
+  @supports (padding-top: env(safe-area-inset-top)) {
+    body {
+      padding-top: calc(88px + env(safe-area-inset-top));
+    }
+
+    @media (min-width: 375px) {
+      body {
+        padding-top: calc(92px + env(safe-area-inset-top));
+      }
+    }
+
+    @media (min-width: 480px) {
+      body {
+        padding-top: calc(96px + env(safe-area-inset-top));
+      }
+    }
+
+    @media (min-width: 640px) {
+      body {
+        padding-top: calc(108px + env(safe-area-inset-top));
+      }
+    }
+
+    @media (min-width: 1024px) {
+      body {
+        padding-top: calc(112px + env(safe-area-inset-top));
+      }
+    }
+
+    @media (min-width: 1440px) {
+      body {
+        padding-top: calc(116px + env(safe-area-inset-top));
+      }
     }
   }
 
