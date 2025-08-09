@@ -43,7 +43,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Package, Plus, Edit, Trash2, ImageIcon, PackagePlus, Filter } from "lucide-react";
+import { Package, Plus, Edit, Trash2, ImageIcon, PackagePlus, Filter, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import type { Inventario } from "@shared/schema";
 import { useActionHistory } from "@/hooks/use-action-history";
 import { ActionHistoryControls } from "@/components/ui/action-history-controls";
@@ -54,6 +54,10 @@ export default function Inventory() {
   const [itemToDelete, setItemToDelete] = useState<Inventario | null>(null);
   const [restockItem, setRestockItem] = useState<Inventario | null>(null);
   const [restockQuantity, setRestockQuantity] = useState("1");
+  const [sortConfig, setSortConfig] = useState<{
+    key: keyof Inventario | null;
+    direction: 'asc' | 'desc';
+  }>({ key: null, direction: 'asc' });
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentActivity } = useAuth();
@@ -82,7 +86,25 @@ export default function Inventory() {
     enabled: !!currentActivity?.id,
   });
 
-  // Applica i filtri all'inventario
+  // Sorting function
+  const handleSort = (key: keyof Inventario) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortIcon = (columnKey: keyof Inventario) => {
+    if (sortConfig.key !== columnKey) {
+      return <ArrowUpDown className="h-4 w-4" />;
+    }
+    return sortConfig.direction === 'asc' ? 
+      <ArrowUp className="h-4 w-4" /> : 
+      <ArrowDown className="h-4 w-4" />;
+  };
+
+  // Applica i filtri e ordinamento all'inventario
   const filteredInventory = useMemo(() => {
     return inventory.filter((item: Inventario) => {
       // Filtro per nome articolo
@@ -127,8 +149,28 @@ export default function Inventory() {
       }
 
       return true;
+    })
+    .sort((a, b) => {
+      if (!sortConfig.key) return 0;
+
+      let aValue = a[sortConfig.key];
+      let bValue = b[sortConfig.key];
+
+      // Convert numbers for proper comparison
+      if (sortConfig.key === 'costo' || sortConfig.key === 'quantita') {
+        aValue = Number(aValue);
+        bValue = Number(bValue);
+      }
+
+      if (aValue < bValue) {
+        return sortConfig.direction === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortConfig.direction === 'asc' ? 1 : -1;
+      }
+      return 0;
     });
-  }, [inventory, filters]);
+  }, [inventory, filters, sortConfig]);
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -455,10 +497,42 @@ export default function Inventory() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Immagine</TableHead>
-                      <TableHead>Nome Articolo</TableHead>
-                      <TableHead>Taglia</TableHead>
-                      <TableHead>Costo</TableHead>
-                      <TableHead>Quantità</TableHead>
+                      <TableHead>
+                        <button
+                          onClick={() => handleSort('nomeArticolo')}
+                          className="flex items-center gap-1 hover:text-foreground"
+                        >
+                          Nome Articolo
+                          {getSortIcon('nomeArticolo')}
+                        </button>
+                      </TableHead>
+                      <TableHead>
+                        <button
+                          onClick={() => handleSort('taglia')}
+                          className="flex items-center gap-1 hover:text-foreground"
+                        >
+                          Taglia
+                          {getSortIcon('taglia')}
+                        </button>
+                      </TableHead>
+                      <TableHead>
+                        <button
+                          onClick={() => handleSort('costo')}
+                          className="flex items-center gap-1 hover:text-foreground"
+                        >
+                          Costo
+                          {getSortIcon('costo')}
+                        </button>
+                      </TableHead>
+                      <TableHead>
+                        <button
+                          onClick={() => handleSort('quantita')}
+                          className="flex items-center gap-1 hover:text-foreground"
+                        >
+                          Quantità
+                          {getSortIcon('quantita')}
+                        </button>
+                      </TableHead>
                       <TableHead>Valore Totale</TableHead>
                       <TableHead>Azioni</TableHead>
                     </TableRow>

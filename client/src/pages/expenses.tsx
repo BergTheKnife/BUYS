@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Receipt, Plus, Filter, Edit, Trash2 } from "lucide-react";
+import { Receipt, Plus, Filter, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -46,6 +46,10 @@ export default function Expenses() {
     importoMin: "",
     importoMax: "",
   });
+  const [sortConfig, setSortConfig] = useState<{
+    key: keyof Spesa | null;
+    direction: 'asc' | 'desc';
+  }>({ key: null, direction: 'asc' });
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { addAction, undo, redo, canUndo, canRedo } = useActionHistory('expenses');
@@ -109,7 +113,25 @@ export default function Expenses() {
     }
   };
 
-  // Filter expenses based on filter criteria
+  // Sorting function
+  const handleSort = (key: keyof Spesa) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortIcon = (columnKey: keyof Spesa) => {
+    if (sortConfig.key !== columnKey) {
+      return <ArrowUpDown className="h-4 w-4" />;
+    }
+    return sortConfig.direction === 'asc' ? 
+      <ArrowUp className="h-4 w-4" /> : 
+      <ArrowDown className="h-4 w-4" />;
+  };
+
+  // Filter and sort expenses based on filter criteria
   const filteredExpenses = expenses.filter((expense: Spesa) => {
     if (filters.voce && !expense.voce.toLowerCase().includes(filters.voce.toLowerCase())) {
       return false;
@@ -130,6 +152,32 @@ export default function Expenses() {
       return false;
     }
     return true;
+  })
+  .sort((a, b) => {
+    if (!sortConfig.key) return 0;
+
+    let aValue = a[sortConfig.key];
+    let bValue = b[sortConfig.key];
+
+    // Convert dates to comparable format
+    if (sortConfig.key === 'data') {
+      aValue = new Date(aValue as string).getTime();
+      bValue = new Date(bValue as string).getTime();
+    }
+
+    // Convert numbers for proper comparison
+    if (sortConfig.key === 'importo') {
+      aValue = Number(aValue);
+      bValue = Number(bValue);
+    }
+
+    if (aValue < bValue) {
+      return sortConfig.direction === 'asc' ? -1 : 1;
+    }
+    if (aValue > bValue) {
+      return sortConfig.direction === 'asc' ? 1 : -1;
+    }
+    return 0;
   });
 
   const totalExpenses = filteredExpenses.reduce((sum: number, expense: Spesa) => sum + Number(expense.importo), 0);
@@ -338,10 +386,42 @@ export default function Expenses() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Data</TableHead>
-                      <TableHead>Voce</TableHead>
-                      <TableHead>Importo</TableHead>
-                      <TableHead>Categoria</TableHead>
+                      <TableHead>
+                        <button
+                          onClick={() => handleSort('data')}
+                          className="flex items-center gap-1 hover:text-foreground"
+                        >
+                          Data
+                          {getSortIcon('data')}
+                        </button>
+                      </TableHead>
+                      <TableHead>
+                        <button
+                          onClick={() => handleSort('voce')}
+                          className="flex items-center gap-1 hover:text-foreground"
+                        >
+                          Voce
+                          {getSortIcon('voce')}
+                        </button>
+                      </TableHead>
+                      <TableHead>
+                        <button
+                          onClick={() => handleSort('importo')}
+                          className="flex items-center gap-1 hover:text-foreground"
+                        >
+                          Importo
+                          {getSortIcon('importo')}
+                        </button>
+                      </TableHead>
+                      <TableHead>
+                        <button
+                          onClick={() => handleSort('categoria')}
+                          className="flex items-center gap-1 hover:text-foreground"
+                        >
+                          Categoria
+                          {getSortIcon('categoria')}
+                        </button>
+                      </TableHead>
                       <TableHead>Azioni</TableHead>
                     </TableRow>
                   </TableHeader>

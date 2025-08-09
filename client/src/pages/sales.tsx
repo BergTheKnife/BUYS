@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ShoppingCart, Plus, Filter, Repeat, Edit, Trash2 } from "lucide-react";
+import { ShoppingCart, Plus, Filter, Repeat, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -50,6 +50,10 @@ export default function Sales() {
   const [repeatSale, setRepeatSale] = useState<Vendita | null>(null);
   const [editingSale, setEditingSale] = useState<Vendita | null>(null);
   const [deleteSale, setDeleteSale] = useState<Vendita | null>(null);
+  const [sortConfig, setSortConfig] = useState<{
+    key: keyof Vendita | null;
+    direction: 'asc' | 'desc';
+  }>({ key: null, direction: 'asc' });
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { addAction, undo, redo, canUndo, canRedo } = useActionHistory('sales');
@@ -88,31 +92,76 @@ export default function Sales() {
     }
   };
 
-  // Filter sales based on filter criteria
-  const filteredSales = sales.filter((sale: Vendita) => {
-    if (filters.articolo && !sale.nomeArticolo.toLowerCase().includes(filters.articolo.toLowerCase())) {
-      return false;
+  // Sorting function
+  const handleSort = (key: keyof Vendita) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
     }
-    if (filters.incassatoDa && filters.incassatoDa !== "tutti" && sale.incassatoDa !== filters.incassatoDa) {
-      return false;
-    }
-    if (filters.incassatoSu && filters.incassatoSu !== "tutti" && sale.incassatoSu !== filters.incassatoSu) {
-      return false;
-    }
-    if (filters.taglia && !sale.taglia.toLowerCase().includes(filters.taglia.toLowerCase())) {
-      return false;
-    }
-    if (filters.dataInizio && new Date(sale.data) < new Date(filters.dataInizio)) {
-      return false;
-    }
-    if (filters.dataFine && new Date(sale.data) > new Date(filters.dataFine)) {
-      return false;
-    }
-    return true;
-  });
+    setSortConfig({ key, direction });
+  };
 
-  const totalSales = filteredSales.reduce((sum: number, sale: Vendita) => sum + (Number(sale.prezzoVendita) * Number(sale.quantita)), 0);
-  const totalMargin = filteredSales.reduce((sum: number, sale: Vendita) => sum + Number(sale.margine), 0);
+  const getSortIcon = (columnKey: keyof Vendita) => {
+    if (sortConfig.key !== columnKey) {
+      return <ArrowUpDown className="h-4 w-4" />;
+    }
+    return sortConfig.direction === 'asc' ? 
+      <ArrowUp className="h-4 w-4" /> : 
+      <ArrowDown className="h-4 w-4" />;
+  };
+
+  // Filter sales based on filter criteria
+  const filteredAndSortedSales = sales
+    .filter((sale: Vendita) => {
+      if (filters.articolo && !sale.nomeArticolo.toLowerCase().includes(filters.articolo.toLowerCase())) {
+        return false;
+      }
+      if (filters.incassatoDa && filters.incassatoDa !== "tutti" && sale.incassatoDa !== filters.incassatoDa) {
+        return false;
+      }
+      if (filters.incassatoSu && filters.incassatoSu !== "tutti" && sale.incassatoSu !== filters.incassatoSu) {
+        return false;
+      }
+      if (filters.taglia && !sale.taglia.toLowerCase().includes(filters.taglia.toLowerCase())) {
+        return false;
+      }
+      if (filters.dataInizio && new Date(sale.data) < new Date(filters.dataInizio)) {
+        return false;
+      }
+      if (filters.dataFine && new Date(sale.data) > new Date(filters.dataFine)) {
+        return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (!sortConfig.key) return 0;
+
+      let aValue = a[sortConfig.key];
+      let bValue = b[sortConfig.key];
+
+      // Convert dates to comparable format
+      if (sortConfig.key === 'data') {
+        aValue = new Date(aValue as string).getTime();
+        bValue = new Date(bValue as string).getTime();
+      }
+
+      // Convert numbers for proper comparison
+      if (sortConfig.key === 'prezzoVendita' || sortConfig.key === 'margine' || sortConfig.key === 'quantita') {
+        aValue = Number(aValue);
+        bValue = Number(bValue);
+      }
+
+      if (aValue < bValue) {
+        return sortConfig.direction === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortConfig.direction === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+
+  const totalSales = filteredAndSortedSales.reduce((sum: number, sale: Vendita) => sum + (Number(sale.prezzoVendita) * Number(sale.quantita)), 0);
+  const totalMargin = filteredAndSortedSales.reduce((sum: number, sale: Vendita) => sum + Number(sale.margine), 0);
 
   // Repeat sale mutation
   const repeatSaleMutation = useMutation({
@@ -297,7 +346,7 @@ export default function Sales() {
             <CardContent className="p-6">
               <div className="text-center">
                 <p className="text-sm font-medium text-muted-foreground">Numero Vendite</p>
-                <p className="text-2xl font-bold">{filteredSales.length}</p>
+                <p className="text-2xl font-bold">{filteredAndSortedSales.length}</p>
               </div>
             </CardContent>
           </Card>
@@ -397,7 +446,7 @@ export default function Sales() {
             <CardTitle>Storico Vendite</CardTitle>
           </CardHeader>
           <CardContent>
-            {filteredSales.length === 0 ? (
+            {filteredAndSortedSales.length === 0 ? (
               <div className="text-center py-12">
                 <ShoppingCart className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
                 <h3 className="text-lg font-semibold mb-2">Nessuna vendita registrata</h3>
@@ -414,19 +463,83 @@ export default function Sales() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Data</TableHead>
-                      <TableHead>Articolo</TableHead>
-                      <TableHead>Taglia</TableHead>
-                      <TableHead>Quantità</TableHead>
-                      <TableHead>Prezzo Vendita</TableHead>
-                      <TableHead>Incassato Da</TableHead>
-                      <TableHead>Incassato Su</TableHead>
-                      <TableHead>Margine</TableHead>
+                      <TableHead>
+                        <button
+                          onClick={() => handleSort('data')}
+                          className="flex items-center gap-1 hover:text-foreground"
+                        >
+                          Data
+                          {getSortIcon('data')}
+                        </button>
+                      </TableHead>
+                      <TableHead>
+                        <button
+                          onClick={() => handleSort('nomeArticolo')}
+                          className="flex items-center gap-1 hover:text-foreground"
+                        >
+                          Articolo
+                          {getSortIcon('nomeArticolo')}
+                        </button>
+                      </TableHead>
+                      <TableHead>
+                        <button
+                          onClick={() => handleSort('taglia')}
+                          className="flex items-center gap-1 hover:text-foreground"
+                        >
+                          Taglia
+                          {getSortIcon('taglia')}
+                        </button>
+                      </TableHead>
+                      <TableHead>
+                        <button
+                          onClick={() => handleSort('quantita')}
+                          className="flex items-center gap-1 hover:text-foreground"
+                        >
+                          Quantità
+                          {getSortIcon('quantita')}
+                        </button>
+                      </TableHead>
+                      <TableHead>
+                        <button
+                          onClick={() => handleSort('prezzoVendita')}
+                          className="flex items-center gap-1 hover:text-foreground"
+                        >
+                          Prezzo Vendita
+                          {getSortIcon('prezzoVendita')}
+                        </button>
+                      </TableHead>
+                      <TableHead>
+                        <button
+                          onClick={() => handleSort('incassatoDa')}
+                          className="flex items-center gap-1 hover:text-foreground"
+                        >
+                          Incassato Da
+                          {getSortIcon('incassatoDa')}
+                        </button>
+                      </TableHead>
+                      <TableHead>
+                        <button
+                          onClick={() => handleSort('incassatoSu')}
+                          className="flex items-center gap-1 hover:text-foreground"
+                        >
+                          Incassato Su
+                          {getSortIcon('incassatoSu')}
+                        </button>
+                      </TableHead>
+                      <TableHead>
+                        <button
+                          onClick={() => handleSort('margine')}
+                          className="flex items-center gap-1 hover:text-foreground"
+                        >
+                          Margine
+                          {getSortIcon('margine')}
+                        </button>
+                      </TableHead>
                       <TableHead>Azioni</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredSales.map((sale: Vendita) => (
+                    {filteredAndSortedSales.map((sale: Vendita) => (
                       <TableRow key={sale.id}>
                         <TableCell>{formatDate(sale.data.toString())}</TableCell>
                         <TableCell className="font-semibold">
