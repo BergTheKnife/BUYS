@@ -238,9 +238,7 @@ export default function Welcome() {
                           id="emailOrUsername"
                           className="pl-10"
                           placeholder="Inserisci email o username"
-                          {...(field || {})}
-                          value={field?.value || ""}
-                          onChange={(e) => field?.onChange?.(e)}
+                          {...field}
                         />
                       </div>
                       {form.formState.errors.emailOrUsername && (
@@ -264,9 +262,7 @@ export default function Welcome() {
                           id="password"
                           className="pl-10"
                           placeholder="Inserisci password"
-                          {...(field || {})}
-                          value={field?.value || ""}
-                          onChange={(e) => field?.onChange?.(e)}
+                          {...field}
                         />
                       </div>
                       {form.formState.errors.password && (
@@ -286,7 +282,7 @@ export default function Welcome() {
                       <FormControl>
                         <Checkbox
                           checked={field.value || false}
-                          onCheckedChange={(e) => field.onChange(e)}
+                          onCheckedChange={field.onChange}
                         />
                       </FormControl>
                       <div className="space-y-1 leading-none">
@@ -372,11 +368,10 @@ export default function Welcome() {
                           <Input
                             id="nome"
                             placeholder="Il tuo nome"
-                            {...(field || {})}
-                            value={field?.value || ""}
+                            {...field}
                             onChange={(e) => {
                               const capitalizedValue = capitalizeWords(e.target.value);
-                              field?.onChange?.(capitalizedValue);
+                              field.onChange(capitalizedValue);
                             }}
                           />
                         </FormControl>
@@ -394,11 +389,10 @@ export default function Welcome() {
                           <Input
                             id="cognome"
                             placeholder="Il tuo cognome"
-                            {...(field || {})}
-                            value={field?.value || ""}
+                            {...field}
                             onChange={(e) => {
                               const capitalizedValue = capitalizeWords(e.target.value);
-                              field?.onChange?.(capitalizedValue);
+                              field.onChange(capitalizedValue);
                             }}
                           />
                         </FormControl>
@@ -421,9 +415,7 @@ export default function Welcome() {
                           type="email"
                           className="pl-10"
                           placeholder="email@esempio.com"
-                          {...(field || {})}
-                          value={field?.value || ""}
-                          onChange={(e) => field?.onChange?.(e)}
+                          {...field}
                         />
                       </div>
                       <FormMessage />
@@ -443,11 +435,10 @@ export default function Welcome() {
                           id="username"
                           className="pl-10 pr-10"
                           placeholder="Username univoco"
-                          {...(field || {})}
-                          value={field?.value || ""}
+                          {...field}
                           onChange={(e) => {
                             const value = e.target.value;
-                            field?.onChange?.(value); // Update form state first
+                            field.onChange(value); // Update form state first
                             if (value.length >= 3) {
                               checkUsernameAvailability(value);
                             } else {
@@ -490,9 +481,7 @@ export default function Welcome() {
                           className="pl-10"
                           placeholder="Password sicura"
                           showPasswordHint={true}
-                          {...(field || {})}
-                          value={field?.value || ""}
-                          onChange={(e) => field?.onChange?.(e)}
+                          {...field}
                         />
                       </div>
                       <FormMessage />
