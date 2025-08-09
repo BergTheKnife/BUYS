@@ -196,18 +196,10 @@ export default function Expenses() {
 
       <div className="container mx-auto py-6 px-4 page-with-navbar container-with-navbar">
         <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-4">
-            <h1 className="text-3xl font-bold flex items-center gap-2">
-              <Receipt className="h-8 w-8" />
-              Spese
-            </h1>
-            <ActionHistoryControls
-              canUndo={canUndo}
-              canRedo={canRedo}
-              onUndo={handleUndo}
-              onRedo={handleRedo}
-            />
-          </div>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <Receipt className="h-8 w-8" />
+            Spese
+          </h1>
           <Button onClick={() => setIsAddModalOpen(true)} className="bg-yellow-600">
             <Plus className="h-4 w-4 mr-2" />
             Aggiungi Spesa
@@ -313,6 +305,16 @@ export default function Expenses() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Action History Controls */}
+        <div className="flex justify-center mb-6">
+          <ActionHistoryControls
+            canUndo={canUndo}
+            canRedo={canRedo}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+          />
+        </div>
 
         {/* Expenses Table */}
         <Card>
