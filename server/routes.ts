@@ -986,8 +986,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (process.env.NODE_ENV !== 'development') {
       return res.status(404).json({ message: "Not found" });
     }
-    if (!req.session.userId) {
-      return res.status(401).json({ message: "Autenticazione richiesta" });
+    // Admin routes don't require user authentication, only admin session
+    if (!(req.session as any).adminAuthenticated) {
+      return res.status(401).json({ message: "Autenticazione admin richiesta" });
     }
     next();
   };
@@ -1508,10 +1509,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create backup before deletion
       await DataProtectionService.createBackup(userId, 'USER_INITIATED_ACCOUNT_DELETION');
       
-      const deleted = await storage.deleteUser(userId);
-      if (!deleted) {
-        return res.status(404).json({ message: "Utente non trovato" });
-      }
+      await storage.deleteUser(userId);
 
       req.session.destroy((err) => {
         if (err) {
@@ -1711,10 +1709,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Alias for profile delete for compatibility
   app.delete('/api/profile/delete-account', requireAuth, async (req, res) => {
     try {
-      const deleted = await storage.deleteUser(req.session.userId!);
-      if (!deleted) {
-        return res.status(404).json({ message: "Utente non trovato" });
-      }
+      await storage.deleteUser(req.session.userId!);
 
       req.session.destroy((err) => {
         if (err) {
@@ -2165,8 +2160,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  const httpServer = createServer(app);
-  // Admin routes
+  // Admin authentication route
   app.post("/api/admin/auth", async (req, res) => {
     try {
       const { password } = req.body;
@@ -2177,6 +2171,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Password amministratore non corretta" });
       }
       
+      // Set admin session
+      (req.session as any).adminAuthenticated = true;
+      
       res.json({ success: true });
     } catch (error) {
       console.error("Admin auth error:", error);
@@ -2184,65 +2181,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/admin/users", async (req, res) => {
-    try {
-      const adminUsers = await storage.getAdminUsers();
-      res.json(adminUsers);
-    } catch (error) {
-      console.error("Error fetching admin users:", error);
-      res.status(500).json({ message: "Errore nel caricamento degli utenti" });
-    }
-  });
-
-  app.get("/api/admin/activities", async (req, res) => {
-    try {
-      const adminActivities = await storage.getAdminActivities();
-      res.json(adminActivities);
-    } catch (error) {
-      console.error("Error fetching admin activities:", error);
-      res.status(500).json({ message: "Errore nel caricamento delle attività" });
-    }
-  });
-
-  app.delete("/api/admin/users/:userId", async (req, res) => {
-    try {
-      const { userId } = req.params;
-      
-      // Check if user has data
-      const hasData = await storage.userHasData(userId);
-      if (hasData) {
-        return res.status(400).json({ 
-          message: "Impossibile eliminare l'utente: ha dati associati (inventario, vendite, spese)" 
-        });
-      }
-      
-      await storage.deleteUser(userId);
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error deleting user:", error);
-      res.status(500).json({ message: "Errore nell'eliminazione dell'utente" });
-    }
-  });
-
-  app.delete("/api/admin/activities/:activityId", async (req, res) => {
-    try {
-      const { activityId } = req.params;
-      
-      // Check if activity has data
-      const hasData = await storage.activityHasData(activityId);
-      if (hasData) {
-        return res.status(400).json({ 
-          message: "Impossibile eliminare l'attività: ha dati associati (inventario, vendite, spese)" 
-        });
-      }
-      
-      await storage.deleteActivity(activityId);
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error deleting activity:", error);
-      res.status(500).json({ message: "Errore nell'eliminazione dell'attività" });
-    }
-  });
-
+  const httpServer = createServer(app);
   return httpServer;
 }
