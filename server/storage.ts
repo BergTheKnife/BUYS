@@ -500,6 +500,44 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(inventario.id, id), eq(inventario.activityId, activityId)))
       .returning();
 
+    // Update related sales with new inventory item information
+    if (updates.nomeArticolo || updates.taglia || updates.costo) {
+      const salesUpdates: any = {};
+      
+      if (updates.nomeArticolo) {
+        salesUpdates.nomeArticolo = updates.nomeArticolo;
+      }
+      if (updates.taglia) {
+        salesUpdates.taglia = updates.taglia;
+      }
+      
+      // If cost changed, recalculate margin for all related sales
+      if (updates.costo) {
+        // Get all sales for this inventory item
+        const relatedSales = await db
+          .select()
+          .from(vendite)
+          .where(eq(vendite.inventarioId, id));
+        
+        // Update each sale with new margin calculation
+        for (const sale of relatedSales) {
+          const newMargin = (Number(sale.prezzoVendita) - Number(updates.costo)) * sale.quantita;
+          salesUpdates.margine = newMargin.toString();
+          
+          await db
+            .update(vendite)
+            .set(salesUpdates)
+            .where(eq(vendite.id, sale.id));
+        }
+      } else if (updates.nomeArticolo || updates.taglia) {
+        // Update only name/size without recalculating margin
+        await db
+          .update(vendite)
+          .set(salesUpdates)
+          .where(eq(vendite.inventarioId, id));
+      }
+    }
+
     // If quantity changed, create/update expense entry
     if (updates.quantita !== undefined && updates.quantita !== currentItem.quantita) {
       const quantityDifference = updates.quantita - currentItem.quantita;
