@@ -280,22 +280,22 @@ export default function Inventory() {
 
       <div className="container mx-auto py-6 px-4 page-with-navbar container-with-navbar">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Package className="h-8 w-8" />
-            Magazzino
-          </h1>
           <div className="flex items-center gap-4">
+            <h1 className="text-3xl font-bold flex items-center gap-2">
+              <Package className="h-8 w-8" />
+              Magazzino
+            </h1>
             <ActionHistoryControls 
-              canUndo={canUndo} 
-              canRedo={canRedo} 
-              onUndo={handleUndo} 
-              onRedo={handleRedo} 
+              canUndo={canUndo}
+              canRedo={canRedo}
+              onUndo={handleUndo}
+              onRedo={handleRedo}
             />
-            <Button onClick={() => setIsAddModalOpen(true)} className="ml-[38px] mr-[38px]">
-              <Plus className="h-4 w-4 mr-2" />
-              Aggiungi Articolo
-            </Button>
           </div>
+          <Button onClick={() => setIsAddModalOpen(true)} className="bg-blue-600">
+            <Plus className="h-4 w-4 mr-2" />
+            Aggiungi Articolo
+          </Button>
         </div>
 
         {/* Filtri */}

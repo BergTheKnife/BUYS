@@ -22,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -265,22 +266,22 @@ export default function Sales() {
 
       <div className="container mx-auto py-6 px-4 page-with-navbar container-with-navbar">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <ShoppingCart className="h-8 w-8" />
-            Vendite
-          </h1>
           <div className="flex items-center gap-4">
+            <h1 className="text-3xl font-bold flex items-center gap-2">
+              <ShoppingCart className="h-8 w-8" />
+              Vendite
+            </h1>
             <ActionHistoryControls 
               canUndo={canUndo}
               canRedo={canRedo}
               onUndo={handleUndo}
               onRedo={handleRedo}
             />
-            <Button onClick={() => setIsAddModalOpen(true)} className="bg-green-600">
-              <Plus className="h-4 w-4 mr-2" />
-              Registra Vendita
-            </Button>
           </div>
+          <Button onClick={() => setIsAddModalOpen(true)} className="bg-green-600">
+            <Plus className="h-4 w-4 mr-2" />
+            Registra Vendita
+          </Button>
         </div>
 
         {/* Summary Cards */}
