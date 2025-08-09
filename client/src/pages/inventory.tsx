@@ -262,9 +262,8 @@ export default function Inventory() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <Navbar />
-        <div className="container mx-auto py-8 px-4 page-with-navbar">
+      <div className="page-with-navbar bg-gray-50 dark:bg-gray-900">
+        <div className="container mx-auto py-8 px-4 container-with-navbar">
           <div className="animate-pulse space-y-4">
             <div className="h-8 bg-gray-200 rounded w-1/4"></div>
             <div className="h-96 bg-gray-200 rounded-lg"></div>
@@ -275,7 +274,7 @@ export default function Inventory() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="page-with-navbar bg-gray-50 dark:bg-gray-900">
       <Navbar />
 
       <div className="container mx-auto py-6 px-4 page-with-navbar container-with-navbar">
