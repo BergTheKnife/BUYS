@@ -145,6 +145,9 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
                 placeholder="Es. T-shirt Blu"
                 {...form.register("nomeArticolo")}
                 onChange={(e) => {
+                  form.setValue("nomeArticolo", e.target.value);
+                }}
+                onBlur={(e) => {
                   const capitalizedValue = capitalizeWords(e.target.value);
                   form.setValue("nomeArticolo", capitalizedValue);
                 }}

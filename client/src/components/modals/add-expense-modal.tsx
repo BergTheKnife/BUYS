@@ -126,6 +126,9 @@ export function AddExpenseModal({ isOpen, onClose, editingExpense }: AddExpenseM
               placeholder="Es. Affitto negozio"
               {...form.register("voce")}
               onChange={(e) => {
+                form.setValue("voce", e.target.value);
+              }}
+              onBlur={(e) => {
                 const capitalizedValue = capitalizeWords(e.target.value);
                 form.setValue("voce", capitalizedValue);
               }}
