@@ -263,7 +263,7 @@ export default function Sales() {
     <div className="page-with-navbar bg-gray-50 dark:bg-gray-900">
       <Navbar />
 
-      <div className="container mx-auto py-6 px-4 page-with-navbar container-with-navbar">
+      <div className="container mx-auto py-6 px-4 container-with-navbar">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <ShoppingCart className="h-8 w-8" />
