@@ -18,7 +18,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { capitalizeWords } from "@/lib/utils";
 import { z } from "zod";
-import { FormField, FormItem, FormControl, FormLabel } from "@/components/ui/form";
+import { FormField, FormItem, FormControl, FormLabel, FormMessage } from "@/components/ui/form";
 
 
 export default function Welcome() {
@@ -67,6 +67,7 @@ export default function Welcome() {
       password: "",
       rememberMe: false,
     },
+    mode: "onChange",
   });
 
   const onLogin = async (data: LoginUser & { rememberMe?: boolean }) => {
@@ -192,7 +193,18 @@ export default function Welcome() {
     }
   };
 
-
+  // Registration form hook
+  const registerForm = useForm<InsertUser>({
+    resolver: zodResolver(insertUserSchema),
+    defaultValues: {
+      nome: "",
+      cognome: "",
+      email: "",
+      username: "",
+      password: "",
+    },
+    mode: "onChange",
+  });
 
   return (
     <div className="min-h-screen bg-primary flex items-center justify-center p-4 overflow-x-hidden">
@@ -226,7 +238,9 @@ export default function Welcome() {
                           id="emailOrUsername"
                           className="pl-10"
                           placeholder="Inserisci email o username"
-                          {...field}
+                          {...(field || {})}
+                          value={field?.value || ""}
+                          onChange={(e) => field?.onChange?.(e)}
                         />
                       </div>
                       {form.formState.errors.emailOrUsername && (
@@ -250,7 +264,9 @@ export default function Welcome() {
                           id="password"
                           className="pl-10"
                           placeholder="Inserisci password"
-                          {...field}
+                          {...(field || {})}
+                          value={field?.value || ""}
+                          onChange={(e) => field?.onChange?.(e)}
                         />
                       </div>
                       {form.formState.errors.password && (
@@ -270,7 +286,7 @@ export default function Welcome() {
                       <FormControl>
                         <Checkbox
                           checked={field.value || false}
-                          onCheckedChange={(e) => field.onChange(e.target.checked)}
+                          onCheckedChange={(e) => field.onChange(e)}
                         />
                       </FormControl>
                       <div className="space-y-1 leading-none">
@@ -346,124 +362,143 @@ export default function Welcome() {
             ) : (
               <form onSubmit={registerForm.handleSubmit(onRegister)} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="nome">Nome</Label>
-                    <Input
-                      id="nome"
-                      className="pl-10"
-                      placeholder="Il tuo nome"
-                      {...registerForm.register("nome")}
-                      onChange={(e) => {
-                        const capitalizedValue = capitalizeWords(e.target.value);
-                        registerForm.setValue("nome", capitalizedValue);
-                      }}
-                    />
-                    {registerForm.formState.errors.nome && (
-                      <p className="text-sm text-destructive">
-                        {registerForm.formState.errors.nome.message}
-                      </p>
+                  <FormField
+                    control={registerForm.control}
+                    name="nome"
+                    render={({ field }) => (
+                      <FormItem>
+                        <Label htmlFor="nome">Nome</Label>
+                        <FormControl>
+                          <Input
+                            id="nome"
+                            placeholder="Il tuo nome"
+                            {...(field || {})}
+                            value={field?.value || ""}
+                            onChange={(e) => {
+                              const capitalizedValue = capitalizeWords(e.target.value);
+                              field?.onChange?.(capitalizedValue);
+                            }}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
                     )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="cognome">Cognome</Label>
-                    <Input
-                      id="cognome"
-                      className="pl-10"
-                      placeholder="Il tuo cognome"
-                      {...registerForm.register("cognome")}
-                      onChange={(e) => {
-                        const capitalizedValue = capitalizeWords(e.target.value);
-                        registerForm.setValue("cognome", capitalizedValue);
-                      }}
-                    />
-                    {registerForm.formState.errors.cognome && (
-                      <p className="text-sm text-destructive">
-                        {registerForm.formState.errors.cognome.message}
-                      </p>
+                  />
+                  <FormField
+                    control={registerForm.control}
+                    name="cognome"
+                    render={({ field }) => (
+                      <FormItem>
+                        <Label htmlFor="cognome">Cognome</Label>
+                        <FormControl>
+                          <Input
+                            id="cognome"
+                            placeholder="Il tuo cognome"
+                            {...(field || {})}
+                            value={field?.value || ""}
+                            onChange={(e) => {
+                              const capitalizedValue = capitalizeWords(e.target.value);
+                              field?.onChange?.(capitalizedValue);
+                            }}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
                     )}
-                  </div>
+                  />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="email"
-                      type="email"
-                      className="pl-10"
-                      placeholder="email@esempio.com"
-                      {...registerForm.register("email")}
-                    />
-                  </div>
-                  {registerForm.formState.errors.email && (
-                    <p className="text-sm text-destructive">
-                      {registerForm.formState.errors.email.message}
-                    </p>
+                <FormField
+                  control={registerForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <Label htmlFor="email">Email</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="email"
+                          type="email"
+                          className="pl-10"
+                          placeholder="email@esempio.com"
+                          {...(field || {})}
+                          value={field?.value || ""}
+                          onChange={(e) => field?.onChange?.(e)}
+                        />
+                      </div>
+                      <FormMessage />
+                    </FormItem>
                   )}
-                </div>
+                />
 
-                <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="username"
-                      className="pl-10 pr-10"
-                      placeholder="Username univoco"
-                      {...registerForm.register("username", {
-                        onChange: (e) => {
-                          const value = e.target.value;
-                          if (value.length >= 3) {
-                            checkUsernameAvailability(value);
-                          } else {
-                            setUsernameStatus({ checking: false, available: false, message: "Username deve essere di almeno 3 caratteri" });
-                          }
-                        }
-                      })}
-                    />
-                    <div className="absolute right-3 top-3">
-                      {usernameStatus.checking && (
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                <FormField
+                  control={registerForm.control}
+                  name="username"
+                  render={({ field }) => (
+                    <FormItem>
+                      <Label htmlFor="username">Username</Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="username"
+                          className="pl-10 pr-10"
+                          placeholder="Username univoco"
+                          {...(field || {})}
+                          value={field?.value || ""}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            field?.onChange?.(value); // Update form state first
+                            if (value.length >= 3) {
+                              checkUsernameAvailability(value);
+                            } else {
+                              setUsernameStatus({ checking: false, available: false, message: "Username deve essere di almeno 3 caratteri" });
+                            }
+                          }}
+                        />
+                        <div className="absolute right-3 top-3">
+                          {usernameStatus.checking && (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                          )}
+                          {!usernameStatus.checking && usernameStatus.available === true && (
+                            <Check className="h-4 w-4 text-green-600" />
+                          )}
+                          {!usernameStatus.checking && usernameStatus.available === false && usernameStatus.message && (
+                            <X className="h-4 w-4 text-red-600" />
+                          )}
+                        </div>
+                      </div>
+                      {usernameStatus.message && (
+                        <p className={`text-sm ${usernameStatus.available ? 'text-green-600' : 'text-destructive'}`}>
+                          {usernameStatus.message}
+                        </p>
                       )}
-                      {!usernameStatus.checking && usernameStatus.available === true && (
-                        <Check className="h-4 w-4 text-green-600" />
-                      )}
-                      {!usernameStatus.checking && usernameStatus.available === false && usernameStatus.message && (
-                        <X className="h-4 w-4 text-red-600" />
-                      )}
-                    </div>
-                  </div>
-                  {usernameStatus.message && (
-                    <p className={`text-sm ${usernameStatus.available ? 'text-green-600' : 'text-destructive'}`}>
-                      {usernameStatus.message}
-                    </p>
+                      <FormMessage />
+                    </FormItem>
                   )}
-                  {registerForm.formState.errors.username && (
-                    <p className="text-sm text-destructive">
-                      {registerForm.formState.errors.username.message}
-                    </p>
-                  )}
-                </div>
+                />
 
-                <div className="space-y-2">
-                  <Label htmlFor="regPassword">Password</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground z-10" />
-                    <PasswordInput
-                      id="regPassword"
-                      className="pl-10"
-                      placeholder="Password sicura"
-                      showPasswordHint={true}
-                      {...registerForm.register("password")}
-                    />
-                  </div>
-                  {registerForm.formState.errors.password && (
-                    <p className="text-sm text-destructive">
-                      {registerForm.formState.errors.password.message}
-                    </p>
+                <FormField
+                  control={registerForm.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <Label htmlFor="regPassword">Password</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground z-10" />
+                        <PasswordInput
+                          id="regPassword"
+                          className="pl-10"
+                          placeholder="Password sicura"
+                          showPasswordHint={true}
+                          {...(field || {})}
+                          value={field?.value || ""}
+                          onChange={(e) => field?.onChange?.(e)}
+                        />
+                      </div>
+                      <FormMessage />
+                    </FormItem>
                   )}
-                </div>
+                />
 
                 <Button
                   type="submit"
@@ -482,10 +517,7 @@ export default function Welcome() {
                     type="button"
                     variant="link"
                     className="p-0"
-                    onClick={() => {
-                      setIsLogin(true);
-                      setUsernameStatus({ checking: false, available: null, message: "" });
-                    }}
+                    onClick={() => setIsLogin(true)}
                   >
                     Accedi
                   </Button>
