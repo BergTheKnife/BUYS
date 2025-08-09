@@ -502,15 +502,6 @@ export class DatabaseStorage implements IStorage {
 
     // Update related sales with new inventory item information
     if (updates.nomeArticolo || updates.taglia || updates.costo) {
-      const salesUpdates: any = {};
-      
-      if (updates.nomeArticolo) {
-        salesUpdates.nomeArticolo = updates.nomeArticolo;
-      }
-      if (updates.taglia) {
-        salesUpdates.taglia = updates.taglia;
-      }
-      
       // If cost changed, recalculate margin for all related sales
       if (updates.costo) {
         // Get all sales for this inventory item
@@ -519,10 +510,19 @@ export class DatabaseStorage implements IStorage {
           .from(vendite)
           .where(eq(vendite.inventarioId, id));
         
-        // Update each sale with new margin calculation
+        // Update each sale with new margin calculation and item info
         for (const sale of relatedSales) {
           const newMargin = (Number(sale.prezzoVendita) - Number(updates.costo)) * sale.quantita;
-          salesUpdates.margine = newMargin.toString();
+          const salesUpdates: any = {
+            margine: newMargin.toString()
+          };
+          
+          if (updates.nomeArticolo) {
+            salesUpdates.nomeArticolo = updates.nomeArticolo;
+          }
+          if (updates.taglia) {
+            salesUpdates.taglia = updates.taglia;
+          }
           
           await db
             .update(vendite)
@@ -531,6 +531,15 @@ export class DatabaseStorage implements IStorage {
         }
       } else if (updates.nomeArticolo || updates.taglia) {
         // Update only name/size without recalculating margin
+        const salesUpdates: any = {};
+        
+        if (updates.nomeArticolo) {
+          salesUpdates.nomeArticolo = updates.nomeArticolo;
+        }
+        if (updates.taglia) {
+          salesUpdates.taglia = updates.taglia;
+        }
+        
         await db
           .update(vendite)
           .set(salesUpdates)
