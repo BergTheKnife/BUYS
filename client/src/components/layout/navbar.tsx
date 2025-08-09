@@ -82,6 +82,7 @@ export function Navbar() {
   // State for modals
   const [showCreateActivity, setShowCreateActivity] = useState(false);
   const [showJoinActivity, setShowJoinActivity] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Fetch user's activities
   const { data: userActivities = [] } = useQuery<Activity[]>({
@@ -316,7 +317,7 @@ export function Navbar() {
             </DropdownMenu>
 
             {/* Mobile Menu */}
-            <Sheet>
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="lg:hidden text-white hover:bg-white/10 min-h-[52px] w-12 px-3">
                   <Menu className="h-6 w-6" />
@@ -336,7 +337,7 @@ export function Navbar() {
                   {/* Navigation - only show if user has activity */}
                   {showNavigation && (
                     <div className="flex flex-col space-y-1 flex-1">
-                      <NavigationItems mobile />
+                      <NavigationItems mobile onItemClick={() => setMobileMenuOpen(false)} />
                     </div>
                   )}
                   
