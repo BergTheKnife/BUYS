@@ -6,11 +6,14 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function capitalizeWords(str: string): string {
-  if (!str || typeof str !== 'string') return str;
-  
+  if (!str || typeof str !== 'string') return '';
+
   return str
-    .toLowerCase()
+    .trim()
     .split(' ')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .filter(word => word.length > 0) // Rimuove spazi multipli
+    .map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    )
     .join(' ');
 }
