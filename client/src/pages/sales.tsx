@@ -450,11 +450,11 @@ export default function Sales() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="tutti">Tutti</SelectItem>
-                    <SelectItem value="bonifico">Bonifico</SelectItem>
-                    <SelectItem value="contanti">Contanti</SelectItem>
-                    <SelectItem value="carta">Carta</SelectItem>
-                    <SelectItem value="paypal">PayPal</SelectItem>
-                    <SelectItem value="vinted">Vinted</SelectItem>
+                    <SelectItem value="Bonifico">Bonifico</SelectItem>
+                    <SelectItem value="Contanti">Contanti</SelectItem>
+                    <SelectItem value="Carta">Carta</SelectItem>
+                    <SelectItem value="PayPal">PayPal</SelectItem>
+                    <SelectItem value="Vinted">Vinted</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
