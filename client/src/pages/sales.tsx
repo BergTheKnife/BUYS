@@ -116,20 +116,29 @@ export default function Sales() {
       if (filters.articolo && !sale.nomeArticolo.toLowerCase().includes(filters.articolo.toLowerCase())) {
         return false;
       }
-      if (filters.incassatoDa && filters.incassatoDa !== "tutti" && sale.incassatoDa !== filters.incassatoDa) {
+      if (filters.incassatoDa && filters.incassatoDa !== "tutti" && filters.incassatoDa !== "" && sale.incassatoDa !== filters.incassatoDa) {
         return false;
       }
-      if (filters.incassatoSu && filters.incassatoSu !== "tutti" && sale.incassatoSu !== filters.incassatoSu) {
+      if (filters.incassatoSu && filters.incassatoSu !== "tutti" && filters.incassatoSu !== "" && sale.incassatoSu !== filters.incassatoSu) {
         return false;
       }
       if (filters.taglia && !sale.taglia.toLowerCase().includes(filters.taglia.toLowerCase())) {
         return false;
       }
-      if (filters.dataInizio && new Date(sale.data) < new Date(filters.dataInizio)) {
-        return false;
+      if (filters.dataInizio && filters.dataInizio !== "") {
+        const saleDate = new Date(sale.data);
+        const startDate = new Date(filters.dataInizio);
+        if (saleDate < startDate) {
+          return false;
+        }
       }
-      if (filters.dataFine && new Date(sale.data) > new Date(filters.dataFine)) {
-        return false;
+      if (filters.dataFine && filters.dataFine !== "") {
+        const saleDate = new Date(sale.data);
+        const endDate = new Date(filters.dataFine);
+        endDate.setHours(23, 59, 59, 999); // Include the entire end date
+        if (saleDate > endDate) {
+          return false;
+        }
       }
       return true;
     })

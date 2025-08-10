@@ -133,22 +133,31 @@ export default function Expenses() {
 
   // Filter and sort expenses based on filter criteria
   const filteredExpenses = expenses.filter((expense: Spesa) => {
-    if (filters.voce && !expense.voce.toLowerCase().includes(filters.voce.toLowerCase())) {
+    if (filters.voce && filters.voce !== "" && !expense.voce.toLowerCase().includes(filters.voce.toLowerCase())) {
       return false;
     }
-    if (filters.categoria && filters.categoria !== "tutti" && expense.categoria !== filters.categoria) {
+    if (filters.categoria && filters.categoria !== "tutti" && filters.categoria !== "" && expense.categoria !== filters.categoria) {
       return false;
     }
-    if (filters.dataInizio && new Date(expense.data) < new Date(filters.dataInizio)) {
+    if (filters.dataInizio && filters.dataInizio !== "") {
+      const expenseDate = new Date(expense.data);
+      const startDate = new Date(filters.dataInizio);
+      if (expenseDate < startDate) {
+        return false;
+      }
+    }
+    if (filters.dataFine && filters.dataFine !== "") {
+      const expenseDate = new Date(expense.data);
+      const endDate = new Date(filters.dataFine);
+      endDate.setHours(23, 59, 59, 999); // Include the entire end date
+      if (expenseDate > endDate) {
+        return false;
+      }
+    }
+    if (filters.importoMin && filters.importoMin !== "" && Number(expense.importo) < Number(filters.importoMin)) {
       return false;
     }
-    if (filters.dataFine && new Date(expense.data) > new Date(filters.dataFine)) {
-      return false;
-    }
-    if (filters.importoMin && Number(expense.importo) < Number(filters.importoMin)) {
-      return false;
-    }
-    if (filters.importoMax && Number(expense.importo) > Number(filters.importoMax)) {
+    if (filters.importoMax && filters.importoMax !== "" && Number(expense.importo) > Number(filters.importoMax)) {
       return false;
     }
     return true;
