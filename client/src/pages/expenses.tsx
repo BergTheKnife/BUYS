@@ -126,40 +126,67 @@ export default function Expenses() {
     if (sortConfig.key !== columnKey) {
       return <ArrowUpDown className="h-4 w-4" />;
     }
-    return sortConfig.direction === 'asc' ? 
-      <ArrowUp className="h-4 w-4" /> : 
+    return sortConfig.direction === 'asc' ?
+      <ArrowUp className="h-4 w-4" /> :
       <ArrowDown className="h-4 w-4" />;
   };
 
   // Filter and sort expenses based on filter criteria
   const filteredExpenses = expenses.filter((expense: Spesa) => {
-    if (filters.voce && filters.voce !== "" && !expense.voce.toLowerCase().includes(filters.voce.toLowerCase())) {
-      return false;
+    // Filtro voce
+    if (filters.voce && filters.voce.trim() !== "") {
+      if (!expense.voce.toLowerCase().includes(filters.voce.toLowerCase().trim())) {
+        return false;
+      }
     }
-    if (filters.categoria && filters.categoria !== "tutti" && filters.categoria !== "" && expense.categoria !== filters.categoria) {
-      return false;
+
+    // Filtro categoria
+    if (filters.categoria && filters.categoria !== "tutti" && filters.categoria.trim() !== "") {
+      if (expense.categoria !== filters.categoria) {
+        return false;
+      }
     }
-    if (filters.dataInizio && filters.dataInizio !== "") {
+
+    // Filtro data inizio
+    if (filters.dataInizio && filters.dataInizio.trim() !== "") {
       const expenseDate = new Date(expense.data);
       const startDate = new Date(filters.dataInizio);
+      expenseDate.setHours(0, 0, 0, 0);
+      startDate.setHours(0, 0, 0, 0);
       if (expenseDate < startDate) {
         return false;
       }
     }
-    if (filters.dataFine && filters.dataFine !== "") {
+
+    // Filtro data fine
+    if (filters.dataFine && filters.dataFine.trim() !== "") {
       const expenseDate = new Date(expense.data);
       const endDate = new Date(filters.dataFine);
-      endDate.setHours(23, 59, 59, 999); // Include the entire end date
+      expenseDate.setHours(0, 0, 0, 0);
+      endDate.setHours(0, 0, 0, 0);
       if (expenseDate > endDate) {
         return false;
       }
     }
-    if (filters.importoMin && filters.importoMin !== "" && Number(expense.importo) < Number(filters.importoMin)) {
-      return false;
+
+    // Filtro importo minimo
+    if (filters.importoMin && filters.importoMin.trim() !== "") {
+      const minAmount = parseFloat(filters.importoMin);
+      const expenseAmount = parseFloat(expense.importo.toString());
+      if (!isNaN(minAmount) && !isNaN(expenseAmount) && expenseAmount < minAmount) {
+        return false;
+      }
     }
-    if (filters.importoMax && filters.importoMax !== "" && Number(expense.importo) > Number(filters.importoMax)) {
-      return false;
+
+    // Filtro importo massimo
+    if (filters.importoMax && filters.importoMax.trim() !== "") {
+      const maxAmount = parseFloat(filters.importoMax);
+      const expenseAmount = parseFloat(expense.importo.toString());
+      if (!isNaN(maxAmount) && !isNaN(expenseAmount) && expenseAmount > maxAmount) {
+        return false;
+      }
     }
+
     return true;
   })
   .sort((a, b) => {
@@ -503,7 +530,7 @@ export default function Expenses() {
             <AlertDialogHeader>
               <AlertDialogTitle>Conferma eliminazione</AlertDialogTitle>
               <AlertDialogDescription>
-                Sei sicuro di voler eliminare la spesa "{expenseToDelete?.voce}"? 
+                Sei sicuro di voler eliminare la spesa "{expenseToDelete?.voce}"?
                 Questa azione non può essere annullata.
               </AlertDialogDescription>
             </AlertDialogHeader>

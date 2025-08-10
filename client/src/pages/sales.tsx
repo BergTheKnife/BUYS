@@ -113,33 +113,56 @@ export default function Sales() {
   // Filter sales based on filter criteria
   const filteredAndSortedSales = sales
     .filter((sale: Vendita) => {
-      if (filters.articolo && !sale.nomeArticolo.toLowerCase().includes(filters.articolo.toLowerCase())) {
-        return false;
+      // Filtro articolo
+      if (filters.articolo && filters.articolo.trim() !== "") {
+        if (!sale.nomeArticolo.toLowerCase().includes(filters.articolo.toLowerCase().trim())) {
+          return false;
+        }
       }
-      if (filters.incassatoDa && filters.incassatoDa !== "tutti" && filters.incassatoDa !== "" && sale.incassatoDa !== filters.incassatoDa) {
-        return false;
+
+      // Filtro incassato da
+      if (filters.incassatoDa && filters.incassatoDa !== "tutti" && filters.incassatoDa.trim() !== "") {
+        if (sale.incassatoDa !== filters.incassatoDa) {
+          return false;
+        }
       }
-      if (filters.incassatoSu && filters.incassatoSu !== "tutti" && filters.incassatoSu !== "" && sale.incassatoSu !== filters.incassatoSu) {
-        return false;
+
+      // Filtro incassato su
+      if (filters.incassatoSu && filters.incassatoSu !== "tutti" && filters.incassatoSu.trim() !== "") {
+        if (sale.incassatoSu !== filters.incassatoSu) {
+          return false;
+        }
       }
-      if (filters.taglia && !sale.taglia.toLowerCase().includes(filters.taglia.toLowerCase())) {
-        return false;
+
+      // Filtro taglia
+      if (filters.taglia && filters.taglia.trim() !== "") {
+        if (!sale.taglia.toLowerCase().includes(filters.taglia.toLowerCase().trim())) {
+          return false;
+        }
       }
-      if (filters.dataInizio && filters.dataInizio !== "") {
+
+      // Filtro data inizio
+      if (filters.dataInizio && filters.dataInizio.trim() !== "") {
         const saleDate = new Date(sale.data);
         const startDate = new Date(filters.dataInizio);
+        startDate.setHours(0, 0, 0, 0);
+        saleDate.setHours(0, 0, 0, 0);
         if (saleDate < startDate) {
           return false;
         }
       }
-      if (filters.dataFine && filters.dataFine !== "") {
+
+      // Filtro data fine
+      if (filters.dataFine && filters.dataFine.trim() !== "") {
         const saleDate = new Date(sale.data);
         const endDate = new Date(filters.dataFine);
-        endDate.setHours(23, 59, 59, 999); // Include the entire end date
+        saleDate.setHours(0, 0, 0, 0);
+        endDate.setHours(0, 0, 0, 0);
         if (saleDate > endDate) {
           return false;
         }
       }
+
       return true;
     })
     .sort((a, b) => {
