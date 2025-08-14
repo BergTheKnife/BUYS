@@ -34,8 +34,7 @@ import {
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Vendita } from "@shared/schema";
-import { useActionHistory } from "@/hooks/use-action-history";
-import { ActionHistoryControls } from "@/components/ui/action-history-controls";
+// Hook undo/redo rimosso
 import { ImagePreview } from "@/components/ui/image-preview";
 
 export default function Sales() {
@@ -58,7 +57,7 @@ export default function Sales() {
   }>({ key: null, direction: 'asc' });
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { addAction, undo, redo, canUndo, canRedo, history } = useActionHistory('sales'); // Destructure history if needed
+  // Hook undo/redo rimosso
 
   const { data: sales = [], isLoading } = useQuery<Vendita[]>({
     queryKey: ["/api/vendite"],
@@ -225,17 +224,6 @@ export default function Sales() {
   // Delete sale mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      // Salva i dati della vendita prima di eliminarla per l'undo
-      const saleToDelete = sales?.find((sale: any) => sale.id === id);
-      if (saleToDelete) {
-        addAction({
-          description: `Vendita eliminata: ${saleToDelete.nomeArticolo} - ${saleToDelete.taglia}`,
-          data: saleToDelete,
-          action: 'delete',
-          entityType: 'sale'
-        });
-      }
-
       const response = await apiRequest("DELETE", `/api/vendite/${id}`);
       return response.json();
     },
@@ -419,15 +407,7 @@ export default function Sales() {
           </CardContent>
         </Card>
 
-        {/* Action History Controls */}
-        <div className="flex justify-center mb-6">
-          <ActionHistoryControls
-            canUndo={canUndo}
-            canRedo={canRedo}
-            onUndo={undo}
-            onRedo={redo}
-          />
-        </div>
+        {/* Controlli undo/redo rimossi */}
 
         {/* Sales Table */}
         <Card>
@@ -577,16 +557,7 @@ export default function Sales() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => {
-                                setDeleteSale(sale);
-                                // Add to history when initiating delete
-                                addAction({
-                                  description: `Iniziata eliminazione: ${sale.nomeArticolo} - ${sale.taglia}`,
-                                  data: sale,
-                                  action: 'delete',
-                                  entityType: 'sale'
-                                });
-                              }}
+                              onClick={() => setDeleteSale(sale)}
                               title="Elimina vendita"
                               className="min-w-[36px] h-9 p-2"
                             >

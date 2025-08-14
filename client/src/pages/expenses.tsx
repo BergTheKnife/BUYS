@@ -11,8 +11,7 @@ import { AddExpenseModal } from "@/components/modals/add-expense-modal";
 import { Navbar } from "@/components/layout/navbar";
 import { capitalizeWords } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
-import { useActionHistory } from "@/hooks/use-action-history";
-import { ActionHistoryControls } from "@/components/ui/action-history-controls";
+// Hook undo/redo rimosso
 import {
   Table,
   TableBody,
@@ -52,7 +51,7 @@ export default function Expenses() {
   }>({ key: null, direction: 'asc' });
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { addAction, undo, redo, canUndo, canRedo } = useActionHistory('expenses');
+  // Hook undo/redo rimosso
 
   const { data: expenses = [], isLoading } = useQuery<Spesa[]>({
     queryKey: ["/api/spese"],
@@ -60,17 +59,6 @@ export default function Expenses() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      // Salva i dati della spesa prima di eliminarla per l'undo
-      const expenseToDelete = expenses?.find((expense: any) => expense.id === id);
-      if (expenseToDelete) {
-        addAction({
-          description: `Spesa eliminata: ${expenseToDelete.voce}`,
-          data: expenseToDelete,
-          action: 'delete',
-          entityType: 'expense'
-        });
-      }
-
       const response = await apiRequest("DELETE", `/api/spese/${id}`);
       return response.json();
     },
@@ -349,15 +337,7 @@ export default function Expenses() {
           </CardContent>
         </Card>
 
-        {/* Action History Controls */}
-        <div className="flex justify-center mb-6">
-          <ActionHistoryControls
-            canUndo={canUndo}
-            canRedo={canRedo}
-            onUndo={undo}
-            onRedo={redo}
-          />
-        </div>
+        {/* Controlli undo/redo rimossi */}
 
         {/* Expenses Table */}
         <Card>

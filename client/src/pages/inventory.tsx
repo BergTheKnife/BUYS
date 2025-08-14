@@ -45,8 +45,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Package, Plus, Edit, Trash2, ImageIcon, PackagePlus, Filter, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import type { Inventario } from "@shared/schema";
-import { useActionHistory } from "@/hooks/use-action-history";
-import { ActionHistoryControls } from "@/components/ui/action-history-controls";
+// Hook undo/redo rimosso
 import { ImagePreview } from "@/components/ui/image-preview";
 
 export default function Inventory() {
@@ -62,7 +61,7 @@ export default function Inventory() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentActivity } = useAuth();
-  const { addAction, undo, redo, canUndo, canRedo, history } = useActionHistory('inventory');
+  // Hook undo/redo rimosso
   const [previewImage, setPreviewImage] = useState<{ src: string; alt: string } | null>(null);
 
   // Filtri
@@ -176,17 +175,6 @@ export default function Inventory() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      // Salva i dati dell'articolo prima di eliminarlo per l'undo
-      const itemToDelete = inventory?.find((item: any) => item.id === id);
-      if (itemToDelete) {
-        addAction({
-          description: `Eliminato: ${itemToDelete.nomeArticolo} - ${itemToDelete.taglia}`,
-          data: itemToDelete,
-          action: 'delete',
-          entityType: 'inventory'
-        });
-      }
-
       const response = await apiRequest("DELETE", `/api/inventario/${id}`);
       return response.json();
     },
@@ -404,15 +392,7 @@ export default function Inventory() {
           </CardContent>
         </Card>
 
-        {/* Action History Controls */}
-        <div className="flex justify-center mb-6">
-          <ActionHistoryControls 
-            canUndo={canUndo}
-            canRedo={canRedo}
-            onUndo={undo}
-            onRedo={redo}
-          />
-        </div>
+        {/* Controlli undo/redo rimossi */}
 
         <Card>
           <CardHeader>
