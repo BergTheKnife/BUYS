@@ -284,68 +284,6 @@ export default function Sales() {
     }
   };
 
-  const handleUndo = async () => {
-    const actionToUndo = undo();
-    if (actionToUndo) {
-      if (actionToUndo.action === 'delete' && actionToUndo.entityType === 'sale') {
-        // Ricrea la vendita eliminata
-        try {
-          const saleData = {
-            inventarioId: actionToUndo.data.inventarioId,
-            quantita: actionToUndo.data.quantita,
-            prezzoVendita: actionToUndo.data.prezzoVendita,
-            incassatoDa: actionToUndo.data.incassatoDa,
-            incassatoSu: actionToUndo.data.incassatoSu,
-            data: actionToUndo.data.data,
-          };
-
-          await apiRequest("POST", "/api/vendite", saleData);
-          queryClient.invalidateQueries({ queryKey: ["/api/vendite"] });
-          queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
-          queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
-
-          toast({
-            title: "Azione annullata",
-            description: `Vendita "${actionToUndo.data.nomeArticolo}" ripristinata`,
-          });
-        } catch (error: any) {
-          toast({
-            title: "Errore",
-            description: "Impossibile annullare l'azione",
-            variant: "destructive",
-          });
-        }
-      }
-    }
-  };
-
-  const handleRedo = async () => {
-    const actionToRedo = redo();
-    if (actionToRedo) {
-      if (actionToRedo.action === 'delete' && actionToRedo.entityType === 'sale') {
-        // Rielimina la vendita
-        try {
-          await apiRequest("DELETE", `/api/vendite/${actionToRedo.data.id}`);
-          queryClient.invalidateQueries({ queryKey: ["/api/vendite"] });
-          queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
-          queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
-
-          toast({
-            title: "Azione ripetuta",
-            description: `Vendita "${actionToRedo.data.nomeArticolo}" eliminata`,
-          });
-        } catch (error: any) {
-          toast({
-            title: "Errore",
-            description: "Impossibile ripetere l'azione",
-            variant: "destructive",
-          });
-        }
-      }
-    }
-  };
-
-
   if (isLoading) {
     return (
       <div className="page-with-navbar bg-gray-50 dark:bg-gray-900">
@@ -486,8 +424,8 @@ export default function Sales() {
           <ActionHistoryControls
             canUndo={canUndo}
             canRedo={canRedo}
-            onUndo={handleUndo}
-            onRedo={handleRedo}
+            onUndo={undo}
+            onRedo={redo}
           />
         </div>
 

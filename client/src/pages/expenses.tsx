@@ -197,8 +197,8 @@ export default function Expenses() {
 
     // Convert dates to comparable format
     if (sortConfig.key === 'data') {
-      aValue = new Date(aValue as string).getTime();
-      bValue = new Date(bValue as string).getTime();
+      aValue = new Date(aValue as string | Date).getTime();
+      bValue = new Date(bValue as string | Date).getTime();
     }
 
     // Convert numbers for proper comparison
@@ -207,10 +207,10 @@ export default function Expenses() {
       bValue = Number(bValue);
     }
 
-    if (aValue < bValue) {
+    if (aValue != null && bValue != null && aValue < bValue) {
       return sortConfig.direction === 'asc' ? -1 : 1;
     }
-    if (aValue > bValue) {
+    if (aValue != null && bValue != null && aValue > bValue) {
       return sortConfig.direction === 'asc' ? 1 : -1;
     }
     return 0;
@@ -218,62 +218,7 @@ export default function Expenses() {
 
   const totalExpenses = filteredExpenses.reduce((sum: number, expense: Spesa) => sum + Number(expense.importo), 0);
 
-  const handleUndo = async () => {
-    const actionToUndo = undo();
-    if (actionToUndo) {
-      if (actionToUndo.action === 'delete' && actionToUndo.entityType === 'expense') {
-        // Ricrea la spesa eliminata
-        try {
-          const expenseData = {
-            voce: actionToUndo.data.voce,
-            importo: actionToUndo.data.importo,
-            categoria: actionToUndo.data.categoria,
-            data: actionToUndo.data.data,
-          };
 
-          await apiRequest("POST", "/api/spese", expenseData);
-          queryClient.invalidateQueries({ queryKey: ["/api/spese"] });
-          queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
-
-          toast({
-            title: "Azione annullata",
-            description: `Spesa "${actionToUndo.data.voce}" ripristinata`,
-          });
-        } catch (error: any) {
-          toast({
-            title: "Errore",
-            description: "Impossibile annullare l'azione",
-            variant: "destructive",
-          });
-        }
-      }
-    }
-  };
-
-  const handleRedo = async () => {
-    const actionToRedo = redo();
-    if (actionToRedo) {
-      if (actionToRedo.action === 'delete' && actionToRedo.entityType === 'expense') {
-        // Rielimina la spesa
-        try {
-          await apiRequest("DELETE", `/api/spese/${actionToRedo.data.id}`);
-          queryClient.invalidateQueries({ queryKey: ["/api/spese"] });
-          queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
-
-          toast({
-            title: "Azione ripetuta",
-            description: `Spesa "${actionToRedo.data.voce}" eliminata`,
-          });
-        } catch (error: any) {
-          toast({
-            title: "Errore",
-            description: "Impossibile ripetere l'azione",
-            variant: "destructive",
-          });
-        }
-      }
-    }
-  };
 
   if (isLoading) {
     return (
@@ -409,8 +354,8 @@ export default function Expenses() {
           <ActionHistoryControls
             canUndo={canUndo}
             canRedo={canRedo}
-            onUndo={handleUndo}
-            onRedo={handleRedo}
+            onUndo={undo}
+            onRedo={redo}
           />
         </div>
 
