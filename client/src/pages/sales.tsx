@@ -36,7 +36,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { Vendita } from "@shared/schema";
 import { useActionHistory } from "@/hooks/use-action-history";
 import { ActionHistoryControls } from "@/components/ui/action-history-controls";
-import { ImagePreview } from "@/components/modals/image-preview"; // Import ImagePreview component
+import { ImagePreview } from "@/components/ui/image-preview";
 
 export default function Sales() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -185,10 +185,10 @@ export default function Sales() {
         bValue = Number(bValue);
       }
 
-      if (aValue < bValue) {
+      if (aValue != null && bValue != null && aValue < bValue) {
         return sortConfig.direction === 'asc' ? -1 : 1;
       }
-      if (aValue > bValue) {
+      if (aValue != null && bValue != null && aValue > bValue) {
         return sortConfig.direction === 'asc' ? 1 : -1;
       }
       return 0;
@@ -642,7 +642,7 @@ export default function Sales() {
                                 addAction({
                                   description: `Iniziata eliminazione: ${sale.nomeArticolo} - ${sale.taglia}`,
                                   data: sale,
-                                  action: 'delete_init',
+                                  action: 'delete',
                                   entityType: 'sale'
                                 });
                               }}
@@ -749,18 +749,7 @@ export default function Sales() {
                     <div>
                       <span className="font-medium">Margine:</span> {formatCurrency(deleteSale.margine)}
                     </div>
-                    {/* Image Display */}
-                    {deleteSale.immagineArticolo && (
-                      <div className="col-span-2">
-                        <Label>Immagine Articolo:</Label>
-                        <img
-                          src={deleteSale.immagineArticolo}
-                          alt={deleteSale.nomeArticolo}
-                          className="w-24 h-24 object-cover cursor-pointer rounded-md mt-1"
-                          onClick={() => setPreviewImage({ src: deleteSale.immagineArticolo, alt: deleteSale.nomeArticolo })}
-                        />
-                      </div>
-                    )}
+
                   </div>
                 </div>
               </div>
