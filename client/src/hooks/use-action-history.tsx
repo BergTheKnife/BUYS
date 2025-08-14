@@ -30,46 +30,36 @@ export function useActionHistory(pageKey: string) {
       newHistory.push(newAction);
       
       // Mantieni solo le ultime 50 azioni per performance
-      const finalHistory = newHistory.slice(-50);
-      return finalHistory;
+      return newHistory.slice(-50);
     });
 
     setCurrentIndex(prev => {
-      const newHistory = history.slice(0, currentIndex + 1);
+      // Calcola il nuovo indice basato sulla nuova lunghezza
+      const newHistory = history.slice(0, prev + 1);
       newHistory.push(newAction);
       const finalHistory = newHistory.slice(-50);
       return finalHistory.length - 1;
     });
   }, [pageKey, currentIndex, history]);
 
-  const canUndo = currentIndex >= 0;
+  const canUndo = currentIndex >= 0 && history.length > 0;
   const canRedo = currentIndex < history.length - 1;
 
-  const undo = useCallback(async () => {
+  const undo = useCallback(() => {
     if (!canUndo) return null;
 
-    isPerformingHistoryAction.current = true;
     const actionToUndo = history[currentIndex];
     setCurrentIndex(prev => prev - 1);
     
-    setTimeout(() => {
-      isPerformingHistoryAction.current = false;
-    }, 100);
-
     return actionToUndo;
   }, [canUndo, history, currentIndex]);
 
-  const redo = useCallback(async () => {
+  const redo = useCallback(() => {
     if (!canRedo) return null;
 
-    isPerformingHistoryAction.current = true;
     const actionToRedo = history[currentIndex + 1];
     setCurrentIndex(prev => prev + 1);
     
-    setTimeout(() => {
-      isPerformingHistoryAction.current = false;
-    }, 100);
-
     return actionToRedo;
   }, [canRedo, history, currentIndex]);
 
@@ -90,7 +80,8 @@ export function useActionHistory(pageKey: string) {
     canRedo,
     getCurrentAction,
     clearHistory,
-    history, // Restituisci tutta la storia
+    history,
+    currentIndex,
     isPerformingHistoryAction: isPerformingHistoryAction.current,
   };
 }

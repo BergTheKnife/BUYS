@@ -219,7 +219,7 @@ export default function Expenses() {
   const totalExpenses = filteredExpenses.reduce((sum: number, expense: Spesa) => sum + Number(expense.importo), 0);
 
   const handleUndo = async () => {
-    const actionToUndo = await undo();
+    const actionToUndo = undo();
     if (actionToUndo) {
       if (actionToUndo.action === 'delete' && actionToUndo.entityType === 'expense') {
         // Ricrea la spesa eliminata
@@ -251,12 +251,27 @@ export default function Expenses() {
   };
 
   const handleRedo = async () => {
-    const actionToRedo = await redo();
+    const actionToRedo = redo();
     if (actionToRedo) {
-      toast({
-        title: "Azione ripetuta",
-        description: actionToRedo.description,
-      });
+      if (actionToRedo.action === 'delete' && actionToRedo.entityType === 'expense') {
+        // Rielimina la spesa
+        try {
+          await apiRequest("DELETE", `/api/spese/${actionToRedo.data.id}`);
+          queryClient.invalidateQueries({ queryKey: ["/api/spese"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+
+          toast({
+            title: "Azione ripetuta",
+            description: `Spesa "${actionToRedo.data.voce}" eliminata`,
+          });
+        } catch (error: any) {
+          toast({
+            title: "Errore",
+            description: "Impossibile ripetere l'azione",
+            variant: "destructive",
+          });
+        }
+      }
     }
   };
 

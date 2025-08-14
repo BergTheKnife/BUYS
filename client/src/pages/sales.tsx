@@ -285,61 +285,64 @@ export default function Sales() {
   };
 
   const handleUndo = async () => {
-    let currentIndex = history.findIndex(item => item.id === 'current'); // Assuming 'current' is a marker for the current state
-    if (currentIndex <= 0) return; // Cannot undo if at the beginning
+    const actionToUndo = undo();
+    if (actionToUndo) {
+      if (actionToUndo.action === 'delete' && actionToUndo.entityType === 'sale') {
+        // Ricrea la vendita eliminata
+        try {
+          const saleData = {
+            inventarioId: actionToUndo.data.inventarioId,
+            quantita: actionToUndo.data.quantita,
+            prezzoVendita: actionToUndo.data.prezzoVendita,
+            incassatoDa: actionToUndo.data.incassatoDa,
+            incassatoSu: actionToUndo.data.incassatoSu,
+            data: actionToUndo.data.data,
+          };
 
-    const actionToUndo = history[currentIndex - 1];
-    
-    // Mark the current state as 'undone' and the previous state as 'current'
-    // This part depends on how your useActionHistory is implemented. 
-    // Assuming `history` is an array and we're manipulating pointers or indices.
-    // A simpler approach for this example:
-    
-    if (actionToUndo.action === 'delete' && actionToUndo.entityType === 'sale') {
-      // Recreate the deleted sale
-      try {
-        const saleData = {
-          inventarioId: actionToUndo.data.inventarioId,
-          quantita: actionToUndo.data.quantita,
-          prezzoVendita: actionToUndo.data.prezzoVendita,
-          incassatoDa: actionToUndo.data.incassatoDa,
-          incassatoSu: actionToUndo.data.incassatoSu,
-          data: actionToUndo.data.data,
-        };
+          await apiRequest("POST", "/api/vendite", saleData);
+          queryClient.invalidateQueries({ queryKey: ["/api/vendite"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
 
-        await apiRequest("POST", "/api/vendite", saleData);
-        queryClient.invalidateQueries({ queryKey: ["/api/vendite"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
-
-        toast({
-          title: "Azione annullata",
-          description: `Vendita "${actionToUndo.data.nomeArticolo}" ripristinata`,
-        });
-      } catch (error: any) {
-        toast({
-          title: "Errore",
-          description: "Impossibile annullare l'azione",
-          variant: "destructive",
-        });
+          toast({
+            title: "Azione annullata",
+            description: `Vendita "${actionToUndo.data.nomeArticolo}" ripristinata`,
+          });
+        } catch (error: any) {
+          toast({
+            title: "Errore",
+            description: "Impossibile annullare l'azione",
+            variant: "destructive",
+          });
+        }
       }
     }
-    // Handle other action types if necessary
   };
 
   const handleRedo = async () => {
-    let currentIndex = history.findIndex(item => item.id === 'current');
-    if (currentIndex >= history.length - 1) return; // Cannot redo if at the end
+    const actionToRedo = redo();
+    if (actionToRedo) {
+      if (actionToRedo.action === 'delete' && actionToRedo.entityType === 'sale') {
+        // Rielimina la vendita
+        try {
+          await apiRequest("DELETE", `/api/vendite/${actionToRedo.data.id}`);
+          queryClient.invalidateQueries({ queryKey: ["/api/vendite"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
 
-    const actionToRedo = history[currentIndex + 1];
-    
-    // Move the pointer to the next state
-    // This part also depends heavily on your useActionHistory implementation.
-
-    toast({
-      title: "Azione ripetuta",
-      description: actionToRedo.description,
-    });
+          toast({
+            title: "Azione ripetuta",
+            description: `Vendita "${actionToRedo.data.nomeArticolo}" eliminata`,
+          });
+        } catch (error: any) {
+          toast({
+            title: "Errore",
+            description: "Impossibile ripetere l'azione",
+            variant: "destructive",
+          });
+        }
+      }
+    }
   };
 
 

@@ -248,7 +248,7 @@ export default function Inventory() {
   };
 
   const handleUndo = async () => {
-    const actionToUndo = await undo();
+    const actionToUndo = undo();
     if (actionToUndo) {
       if (actionToUndo.action === 'delete' && actionToUndo.entityType === 'inventory') {
         // Ricrea l'articolo eliminato
@@ -327,7 +327,7 @@ export default function Inventory() {
   };
 
   const handleRedo = async () => {
-    const actionToRedo = await redo();
+    const actionToRedo = redo();
     if (actionToRedo) {
       if (actionToRedo.action === 'delete' && actionToRedo.entityType === 'inventory') {
         // Rielimina l'articolo
