@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ShoppingCart, Plus, Filter, Repeat, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { ShoppingCart, Plus, Filter, Repeat, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -61,6 +61,11 @@ export default function Sales() {
 
   const { data: sales = [], isLoading } = useQuery<Vendita[]>({
     queryKey: ["/api/vendite"],
+  });
+
+  // Query per recuperare l'inventario per mostrare le immagini
+  const { data: inventory = [] } = useQuery<any[]>({
+    queryKey: ["/api/inventario"],
   });
 
   // Fetch activity members for filters
@@ -441,6 +446,7 @@ export default function Sales() {
                           {getSortIcon('data')}
                         </button>
                       </TableHead>
+                      <TableHead>Immagine</TableHead>
                       <TableHead>
                         <button
                           onClick={() => handleSort('nomeArticolo')}
@@ -508,12 +514,33 @@ export default function Sales() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredAndSortedSales.map((sale: Vendita) => (
-                      <TableRow key={sale.id}>
-                        <TableCell>{formatDate(sale.data.toString())}</TableCell>
-                        <TableCell className="font-semibold">
-                          {sale.nomeArticolo}
-                        </TableCell>
+                    {filteredAndSortedSales.map((sale: Vendita) => {
+                      // Trova l'articolo corrispondente nell'inventario per mostrare l'immagine
+                      const correspondingItem = inventory.find((item: any) => 
+                        item.id === sale.inventarioId || 
+                        (item.nomeArticolo === sale.nomeArticolo && item.taglia === sale.taglia)
+                      );
+                      
+                      return (
+                        <TableRow key={sale.id}>
+                          <TableCell>{formatDate(sale.data.toString())}</TableCell>
+                          <TableCell>
+                            {correspondingItem?.immagineUrl ? (
+                              <img
+                                src={correspondingItem.immagineUrl}
+                                alt={sale.nomeArticolo}
+                                className="w-12 h-12 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+                                onClick={() => setPreviewImage({ src: correspondingItem.immagineUrl || "", alt: sale.nomeArticolo })}
+                              />
+                            ) : (
+                              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                                <ImageIcon className="h-4 w-4 text-gray-400" />
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell className="font-semibold">
+                            {sale.nomeArticolo}
+                          </TableCell>
                         <TableCell>
                           <Badge variant="secondary">{sale.taglia}</Badge>
                         </TableCell>
@@ -565,8 +592,9 @@ export default function Sales() {
                             </Button>
                           </div>
                         </TableCell>
-                      </TableRow>
-                    ))}
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
