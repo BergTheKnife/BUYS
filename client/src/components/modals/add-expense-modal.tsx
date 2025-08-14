@@ -25,6 +25,7 @@ import type { InsertSpesa, Spesa } from "@shared/schema";
 import { z } from "zod";
 import { useEffect } from "react";
 import { capitalizeWords } from "@/lib/utils";
+import { useActionHistory } from "@/hooks/use-action-history";
 
 interface AddExpenseModalProps {
   isOpen: boolean;
@@ -41,6 +42,7 @@ type ExpenseFormData = z.infer<typeof expenseFormSchema>;
 export function AddExpenseModal({ isOpen, onClose, editingExpense }: AddExpenseModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { addAction } = useActionHistory('expenses');
 
   const form = useForm<ExpenseFormData>({
     resolver: zodResolver(expenseFormSchema),
@@ -81,7 +83,27 @@ export function AddExpenseModal({ isOpen, onClose, editingExpense }: AddExpenseM
       });
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (result: any) => {
+      // Registra l'azione per undo/redo
+      if (editingExpense) {
+        // Update operation - salva i dati precedenti
+        addAction({
+          description: `Modificata spesa: ${editingExpense.voce}`,
+          data: result,
+          previousData: editingExpense,
+          action: 'update',
+          entityType: 'expense'
+        });
+      } else {
+        // Create operation
+        addAction({
+          description: `Creata spesa: ${result.voce}`,
+          data: result,
+          action: 'create',
+          entityType: 'expense'
+        });
+      }
+
       queryClient.invalidateQueries({ queryKey: ["/api/spese"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
       toast({

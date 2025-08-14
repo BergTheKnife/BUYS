@@ -1,5 +1,5 @@
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -162,7 +162,11 @@ export function useActionHistory(pageKey: string) {
     const actionToRedo = history[currentIndex + 1];
     
     try {
+      // REDO: Determina l'operazione inversa dell'UNDO che è stato fatto
+      let redoAction: 'create' | 'update' | 'delete';
+      let dataToUse: any;
       let endpoint = '';
+
       switch (actionToRedo.entityType) {
         case 'inventory':
           endpoint = '/api/inventario';
@@ -175,9 +179,28 @@ export function useActionHistory(pageKey: string) {
           break;
       }
 
+      switch (actionToRedo.action) {
+        case 'create':
+          // Se l'azione originale era create, il redo è ricreare (l'undo aveva eliminato)
+          redoAction = 'create';
+          dataToUse = { ...actionToRedo.data };
+          delete dataToUse.id; // Rimuovi l'ID per permettere la ricreazione
+          break;
+        case 'update':
+          // Se l'azione originale era update, il redo è applicare di nuovo l'update
+          redoAction = 'update';
+          dataToUse = actionToRedo.data;
+          break;
+        case 'delete':
+          // Se l'azione originale era delete, il redo è eliminare di nuovo (l'undo aveva ricreato)
+          redoAction = 'delete';
+          dataToUse = actionToRedo.data;
+          break;
+      }
+
       await undoRedoMutation.mutateAsync({ 
-        action: actionToRedo.action, 
-        data: actionToRedo.data, 
+        action: redoAction, 
+        data: dataToUse, 
         apiEndpoint: endpoint 
       });
 
@@ -189,6 +212,11 @@ export function useActionHistory(pageKey: string) {
 
     } catch (error) {
       console.error('Errore durante redo:', error);
+      toast({
+        title: "Errore Redo",
+        description: "Impossibile ripetere l'azione",
+        variant: "destructive",
+      });
     } finally {
       isPerformingHistoryAction.current = false;
     }
@@ -202,6 +230,24 @@ export function useActionHistory(pageKey: string) {
     setHistory([]);
     setCurrentIndex(-1);
   }, []);
+
+  // Cleanup delle azioni scadute (15 minuti)
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      const fifteenMinutesAgo = Date.now() - (15 * 60 * 1000);
+      setHistory(prev => {
+        const filteredHistory = prev.filter(action => action.timestamp > fifteenMinutesAgo);
+        // Se la cronologia è cambiata, aggiorna l'indice corrente
+        if (filteredHistory.length !== prev.length && currentIndex >= 0) {
+          const newIndex = Math.min(currentIndex, filteredHistory.length - 1);
+          setCurrentIndex(newIndex);
+        }
+        return filteredHistory;
+      });
+    }, 30000); // Controlla ogni 30 secondi per maggior reattività
+
+    return () => clearInterval(cleanupInterval);
+  }, [currentIndex]);
 
   return {
     addAction,

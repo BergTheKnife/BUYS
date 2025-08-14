@@ -25,6 +25,7 @@ import { insertVenditaSchema } from "@shared/schema";
 import type { InsertVendita, Inventario, Vendita } from "@shared/schema";
 import { z } from "zod";
 import { capitalizeWords } from "@/lib/utils";
+import { useActionHistory } from "@/hooks/use-action-history";
 
 interface AddSaleModalProps {
   isOpen: boolean;
@@ -41,6 +42,7 @@ type SaleFormData = z.infer<typeof saleFormSchema>;
 export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { addAction } = useActionHistory('sales');
 
   const { data: inventory = [] } = useQuery<Inventario[]>({
     queryKey: ["/api/inventario"],
@@ -111,7 +113,29 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
       });
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (result: any) => {
+      // Registra l'azione per undo/redo
+      const itemName = selectedItem ? `${selectedItem.nomeArticolo} - ${selectedItem.taglia}` : 'Articolo';
+      
+      if (editingSale) {
+        // Update operation - salva i dati precedenti  
+        addAction({
+          description: `Modificata vendita: ${itemName}`,
+          data: { ...result, nomeArticolo: itemName.split(' - ')[0], taglia: itemName.split(' - ')[1] },
+          previousData: { ...editingSale, nomeArticolo: itemName.split(' - ')[0], taglia: itemName.split(' - ')[1] },
+          action: 'update',
+          entityType: 'sale'
+        });
+      } else {
+        // Create operation
+        addAction({
+          description: `Creata vendita: ${itemName}`,
+          data: { ...result, nomeArticolo: itemName.split(' - ')[0], taglia: itemName.split(' - ')[1] },
+          action: 'create',
+          entityType: 'sale'
+        });
+      }
+
       queryClient.invalidateQueries({ queryKey: ["/api/vendite"] });
       queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
