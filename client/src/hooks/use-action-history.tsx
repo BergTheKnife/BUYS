@@ -30,11 +30,17 @@ export function useActionHistory(pageKey: string) {
       newHistory.push(newAction);
       
       // Mantieni solo le ultime 50 azioni per performance
-      return newHistory.slice(-50);
+      const finalHistory = newHistory.slice(-50);
+      return finalHistory;
     });
 
-    setCurrentIndex(prev => prev + 1);
-  }, [pageKey, currentIndex]);
+    setCurrentIndex(prev => {
+      const newHistory = history.slice(0, currentIndex + 1);
+      newHistory.push(newAction);
+      const finalHistory = newHistory.slice(-50);
+      return finalHistory.length - 1;
+    });
+  }, [pageKey, currentIndex, history]);
 
   const canUndo = currentIndex >= 0;
   const canRedo = currentIndex < history.length - 1;
@@ -84,7 +90,7 @@ export function useActionHistory(pageKey: string) {
     canRedo,
     getCurrentAction,
     clearHistory,
-    history: history.slice(0, currentIndex + 1), // Solo le azioni fino all'indice corrente
+    history, // Restituisci tutta la storia
     isPerformingHistoryAction: isPerformingHistoryAction.current,
   };
 }

@@ -47,6 +47,7 @@ import { Package, Plus, Edit, Trash2, ImageIcon, PackagePlus, Filter, ArrowUpDow
 import type { Inventario } from "@shared/schema";
 import { useActionHistory } from "@/hooks/use-action-history";
 import { ActionHistoryControls } from "@/components/ui/action-history-controls";
+import { ImagePreview } from "@/components/ui/image-preview";
 
 export default function Inventory() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -61,7 +62,8 @@ export default function Inventory() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentActivity } = useAuth();
-  const { addAction, undo, redo, canUndo, canRedo } = useActionHistory('inventory');
+  const { addAction, undo, redo, canUndo, canRedo, history } = useActionHistory('inventory');
+  const [previewImage, setPreviewImage] = useState<{ src: string; alt: string } | null>(null);
 
   // Filtri
   const [filters, setFilters] = useState({
@@ -256,6 +258,9 @@ export default function Inventory() {
           formData.append('taglia', actionToUndo.data.taglia);
           formData.append('costo', actionToUndo.data.costo);
           formData.append('quantita', actionToUndo.data.quantita.toString());
+          if (actionToUndo.data.immagineUrl) {
+            formData.append('immagineUrl', actionToUndo.data.immagineUrl);
+          }
 
           await apiRequest("POST", "/api/inventario", formData);
           queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
@@ -272,6 +277,51 @@ export default function Inventory() {
             variant: "destructive",
           });
         }
+      } else if (actionToUndo.action === 'create' && actionToUndo.entityType === 'inventory') {
+        // Elimina l'articolo creato
+        try {
+          await apiRequest("DELETE", `/api/inventario/${actionToUndo.data.id}`);
+          queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+
+          toast({
+            title: "Azione annullata",
+            description: `Creazione articolo "${actionToUndo.data.nomeArticolo}" annullata`,
+          });
+        } catch (error: any) {
+          toast({
+            title: "Errore",
+            description: "Impossibile annullare l'azione",
+            variant: "destructive",
+          });
+        }
+      } else if (actionToUndo.action === 'update' && actionToUndo.entityType === 'inventory') {
+        // Ripristina l'articolo modificato
+        try {
+          const formData = new FormData();
+          formData.append('nomeArticolo', actionToUndo.data.nomeArticolo);
+          formData.append('taglia', actionToUndo.data.taglia);
+          formData.append('costo', actionToUndo.data.costo);
+          formData.append('quantita', actionToUndo.data.quantita.toString());
+          if (actionToUndo.data.immagineUrl) {
+            formData.append('immagineUrl', actionToUndo.data.immagineUrl);
+          }
+
+          await apiRequest("PUT", `/api/inventario/${actionToUndo.data.id}`, formData);
+          queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+
+          toast({
+            title: "Azione annullata",
+            description: `Modifica articolo "${actionToUndo.data.nomeArticolo}" annullata`,
+          });
+        } catch (error: any) {
+          toast({
+            title: "Errore",
+            description: "Impossibile annullare l'azione",
+            variant: "destructive",
+          });
+        }
       }
     }
   };
@@ -279,11 +329,79 @@ export default function Inventory() {
   const handleRedo = async () => {
     const actionToRedo = await redo();
     if (actionToRedo) {
-      // Implementa la logica di redo se necessario
-      toast({
-        title: "Azione ripetuta",
-        description: actionToRedo.description,
-      });
+      if (actionToRedo.action === 'delete' && actionToRedo.entityType === 'inventory') {
+        // Rielimina l'articolo
+        try {
+          await apiRequest("DELETE", `/api/inventario/${actionToRedo.data.id}`);
+          queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+
+          toast({
+            title: "Azione ripetuta",
+            description: `Articolo "${actionToRedo.data.nomeArticolo}" eliminato`,
+          });
+        } catch (error: any) {
+          toast({
+            title: "Errore",
+            description: "Impossibile ripetere l'azione",
+            variant: "destructive",
+          });
+        }
+      } else if (actionToRedo.action === 'create' && actionToRedo.entityType === 'inventory') {
+        // Rii-crea l'articolo
+        try {
+          const formData = new FormData();
+          formData.append('nomeArticolo', actionToRedo.data.nomeArticolo);
+          formData.append('taglia', actionToRedo.data.taglia);
+          formData.append('costo', actionToRedo.data.costo);
+          formData.append('quantita', actionToRedo.data.quantita.toString());
+          if (actionToRedo.data.immagineUrl) {
+            formData.append('immagineUrl', actionToRedo.data.immagineUrl);
+          }
+
+          await apiRequest("POST", "/api/inventario", formData);
+          queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+
+          toast({
+            title: "Azione ripetuta",
+            description: `Articolo "${actionToRedo.data.nomeArticolo}" creato`,
+          });
+        } catch (error: any) {
+          toast({
+            title: "Errore",
+            description: "Impossibile ripetere l'azione",
+            variant: "destructive",
+          });
+        }
+      } else if (actionToRedo.action === 'update' && actionToRedo.entityType === 'inventory') {
+        // Ri-modifica l'articolo
+        try {
+          const formData = new FormData();
+          formData.append('nomeArticolo', actionToRedo.data.nomeArticolo);
+          formData.append('taglia', actionToRedo.data.taglia);
+          formData.append('costo', actionToRedo.data.costo);
+          formData.append('quantita', actionToRedo.data.quantita.toString());
+          if (actionToRedo.data.immagineUrl) {
+            formData.append('immagineUrl', actionToRedo.data.immagineUrl);
+          }
+
+          await apiRequest("PUT", `/api/inventario/${actionToRedo.data.id}`, formData);
+          queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+
+          toast({
+            title: "Azione ripetuta",
+            description: `Modifica articolo "${actionToRedo.data.nomeArticolo}"`,
+          });
+        } catch (error: any) {
+          toast({
+            title: "Errore",
+            description: "Impossibile ripetere l'azione",
+            variant: "destructive",
+          });
+        }
+      }
     }
   };
 
@@ -545,7 +663,8 @@ export default function Inventory() {
                             <img
                               src={item.immagineUrl}
                               alt={item.nomeArticolo}
-                              className="w-16 h-16 object-cover rounded-lg"
+                              className="w-16 h-16 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+                              onClick={() => setPreviewImage({ src: item.immagineUrl, alt: item.nomeArticolo })}
                             />
                           ) : (
                             <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center">
@@ -683,6 +802,14 @@ export default function Inventory() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Image Preview */}
+        <ImagePreview
+          src={previewImage?.src || ""}
+          alt={previewImage?.alt || ""}
+          isOpen={!!previewImage}
+          onClose={() => setPreviewImage(null)}
+        />
       </div>
     </div>
   );

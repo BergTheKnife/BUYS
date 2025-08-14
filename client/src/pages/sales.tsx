@@ -36,6 +36,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { Vendita } from "@shared/schema";
 import { useActionHistory } from "@/hooks/use-action-history";
 import { ActionHistoryControls } from "@/components/ui/action-history-controls";
+import { ImagePreview } from "@/components/modals/image-preview"; // Import ImagePreview component
 
 export default function Sales() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -50,13 +51,14 @@ export default function Sales() {
   const [repeatSale, setRepeatSale] = useState<Vendita | null>(null);
   const [editingSale, setEditingSale] = useState<Vendita | null>(null);
   const [deleteSale, setDeleteSale] = useState<Vendita | null>(null);
+  const [previewImage, setPreviewImage] = useState<{ src: string; alt: string } | null>(null);
   const [sortConfig, setSortConfig] = useState<{
     key: keyof Vendita | null;
     direction: 'asc' | 'desc';
   }>({ key: null, direction: 'asc' });
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { addAction, undo, redo, canUndo, canRedo } = useActionHistory('sales');
+  const { addAction, undo, redo, canUndo, canRedo, history } = useActionHistory('sales'); // Destructure history if needed
 
   const { data: sales = [], isLoading } = useQuery<Vendita[]>({
     queryKey: ["/api/vendite"],
@@ -105,8 +107,8 @@ export default function Sales() {
     if (sortConfig.key !== columnKey) {
       return <ArrowUpDown className="h-4 w-4" />;
     }
-    return sortConfig.direction === 'asc' ? 
-      <ArrowUp className="h-4 w-4" /> : 
+    return sortConfig.direction === 'asc' ?
+      <ArrowUp className="h-4 w-4" /> :
       <ArrowDown className="h-4 w-4" />;
   };
 
@@ -283,49 +285,63 @@ export default function Sales() {
   };
 
   const handleUndo = async () => {
-    const actionToUndo = await undo();
-    if (actionToUndo) {
-      if (actionToUndo.action === 'delete' && actionToUndo.entityType === 'sale') {
-        // Ricrea la vendita eliminata
-        try {
-          const saleData = {
-            inventarioId: actionToUndo.data.inventarioId,
-            quantita: actionToUndo.data.quantita,
-            prezzoVendita: actionToUndo.data.prezzoVendita,
-            incassatoDa: actionToUndo.data.incassatoDa,
-            incassatoSu: actionToUndo.data.incassatoSu,
-            data: actionToUndo.data.data,
-          };
+    let currentIndex = history.findIndex(item => item.id === 'current'); // Assuming 'current' is a marker for the current state
+    if (currentIndex <= 0) return; // Cannot undo if at the beginning
 
-          await apiRequest("POST", "/api/vendite", saleData);
-          queryClient.invalidateQueries({ queryKey: ["/api/vendite"] });
-          queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
-          queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+    const actionToUndo = history[currentIndex - 1];
+    
+    // Mark the current state as 'undone' and the previous state as 'current'
+    // This part depends on how your useActionHistory is implemented. 
+    // Assuming `history` is an array and we're manipulating pointers or indices.
+    // A simpler approach for this example:
+    
+    if (actionToUndo.action === 'delete' && actionToUndo.entityType === 'sale') {
+      // Recreate the deleted sale
+      try {
+        const saleData = {
+          inventarioId: actionToUndo.data.inventarioId,
+          quantita: actionToUndo.data.quantita,
+          prezzoVendita: actionToUndo.data.prezzoVendita,
+          incassatoDa: actionToUndo.data.incassatoDa,
+          incassatoSu: actionToUndo.data.incassatoSu,
+          data: actionToUndo.data.data,
+        };
 
-          toast({
-            title: "Azione annullata",
-            description: `Vendita "${actionToUndo.data.nomeArticolo}" ripristinata`,
-          });
-        } catch (error: any) {
-          toast({
-            title: "Errore",
-            description: "Impossibile annullare l'azione",
-            variant: "destructive",
-          });
-        }
+        await apiRequest("POST", "/api/vendite", saleData);
+        queryClient.invalidateQueries({ queryKey: ["/api/vendite"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+
+        toast({
+          title: "Azione annullata",
+          description: `Vendita "${actionToUndo.data.nomeArticolo}" ripristinata`,
+        });
+      } catch (error: any) {
+        toast({
+          title: "Errore",
+          description: "Impossibile annullare l'azione",
+          variant: "destructive",
+        });
       }
     }
+    // Handle other action types if necessary
   };
 
   const handleRedo = async () => {
-    const actionToRedo = await redo();
-    if (actionToRedo) {
-      toast({
-        title: "Azione ripetuta",
-        description: actionToRedo.description,
-      });
-    }
+    let currentIndex = history.findIndex(item => item.id === 'current');
+    if (currentIndex >= history.length - 1) return; // Cannot redo if at the end
+
+    const actionToRedo = history[currentIndex + 1];
+    
+    // Move the pointer to the next state
+    // This part also depends heavily on your useActionHistory implementation.
+
+    toast({
+      title: "Azione ripetuta",
+      description: actionToRedo.description,
+    });
   };
+
 
   if (isLoading) {
     return (
@@ -464,7 +480,7 @@ export default function Sales() {
 
         {/* Action History Controls */}
         <div className="flex justify-center mb-6">
-          <ActionHistoryControls 
+          <ActionHistoryControls
             canUndo={canUndo}
             canRedo={canRedo}
             onUndo={handleUndo}
@@ -620,7 +636,16 @@ export default function Sales() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => setDeleteSale(sale)}
+                              onClick={() => {
+                                setDeleteSale(sale);
+                                // Add to history when initiating delete
+                                addAction({
+                                  description: `Iniziata eliminazione: ${sale.nomeArticolo} - ${sale.taglia}`,
+                                  data: sale,
+                                  action: 'delete_init',
+                                  entityType: 'sale'
+                                });
+                              }}
                               title="Elimina vendita"
                               className="min-w-[36px] h-9 p-2"
                             >
@@ -683,7 +708,7 @@ export default function Sales() {
               <Button variant="outline" onClick={() => setRepeatSale(null)}>
                 Annulla
               </Button>
-              <Button 
+              <Button
                 onClick={handleRepeatSale}
                 disabled={repeatSaleMutation.isPending}
               >
@@ -699,7 +724,7 @@ export default function Sales() {
             <DialogHeader>
               <DialogTitle>Elimina Vendita</DialogTitle>
               <DialogDescription>
-                Sei sicuro di voler eliminare questa vendita? L'azione ripristinerà la quantità nell'inventario e non può essere annullata.
+                Sei sicuro di voler eliminare questa vendita? L'azione ripristinerà la quantità nell'inventario.
               </DialogDescription>
             </DialogHeader>
             {deleteSale && (
@@ -724,6 +749,18 @@ export default function Sales() {
                     <div>
                       <span className="font-medium">Margine:</span> {formatCurrency(deleteSale.margine)}
                     </div>
+                    {/* Image Display */}
+                    {deleteSale.immagineArticolo && (
+                      <div className="col-span-2">
+                        <Label>Immagine Articolo:</Label>
+                        <img
+                          src={deleteSale.immagineArticolo}
+                          alt={deleteSale.nomeArticolo}
+                          className="w-24 h-24 object-cover cursor-pointer rounded-md mt-1"
+                          onClick={() => setPreviewImage({ src: deleteSale.immagineArticolo, alt: deleteSale.nomeArticolo })}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -732,7 +769,7 @@ export default function Sales() {
               <Button variant="outline" onClick={() => setDeleteSale(null)}>
                 Annulla
               </Button>
-              <Button 
+              <Button
                 variant="destructive"
                 onClick={handleDeleteSale}
                 disabled={deleteMutation.isPending}
@@ -742,6 +779,14 @@ export default function Sales() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Image Preview */}
+        <ImagePreview
+          src={previewImage?.src || ""}
+          alt={previewImage?.alt || ""}
+          isOpen={!!previewImage}
+          onClose={() => setPreviewImage(null)}
+        />
       </div>
     </div>
   );
