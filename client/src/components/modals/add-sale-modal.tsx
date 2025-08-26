@@ -116,7 +116,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
     onSuccess: (result: any) => {
       // Registra l'azione per undo/redo
       const itemName = selectedItem ? `${selectedItem.nomeArticolo} - ${selectedItem.taglia}` : 'Articolo';
-      
+
       if (editingSale) {
         // Update operation - salva i dati precedenti  
         addAction({

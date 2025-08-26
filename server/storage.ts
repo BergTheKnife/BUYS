@@ -680,6 +680,81 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateSale(id: string, activityId: string, updates: Partial<InsertVendita> & { nomeArticolo?: string; taglia?: string; margine?: string }): Promise<Vendita | null> {
+    // Get the existing sale to compare changes
+    const [existingSale] = await db
+      .select()
+      .from(vendite)
+      .where(and(eq(vendite.id, id), eq(vendite.activityId, activityId)));
+
+    if (!existingSale) return null;
+
+    const oldQuantity = existingSale.quantita;
+    const newQuantity = updates.quantita || oldQuantity;
+    const oldInventarioId = existingSale.inventarioId;
+    const newInventarioId = updates.inventarioId || oldInventarioId;
+
+    // If the inventory item changed, we need to handle both items
+    if (newInventarioId !== oldInventarioId) {
+      // Restore quantity to the old item
+      await db
+        .update(inventario)
+        .set({ 
+          quantita: sql`${inventario.quantita} + ${oldQuantity}`
+        })
+        .where(eq(inventario.id, oldInventarioId));
+
+      // Check if new item has enough quantity
+      const [newItem] = await db
+        .select()
+        .from(inventario)
+        .where(eq(inventario.id, newInventarioId));
+
+      if (!newItem || newItem.quantita < newQuantity) {
+        // Restore the old item quantity back if new item doesn't have enough stock
+        await db
+          .update(inventario)
+          .set({ 
+            quantita: sql`${inventario.quantita} - ${oldQuantity}`
+          })
+          .where(eq(inventario.id, oldInventarioId));
+        
+        throw new Error("Quantità insufficiente nel nuovo articolo selezionato");
+      }
+
+      // Subtract quantity from the new item
+      await db
+        .update(inventario)
+        .set({ 
+          quantita: sql`${inventario.quantita} - ${newQuantity}`
+        })
+        .where(eq(inventario.id, newInventarioId));
+    } else {
+      // Same item, just quantity change
+      const quantityDifference = newQuantity - oldQuantity;
+      
+      if (quantityDifference !== 0) {
+        // Check if we have enough inventory for the quantity change
+        if (quantityDifference > 0) {
+          const [item] = await db
+            .select()
+            .from(inventario)
+            .where(eq(inventario.id, oldInventarioId));
+          
+          if (!item || item.quantita < quantityDifference) {
+            throw new Error("Quantità insufficiente in magazzino per questa modifica");
+          }
+        }
+
+        await db
+          .update(inventario)
+          .set({ 
+            quantita: sql`${inventario.quantita} - ${quantityDifference}`
+          })
+          .where(eq(inventario.id, oldInventarioId));
+      }
+    }
+
+    // Update the sale
     const [updatedSale] = await db
       .update(vendite)
       .set(updates)

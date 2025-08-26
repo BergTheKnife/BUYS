@@ -2039,38 +2039,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Vendita non trovata" });
       }
       
-      // Get inventory item to check availability and calculate new margin
+      // Get inventory item to calculate new margin and article info
       const inventoryItem = await storage.getInventoryItem(updates.inventarioId || existingSale.inventarioId, req.session.activityId!);
       if (!inventoryItem) {
         return res.status(404).json({ message: "Articolo non trovato nell'inventario" });
       }
       
-      const oldQuantity = existingSale.quantita;
-      const newQuantity = updates.quantita || oldQuantity;
-      const quantityDifference = newQuantity - oldQuantity;
-      
-      // Check if we have enough inventory for the quantity change
-      if (quantityDifference > 0 && inventoryItem.quantita < quantityDifference) {
-        return res.status(400).json({ message: "Quantità insufficiente in magazzino per questa modifica" });
-      }
-      
-      // Calculate new margin if price or quantity changed
+      // Calculate new margin
       const newPrice = updates.prezzoVendita || existingSale.prezzoVendita;
+      const newQuantity = updates.quantita || existingSale.quantita;
       const marginePerUnit = Number(newPrice) - Number(inventoryItem.costo);
       const margineTotal = marginePerUnit * newQuantity;
       
-      // Update sale with new margin and article info
+      // Update sale with new margin and article info (inventory quantities are handled in updateSale)
       const updatedSale = await storage.updateSale(id, req.session.activityId!, {
         ...updates,
         nomeArticolo: inventoryItem.nomeArticolo,
         taglia: inventoryItem.taglia,
         margine: margineTotal.toString(),
       });
-      
-      // Update inventory quantity based on the difference
-      if (quantityDifference !== 0) {
-        await storage.updateInventoryQuantity(inventoryItem.id, inventoryItem.quantita - quantityDifference);
-      }
       
       res.json(updatedSale);
     } catch (error: any) {
