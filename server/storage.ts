@@ -58,7 +58,7 @@ export interface IStorage {
   createRememberToken(userId: string, token: string, expiresAt: Date): Promise<void>;
   getRememberToken(token: string): Promise<{ userId: string; expiresAt: Date } | undefined>;
   deleteRememberToken(token: string): Promise<void>;
-  deleteExpiredRememberTokens(): Promise<void>;
+  cleanupExpiredRememberTokens(): Promise<void>;
 
   // Activity methods
   createActivity(activity: InsertActivity & { proprietarioId: string }): Promise<Activity>;
@@ -319,7 +319,7 @@ export class DatabaseStorage implements IStorage {
     await db.delete(rememberTokens).where(eq(rememberTokens.token, token));
   }
 
-  async deleteExpiredRememberTokens(): Promise<void> {
+  async cleanupExpiredRememberTokens(): Promise<void> {
     await db
       .delete(rememberTokens)
       .where(sql`${rememberTokens.expiresAt} < NOW()`);
