@@ -1750,7 +1750,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Export inventory to Excel
   app.get('/api/export/inventory/excel', requireActivity, async (req, res) => {
     try {
-      const xlsx = require('xlsx');
+      const xlsx = await import('xlsx');
       const activityId = req.session.activityId!;
       
       // Get inventory and sales data
