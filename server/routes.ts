@@ -1747,6 +1747,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Export inventory to Excel
+  app.get('/api/export/inventory/excel', requireActivity, async (req, res) => {
+    try {
+      const xlsx = require('xlsx');
+      const activityId = req.session.activityId!;
+      
+      // Get inventory and sales data
+      const inventory = await storage.getInventoryByActivity(activityId);
+      const sales = await storage.getSalesByActivity(activityId);
+      
+      // Calculate sold quantities for each inventory item
+      const soldQuantities = new Map<string, number>();
+      
+      sales.forEach(sale => {
+        const key = `${sale.nomeArticolo}-${sale.taglia}`;
+        const currentSold = soldQuantities.get(key) || 0;
+        soldQuantities.set(key, currentSold + sale.quantita);
+      });
+      
+      // Prepare data for Excel export
+      const excelData = inventory.map(item => {
+        const key = `${item.nomeArticolo}-${item.taglia}`;
+        const quantitaVenduta = soldQuantities.get(key) || 0;
+        const valoreTotale = Number(item.costo) * item.quantita;
+        
+        return {
+          'Nome Articolo': item.nomeArticolo,
+          'Taglia': item.taglia,
+          'Costo (€)': Number(item.costo).toFixed(2),
+          'Quantità Disponibile': item.quantita,
+          'Quantità Venduta': quantitaVenduta,
+          'Valore Totale (€)': valoreTotale.toFixed(2),
+          'Data Creazione': new Date(item.createdAt || '').toLocaleDateString('it-IT')
+        };
+      });
+      
+      // Create workbook and worksheet
+      const workbook = xlsx.utils.book_new();
+      const worksheet = xlsx.utils.json_to_sheet(excelData);
+      
+      // Set column widths
+      worksheet['!cols'] = [
+        { wch: 20 }, // Nome Articolo
+        { wch: 10 }, // Taglia
+        { wch: 12 }, // Costo
+        { wch: 18 }, // Quantità Disponibile
+        { wch: 16 }, // Quantità Venduta
+        { wch: 16 }, // Valore Totale
+        { wch: 15 }  // Data Creazione
+      ];
+      
+      // Add worksheet to workbook
+      xlsx.utils.book_append_sheet(workbook, worksheet, 'Inventario');
+      
+      // Generate Excel file buffer
+      const excelBuffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      
+      // Set response headers for file download
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="inventario_${new Date().toISOString().split('T')[0]}.xlsx"`);
+      res.setHeader('Content-Length', excelBuffer.length);
+      
+      // Send the Excel file
+      res.send(excelBuffer);
+    } catch (error: any) {
+      console.error('Excel export error:', error);
+      res.status(500).json({ message: error.message || "Errore nell'esportazione Excel" });
+    }
+  });
+
   // Get activity members for dropdown selections
   app.get("/api/activity-members", requireActivity, async (req, res) => {
     try {

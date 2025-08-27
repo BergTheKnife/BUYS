@@ -44,7 +44,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Package, Plus, Edit, Trash2, ImageIcon, PackagePlus, Filter, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Package, Plus, Edit, Trash2, ImageIcon, PackagePlus, Filter, ArrowUpDown, ArrowUp, ArrowDown, Download } from "lucide-react";
 import type { Inventario } from "@shared/schema";
 // Hook undo/redo rimosso
 import { ImagePreview } from "@/components/ui/image-preview";
@@ -244,6 +244,38 @@ export default function Inventory() {
     }
   };
 
+  const handleExcelDownload = async () => {
+    try {
+      const response = await apiRequest("GET", "/api/export/inventory/excel");
+      
+      if (!response.ok) {
+        throw new Error("Errore nel download del file Excel");
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `inventario_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({
+        title: "Successo",
+        description: "File Excel scaricato con successo",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore nel download del file Excel",
+        variant: "destructive",
+      });
+    }
+  };
+
 
 
 
@@ -284,10 +316,16 @@ export default function Inventory() {
             <Package className="h-8 w-8" />
             Magazzino
           </h1>
-          <Button onClick={() => setIsAddModalOpen(true)} className="bg-blue-600">
-            <Plus className="h-4 w-4 mr-2" />
-            Aggiungi Articolo
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={handleExcelDownload} variant="outline" className="bg-green-50 border-green-200 text-green-700 hover:bg-green-100">
+              <Download className="h-4 w-4 mr-2" />
+              Scarica Excel
+            </Button>
+            <Button onClick={() => setIsAddModalOpen(true)} className="bg-blue-600">
+              <Plus className="h-4 w-4 mr-2" />
+              Aggiungi Articolo
+            </Button>
+          </div>
         </div>
 
         {/* Filtri */}
