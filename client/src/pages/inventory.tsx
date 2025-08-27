@@ -91,6 +91,12 @@ export default function Inventory() {
     enabled: !!currentActivity?.id,
   });
 
+  // Query per ottenere le vendite per calcolare le quantità vendute
+  const { data: sales = [] } = useQuery({
+    queryKey: ["/api/vendite"],
+    enabled: !!currentActivity?.id,
+  });
+
   // Sorting function
   const handleSort = (key: keyof Inventario) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -108,6 +114,19 @@ export default function Inventory() {
       <ArrowUp className="h-4 w-4" /> : 
       <ArrowDown className="h-4 w-4" />;
   };
+
+  // Calcola le quantità vendute per ogni articolo
+  const soldQuantities = useMemo(() => {
+    const quantities = new Map<string, number>();
+    
+    sales.forEach((sale: any) => {
+      const key = `${sale.nomeArticolo}-${sale.taglia}`;
+      const currentSold = quantities.get(key) || 0;
+      quantities.set(key, currentSold + sale.quantita);
+    });
+    
+    return quantities;
+  }, [sales]);
 
   // Applica i filtri e ordinamento all'inventario
   const filteredInventory = useMemo(() => {
@@ -526,6 +545,7 @@ export default function Inventory() {
                           {getSortIcon('quantita')}
                         </button>
                       </TableHead>
+                      <TableHead>Vendute</TableHead>
                       <TableHead>Valore Totale</TableHead>
                       <TableHead>Azioni</TableHead>
                     </TableRow>
@@ -558,6 +578,11 @@ export default function Inventory() {
                           <Badge variant={getQuantityVariant(item.quantita)}>
                             {item.quantita}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <span className="font-semibold text-green-600">
+                            {soldQuantities.get(`${item.nomeArticolo}-${item.taglia}`) || 0}
+                          </span>
                         </TableCell>
                         <TableCell className="font-semibold">
                           {formatCurrency(Number(item.costo) * item.quantita)}
