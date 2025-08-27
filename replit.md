@@ -4,9 +4,20 @@
 
 BUYS (Build Up Your Store) is a comprehensive business management system designed for small clothing retailers to manage inventory, sales, expenses, and financial tracking. The application provides a complete solution for business owners to track their products with sizes and images, record sales transactions with quantity control, monitor expenses with automatic inventory cost tracking, and analyze their financial performance through an intuitive dashboard interface. Features secure multi-activity support and comprehensive email verification system for enhanced security.
 
-## Recent Changes (August 7, 2025)
+## Recent Changes (August 27, 2025)
 
-### Latest Update - MAXIMUM DATA PROTECTION SYSTEM (COMPLETED)
+### Latest Update - SISTEMA AUTO-LOGIN "RICORDAMI" COMPLETATO (COMPLETED)
+- **AUTO-LOGIN 30 GIORNI**: Sistema completo "Ricorda le mie credenziali" per login automatico fino a 30 giorni
+- **DATABASE REMEMBER_TOKENS**: Tabella sicura per memorizzare token di ricordo con scadenza automatica
+- **COOKIE HTTPONLY SICURI**: Cookie protetti con httpOnly, SameSite=Strict e durata 30 giorni
+- **ENDPOINT AUTO-LOGIN**: Nuovo endpoint `/api/auth/auto-login` per autenticazione automatica all'avvio app
+- **PULIZIA AUTOMATICA**: Job di pulizia token scaduti ogni ora con cleanup automatico dopo 5 minuti
+- **COOKIE-PARSER**: Middleware configurato per gestione sicura dei cookie nel server Express
+- **INTEGRAZIONE FRONTEND**: Auto-login silenzioso all'avvio con fallback elegante al form di login
+- **PASSWORD RESET**: Sistema di reset password funzionante per utenti esistenti
+- **SESSIONI ESTESE**: Durata sessione automaticamente estesa a 30 giorni quando "Ricordami" è attivo
+
+### Previous Update - MAXIMUM DATA PROTECTION SYSTEM (COMPLETED)
 - **CRITICAL SECURITY IMPLEMENTED**: Advanced data protection system prevents any accidental data loss during development
 - **AUTOMATIC BACKUPS**: Mandatory backup creation before any deletion operation with audit trail logging
 - **BUSINESS DATA PROTECTION**: Complete blocking of user/admin deletions when business data exists (inventory, sales, expenses)
