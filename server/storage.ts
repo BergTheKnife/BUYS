@@ -6,7 +6,8 @@ import {
   activities,
   activityUsers,
   emailVerificationTokens,
-  passwordResetTokens, // Import the new table
+  passwordResetTokens,
+  rememberTokens, // Import remember tokens table
   type User, 
   type InsertUser,
   type Inventario,
@@ -22,8 +23,8 @@ import {
   type InsertActivityUser,
   type EmailVerificationToken,
   type InsertEmailVerificationToken,
-  type PasswordResetToken, // Import the new type
-  type InsertPasswordResetToken // Import the new type
+  type PasswordResetToken,
+  type InsertPasswordResetToken
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sum, sql, gte, lt, lte, or, like, ilike } from "drizzle-orm";
@@ -52,6 +53,12 @@ export interface IStorage {
   deletePasswordResetToken(token: string): Promise<boolean>;
   deletePasswordResetTokensByUserId(userId: string): Promise<void>;
   deleteExpiredPasswordResetTokens(): Promise<void>;
+
+  // Remember Me token methods
+  createRememberToken(userId: string, token: string, expiresAt: Date): Promise<void>;
+  getRememberToken(token: string): Promise<{ userId: string; expiresAt: Date } | undefined>;
+  deleteRememberToken(token: string): Promise<void>;
+  deleteExpiredRememberTokens(): Promise<void>;
 
   // Activity methods
   createActivity(activity: InsertActivity & { proprietarioId: string }): Promise<Activity>;
@@ -284,6 +291,38 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(passwordResetTokens)
       .where(sql`${passwordResetTokens.expiresAt} < NOW()`);
+  }
+
+  // Remember Me token implementation
+  async createRememberToken(userId: string, token: string, expiresAt: Date): Promise<void> {
+    await db.insert(rememberTokens).values({
+      userId,
+      token,
+      expiresAt,
+    });
+  }
+
+  async getRememberToken(token: string): Promise<{ userId: string; expiresAt: Date } | undefined> {
+    const result = await db
+      .select({
+        userId: rememberTokens.userId,
+        expiresAt: rememberTokens.expiresAt,
+      })
+      .from(rememberTokens)
+      .where(eq(rememberTokens.token, token))
+      .limit(1);
+
+    return result[0];
+  }
+
+  async deleteRememberToken(token: string): Promise<void> {
+    await db.delete(rememberTokens).where(eq(rememberTokens.token, token));
+  }
+
+  async deleteExpiredRememberTokens(): Promise<void> {
+    await db
+      .delete(rememberTokens)
+      .where(sql`${rememberTokens.expiresAt} < NOW()`);
   }
 
   // Activity methods

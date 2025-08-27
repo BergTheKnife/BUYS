@@ -7,6 +7,7 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { storage } from "./storage";
 import { db } from "./db";
 import bcrypt from "bcrypt";
+import { randomBytes } from "crypto";
 import { eq, sql, and } from "drizzle-orm";
 import { activities, activityUsers, vendite, spese, inventario, users } from "@shared/schema";
 import multer from "multer";
@@ -139,6 +140,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Add data protection middleware to log and protect all operations
   app.use(dataProtectionMiddleware);
+
+  // Cleanup expired remember tokens every hour
+  const startTokenCleanup = () => {
+    const cleanup = async () => {
+      try {
+        await storage.cleanupExpiredRememberTokens();
+        console.log('Cleaned up expired remember tokens');
+      } catch (error) {
+        console.error('Error cleaning up remember tokens:', error);
+      }
+    };
+    
+    // Run cleanup every hour (3600000 ms)
+    setInterval(cleanup, 3600000);
+    
+    // Run initial cleanup after 5 minutes
+    setTimeout(cleanup, 300000);
+  };
+  
+  startTokenCleanup();
 
   // Auth middleware
   const requireAuth = (req: any, res: any, next: any) => {
@@ -289,6 +310,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Set session duration based on remember me checkbox
       if (rememberMe) {
         req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
+        
+        // Create remember token for auto-login
+        const rememberToken = randomBytes(64).toString('hex');
+        const expiresAt = new Date(Date.now() + (30 * 24 * 60 * 60 * 1000)); // 30 days
+        
+        await storage.createRememberToken(user.id, rememberToken, expiresAt);
+        
+        // Set httpOnly cookie with remember token
+        res.cookie('rememberToken', rememberToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'strict',
+          maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+        });
       } else {
         req.session.cookie.maxAge = 24 * 60 * 60 * 1000; // 24 hours if not remembered
       }
@@ -708,13 +743,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/auth/logout', (req, res) => {
-    req.session.destroy((err) => {
-      if (err) {
-        return res.status(500).json({ message: "Errore durante il logout" });
+  app.post('/api/auth/logout', async (req, res) => {
+    try {
+      // Clear remember token if exists
+      const rememberToken = req.cookies.rememberToken;
+      if (rememberToken) {
+        await storage.deleteRememberToken(rememberToken);
+        res.clearCookie('rememberToken');
       }
-      res.json({ message: "Logout effettuato con successo" });
-    });
+      
+      req.session.destroy((err) => {
+        if (err) {
+          return res.status(500).json({ message: "Errore durante il logout" });
+        }
+        res.clearCookie('connect.sid');
+        res.json({ message: "Logout effettuato con successo" });
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+      res.status(500).json({ message: "Errore durante il logout" });
+    }
+  });
+
+  // Auto-login with remember token
+  app.post('/api/auth/auto-login', async (req, res) => {
+    try {
+      const rememberToken = req.cookies.rememberToken;
+      
+      if (!rememberToken) {
+        return res.status(401).json({ message: "Nessun token di ricordo trovato" });
+      }
+
+      const tokenData = await storage.getRememberToken(rememberToken);
+      
+      if (!tokenData) {
+        res.clearCookie('rememberToken');
+        return res.status(401).json({ message: "Token di ricordo non valido" });
+      }
+
+      // Check if token has expired
+      if (new Date() > tokenData.expiresAt) {
+        await storage.deleteRememberToken(rememberToken);
+        res.clearCookie('rememberToken');
+        return res.status(401).json({ message: "Token di ricordo scaduto" });
+      }
+
+      // Get user data
+      const user = await storage.getUser(tokenData.userId);
+      if (!user || user.isActive === 0) {
+        await storage.deleteRememberToken(rememberToken);
+        res.clearCookie('rememberToken');
+        return res.status(401).json({ message: "Utente non valido" });
+      }
+
+      // Set session
+      req.session.userId = user.id;
+      req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
+      
+      // Restore last activity if available
+      let restoredActivity = null;
+      if (user.lastActivityId) {
+        try {
+          const activity = await storage.getActivityById(user.lastActivityId);
+          if (activity) {
+            req.session.activityId = user.lastActivityId;
+            restoredActivity = activity;
+          }
+        } catch (error) {
+          console.log('Could not restore last activity:', error);
+        }
+      }
+      
+      req.session.save((err) => {
+        if (err) {
+          console.log('Session save error:', err);
+          return res.status(500).json({ message: "Errore di sessione" });
+        }
+        
+        res.json({ 
+          user: { 
+            id: user.id, 
+            nome: user.nome, 
+            cognome: user.cognome, 
+            email: user.email, 
+            username: user.username,
+            createdAt: user.createdAt,
+            profileImageUrl: user.profileImageUrl
+          },
+          hasActivity: !!restoredActivity,
+          currentActivity: restoredActivity ? {
+            id: restoredActivity.id,
+            nome: restoredActivity.nome,
+            proprietarioId: restoredActivity.proprietarioId
+          } : null
+        });
+      });
+    } catch (error: any) {
+      console.error('Auto-login error:', error);
+      res.status(500).json({ message: "Errore durante l'auto-login" });
+    }
   });
 
   app.get('/api/auth/me', requireAuth, async (req, res) => {

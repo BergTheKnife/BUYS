@@ -42,6 +42,18 @@ export const passwordResetTokens = pgTable("password_reset_tokens", {
   index("password_reset_tokens_token_idx").on(table.token),
 ]);
 
+// Remember Me tokens for auto-login
+export const rememberTokens = pgTable("remember_tokens", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("remember_tokens_user_idx").on(table.userId),
+  index("remember_tokens_token_idx").on(table.token),
+]);
+
 // Activities table
 export const activities = pgTable("activities", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),

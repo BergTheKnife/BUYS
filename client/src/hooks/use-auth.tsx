@@ -20,11 +20,35 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
+  const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
 
   const { data: authData, isLoading } = useQuery({
     queryKey: ["/api/auth/me"],
     retry: false,
   });
+
+  // Auto-login mutation with remember token
+  const autoLoginMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/auth/auto-login");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+    },
+    onError: (error: any) => {
+      // Silently fail auto-login - user will see login form
+      console.log('Auto-login failed:', error.message);
+    },
+  });
+
+  // Attempt auto-login on app start if no session exists
+  useEffect(() => {
+    if (!autoLoginAttempted && !isLoading && !authData?.user) {
+      setAutoLoginAttempted(true);
+      autoLoginMutation.mutate();
+    }
+  }, [authData, isLoading, autoLoginAttempted]);
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginUser & { rememberMe?: boolean }) => {
