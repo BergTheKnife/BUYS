@@ -316,16 +316,10 @@ export default function Inventory() {
             <Package className="h-8 w-8" />
             Magazzino
           </h1>
-          <div className="flex gap-2">
-            <Button onClick={handleExcelDownload} variant="outline" className="bg-green-50 border-green-200 text-green-700 hover:bg-green-100">
-              <Download className="h-4 w-4 mr-2" />
-              Scarica Excel
-            </Button>
-            <Button onClick={() => setIsAddModalOpen(true)} className="bg-blue-600">
-              <Plus className="h-4 w-4 mr-2" />
-              Aggiungi Articolo
-            </Button>
-          </div>
+          <Button onClick={() => setIsAddModalOpen(true)} className="bg-blue-600">
+            <Plus className="h-4 w-4 mr-2" />
+            Aggiungi Articolo
+          </Button>
         </div>
 
         {/* Filtri */}
@@ -607,6 +601,16 @@ export default function Inventory() {
             )}
           </CardContent>
         </Card>
+
+        {/* Pulsante Excel in fondo alla pagina */}
+        {inventory.length > 0 && (
+          <div className="flex justify-center mt-6">
+            <Button onClick={handleExcelDownload} variant="outline" className="bg-green-50 border-green-200 text-green-700 hover:bg-green-100">
+              <Download className="h-4 w-4 mr-2" />
+              Scarica Excel
+            </Button>
+          </div>
+        )}
 
         <AddItemModal
           isOpen={isAddModalOpen || !!editingItem}
