@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Package, Plus, Edit, Trash2, ImageIcon, PackagePlus, Filter, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import type { Inventario } from "@shared/schema";
 // Hook undo/redo rimosso
@@ -63,6 +64,9 @@ export default function Inventory() {
   const { currentActivity } = useAuth();
   // Hook undo/redo rimosso
   const [previewImage, setPreviewImage] = useState<{ src: string; alt: string } | null>(null);
+  
+  // Toggle per nascondere articoli terminati
+  const [hideOutOfStock, setHideOutOfStock] = useState(false);
 
   // Filtri
   const [filters, setFilters] = useState({
@@ -108,6 +112,11 @@ export default function Inventory() {
   // Applica i filtri e ordinamento all'inventario
   const filteredInventory = useMemo(() => {
     return inventory.filter((item: Inventario) => {
+      // Filtro per articoli terminati
+      if (hideOutOfStock && item.quantita === 0) {
+        return false;
+      }
+
       // Filtro per nome articolo
       if (filters.nomeArticolo && !item.nomeArticolo.toLowerCase().includes(filters.nomeArticolo.toLowerCase())) {
         return false;
@@ -171,7 +180,7 @@ export default function Inventory() {
       }
       return 0;
     });
-  }, [inventory, filters, sortConfig]);
+  }, [inventory, filters, sortConfig, hideOutOfStock]);
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -392,7 +401,17 @@ export default function Inventory() {
           </CardContent>
         </Card>
 
-        {/* Controlli undo/redo rimossi */}
+        {/* Toggle per nascondere articoli terminati */}
+        <div className="flex items-center space-x-3 mb-4">
+          <Switch
+            id="hide-out-of-stock"
+            checked={hideOutOfStock}
+            onCheckedChange={setHideOutOfStock}
+          />
+          <Label htmlFor="hide-out-of-stock" className="text-sm font-medium">
+            Nascondi articoli terminati
+          </Label>
+        </div>
 
         <Card>
           <CardHeader>
