@@ -3,6 +3,8 @@ import {
   inventario, 
   vendite, 
   spese,
+  fundTransfers,
+  financialHistory,
   activities,
   activityUsers,
   emailVerificationTokens,
@@ -16,6 +18,10 @@ import {
   type InsertVendita,
   type Spesa,
   type InsertSpesa,
+  type FundTransfer,
+  type InsertFundTransfer,
+  type FinancialHistory,
+  type InsertFinancialHistory,
   type UpdateProfile,
   type Activity,
   type InsertActivity,
@@ -161,6 +167,14 @@ export interface IStorage {
     marginData: Array<{date: string, amount: number}>;
     months: string[];
   }>;
+
+  // Fund transfer methods
+  getFundTransfersByActivity(activityId: string): Promise<FundTransfer[]>;
+  createFundTransfers(transfers: Array<InsertFundTransfer & { userId: string; activityId: string }>): Promise<FundTransfer[]>;
+  
+  // Financial history methods
+  getFinancialHistoryByActivity(activityId: string): Promise<FinancialHistory[]>;
+  createFinancialHistoryEntry(entry: InsertFinancialHistory & { userId: string; activityId: string }): Promise<FinancialHistory>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1328,6 +1342,55 @@ export class DatabaseStorage implements IStorage {
         return date.toLocaleDateString('it-IT', { month: 'short', year: 'numeric' });
       })
     };
+  }
+
+  // Fund transfer methods
+  async getFundTransfersByActivity(activityId: string): Promise<FundTransfer[]> {
+    return await db.select().from(fundTransfers).where(eq(fundTransfers.activityId, activityId)).orderBy(desc(fundTransfers.data));
+  }
+
+  async createFundTransfers(transfers: Array<InsertFundTransfer & { userId: string; activityId: string }>): Promise<FundTransfer[]> {
+    const results = [];
+    
+    for (const transfer of transfers) {
+      // Create fund transfer record
+      const [newTransfer] = await db
+        .insert(fundTransfers)
+        .values(transfer)
+        .returning();
+      results.push(newTransfer);
+
+      // Create financial history entry
+      const description = `Trasferimento fondi: ${transfer.importo}€ da ${transfer.fromMember} (${transfer.fromAccount}) a ${transfer.toAccount}`;
+      await db.insert(financialHistory).values({
+        userId: transfer.userId,
+        activityId: transfer.activityId,
+        azione: "Riunisci fondi",
+        descrizione: description,
+        importo: transfer.importo,
+        dettagli: JSON.stringify({
+          fromMember: transfer.fromMember,
+          fromAccount: transfer.fromAccount,
+          toAccount: transfer.toAccount,
+          descrizione: transfer.descrizione
+        })
+      });
+    }
+
+    return results;
+  }
+
+  // Financial history methods
+  async getFinancialHistoryByActivity(activityId: string): Promise<FinancialHistory[]> {
+    return await db.select().from(financialHistory).where(eq(financialHistory.activityId, activityId)).orderBy(desc(financialHistory.data));
+  }
+
+  async createFinancialHistoryEntry(entry: InsertFinancialHistory & { userId: string; activityId: string }): Promise<FinancialHistory> {
+    const [newEntry] = await db
+      .insert(financialHistory)
+      .values(entry)
+      .returning();
+    return newEntry;
   }
 }
 

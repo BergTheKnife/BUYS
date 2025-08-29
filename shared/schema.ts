@@ -114,6 +114,33 @@ export const spese = pgTable("spese", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Fund transfers table for "Riunisci fondi" functionality
+export const fundTransfers = pgTable("fund_transfers", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  activityId: uuid("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
+  fromMember: text("from_member").notNull(), // Chi ha trasferito i fondi
+  fromAccount: text("from_account").notNull(), // Da quale conto
+  toAccount: text("to_account").notNull().default("Cassa Reinvestimento"), // Verso quale conto
+  importo: decimal("importo", { precision: 10, scale: 2 }).notNull(),
+  descrizione: text("descrizione"), // Descrizione opzionale del trasferimento
+  data: timestamp("data").notNull().defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Financial history table for tracking all financial management actions
+export const financialHistory = pgTable("financial_history", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  activityId: uuid("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
+  azione: text("azione").notNull(), // Tipo di azione (es. "Riunisci fondi", "Vendita registrata")
+  descrizione: text("descrizione").notNull(), // Descrizione dell'azione
+  importo: decimal("importo", { precision: 10, scale: 2 }), // Importo coinvolto (opzionale)
+  dettagli: text("dettagli"), // JSON stringificato con dettagli aggiuntivi
+  data: timestamp("data").notNull().defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const emailVerificationTokensRelations = relations(emailVerificationTokens, ({ one }) => ({
   user: one(users, {
     fields: [emailVerificationTokens.userId],
@@ -132,6 +159,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   inventario: many(inventario),
   vendite: many(vendite),
   spese: many(spese),
+  fundTransfers: many(fundTransfers),
+  financialHistory: many(financialHistory),
   ownedActivities: many(activities),
   activityMemberships: many(activityUsers),
   emailVerificationTokens: many(emailVerificationTokens),
@@ -146,6 +175,8 @@ export const activitiesRelations = relations(activities, ({ one, many }) => ({
   inventario: many(inventario),
   vendite: many(vendite),
   spese: many(spese),
+  fundTransfers: many(fundTransfers),
+  financialHistory: many(financialHistory),
 }));
 
 export const activityUsersRelations = relations(activityUsers, ({ one }) => ({
@@ -193,6 +224,28 @@ export const speseRelations = relations(spese, ({ one }) => ({
   }),
   activity: one(activities, {
     fields: [spese.activityId],
+    references: [activities.id],
+  }),
+}));
+
+export const fundTransfersRelations = relations(fundTransfers, ({ one }) => ({
+  user: one(users, {
+    fields: [fundTransfers.userId],
+    references: [users.id],
+  }),
+  activity: one(activities, {
+    fields: [fundTransfers.activityId],
+    references: [activities.id],
+  }),
+}));
+
+export const financialHistoryRelations = relations(financialHistory, ({ one }) => ({
+  user: one(users, {
+    fields: [financialHistory.userId],
+    references: [users.id],
+  }),
+  activity: one(activities, {
+    fields: [financialHistory.activityId],
     references: [activities.id],
   }),
 }));
@@ -284,6 +337,22 @@ export const insertSpesaSchema = createInsertSchema(spese).omit({
   createdAt: true,
 });
 
+export const insertFundTransferSchema = createInsertSchema(fundTransfers).omit({
+  id: true,
+  userId: true,
+  activityId: true,  // Excluded because it's added server-side
+  data: true, // Will be set to current time
+  createdAt: true,
+});
+
+export const insertFinancialHistorySchema = createInsertSchema(financialHistory).omit({
+  id: true,
+  userId: true,
+  activityId: true,  // Excluded because it's added server-side
+  data: true, // Will be set to current time
+  createdAt: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type LoginUser = z.infer<typeof loginUserSchema>;
 export type UpdateProfile = z.infer<typeof updateProfileSchema>;
@@ -296,6 +365,10 @@ export type InsertVendita = z.infer<typeof insertVenditaSchema>;
 export type Vendita = typeof vendite.$inferSelect;
 export type InsertSpesa = z.infer<typeof insertSpesaSchema>;
 export type Spesa = typeof spese.$inferSelect;
+export type InsertFundTransfer = z.infer<typeof insertFundTransferSchema>;
+export type FundTransfer = typeof fundTransfers.$inferSelect;
+export type InsertFinancialHistory = z.infer<typeof insertFinancialHistorySchema>;
+export type FinancialHistory = typeof financialHistory.$inferSelect;
 export type Activity = typeof activities.$inferSelect;
 export type InsertActivity = z.infer<typeof insertActivitySchema>;
 export type JoinActivity = z.infer<typeof joinActivitySchema>;

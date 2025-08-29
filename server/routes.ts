@@ -2344,6 +2344,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Fund transfers routes
+  app.get('/api/fund-transfers', requireActivity, async (req, res) => {
+    try {
+      const transfers = await storage.getFundTransfersByActivity(req.session.activityId!);
+      res.json(transfers);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nel recupero dei trasferimenti fondi" });
+    }
+  });
+
+  app.post('/api/fund-transfers', requireActivity, async (req, res) => {
+    try {
+      const { transfers } = req.body;
+      
+      if (!transfers || !Array.isArray(transfers) || transfers.length === 0) {
+        return res.status(400).json({ message: "Almeno un trasferimento è richiesto" });
+      }
+
+      // Validate each transfer
+      const validatedTransfers = transfers.map((transfer: any) => {
+        if (!transfer.fromMember || !transfer.fromAccount || !transfer.importo) {
+          throw new Error("Campi richiesti mancanti nel trasferimento");
+        }
+        
+        const amount = Number(transfer.importo);
+        if (isNaN(amount) || amount <= 0) {
+          throw new Error("Importo non valido");
+        }
+
+        return {
+          fromMember: transfer.fromMember,
+          fromAccount: transfer.fromAccount,
+          toAccount: transfer.toAccount || "Cassa Reinvestimento",
+          importo: amount.toString(),
+          descrizione: transfer.descrizione || null,
+          userId: req.session.userId!,
+          activityId: req.session.activityId!
+        };
+      });
+
+      const createdTransfers = await storage.createFundTransfers(validatedTransfers);
+      
+      res.json({
+        message: "Trasferimenti completati con successo",
+        transfers: createdTransfers
+      });
+    } catch (error: any) {
+      console.error('Fund transfer error:', error);
+      res.status(400).json({ message: error.message || "Errore nel trasferimento fondi" });
+    }
+  });
+
+  // Financial history routes  
+  app.get('/api/financial-history', requireActivity, async (req, res) => {
+    try {
+      const history = await storage.getFinancialHistoryByActivity(req.session.activityId!);
+      res.json(history);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nel recupero della cronologia finanziaria" });
+    }
+  });
+
   // Admin authentication route
   app.post("/api/admin/auth", async (req, res) => {
     try {

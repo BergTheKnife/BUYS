@@ -12,6 +12,7 @@ import Inventory from "@/pages/inventory";
 import Sales from "@/pages/sales";
 import Expenses from "@/pages/expenses";
 import Balance from "@/pages/balance";
+import FinancialManagement from "@/pages/financial-management";
 import Profile from "@/pages/profile";
 import ActivitySettings from "@/pages/activity-settings";
 import { AdminPage } from "@/pages/admin";
@@ -59,6 +60,7 @@ function AppContent() {
           <Route path="/vendite" component={() => <ProtectedRoute><Sales /></ProtectedRoute>} />
           <Route path="/spese" component={() => <ProtectedRoute><Expenses /></ProtectedRoute>} />
           <Route path="/bilancio" component={() => <ProtectedRoute><Balance /></ProtectedRoute>} />
+          <Route path="/gestione-finanziaria" component={() => <ProtectedRoute><FinancialManagement /></ProtectedRoute>} />
           <Route path="/profilo" component={() => <UserOnlyRoute><Profile /></UserOnlyRoute>} />
           <Route path="/impostazioni-attivita" component={() => <ProtectedRoute><ActivitySettings /></ProtectedRoute>} />
           <Route path="/admin" component={() => <UserOnlyRoute><AdminPage /></UserOnlyRoute>} />

@@ -36,7 +36,8 @@ import {
   UserPlus,
   Edit,
   Lock,
-  Shield
+  Shield,
+  Wallet
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -57,6 +58,7 @@ const navigation = [
   { name: "Vendite", href: "/vendite", icon: ShoppingCart },
   { name: "Spese", href: "/spese", icon: Receipt },
   { name: "Bilancio", href: "/bilancio", icon: TrendingUp },
+  { name: "Gestione Finanziaria", href: "/gestione-finanziaria", icon: Wallet },
 ];
 
 // Form schemas
