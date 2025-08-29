@@ -125,7 +125,6 @@ export const fundTransfers = pgTable("fund_transfers", {
   importo: decimal("importo", { precision: 10, scale: 2 }).notNull(),
   descrizione: text("descrizione"), // Descrizione opzionale del trasferimento
   data: timestamp("data").notNull().defaultNow(),
-  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Financial history table for tracking all financial management actions
@@ -138,7 +137,6 @@ export const financialHistory = pgTable("financial_history", {
   importo: decimal("importo", { precision: 10, scale: 2 }), // Importo coinvolto (opzionale)
   dettagli: text("dettagli"), // JSON stringificato con dettagli aggiuntivi
   data: timestamp("data").notNull().defaultNow(),
-  createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const emailVerificationTokensRelations = relations(emailVerificationTokens, ({ one }) => ({
@@ -342,7 +340,6 @@ export const insertFundTransferSchema = createInsertSchema(fundTransfers).omit({
   userId: true,
   activityId: true,  // Excluded because it's added server-side
   data: true, // Will be set to current time
-  createdAt: true,
 });
 
 export const insertFinancialHistorySchema = createInsertSchema(financialHistory).omit({
@@ -350,7 +347,6 @@ export const insertFinancialHistorySchema = createInsertSchema(financialHistory)
   userId: true,
   activityId: true,  // Excluded because it's added server-side
   data: true, // Will be set to current time
-  createdAt: true,
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
