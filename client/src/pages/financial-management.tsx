@@ -31,7 +31,9 @@ import {
   ArrowRightLeft,
   History,
   Euro,
-  Plus
+  Plus,
+  Pencil,
+  Trash2
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import type { Vendita } from "@shared/schema";
@@ -76,6 +78,10 @@ export default function FinancialManagement() {
     [member: string]: { [account: string]: number }
   }>({});
   const [transferDescription, setTransferDescription] = useState("");
+
+  // State for editing entries
+  const [editingEntry, setEditingEntry] = useState<FinancialHistoryItem | null>(null);
+  const [editForm, setEditForm] = useState({ id: "", descrizione: "", importo: "" });
 
   // Fetch sales data to calculate balances
   const { data: sales = [], isLoading: salesLoading } = useQuery<Vendita[]>({
@@ -132,7 +138,7 @@ export default function FinancialManagement() {
 
       memberBalances[member].accounts[account] = (memberBalances[member].accounts[account] || 0) + amount;
       memberBalances[member].total += amount;
-      
+
       accountTotals[account] = (accountTotals[account] || 0) + amount;
       totalFunds += amount;
     });
@@ -157,8 +163,26 @@ export default function FinancialManagement() {
       }
     });
 
+    // Process financial history for expenses (negative amounts) to deduct from Cassa Reinvestimento
+    financialHistory.forEach(item => {
+      if (item.azione.toLowerCase().includes("spesa") || item.azione.toLowerCase().includes("uscita")) {
+        const amount = Number(item.importo) || 0;
+        if (item.importo && amount > 0) { // Ensure it's an expense and has an amount
+          if (item.azione === "Rifornimento Inventario") { // Specific case for inventory replenishment
+            cassaReinvestimento -= amount;
+          } else {
+            // For other expenses, deduct from totalFunds and potentially cassaReinvestimento if it's the source
+            // This logic might need refinement based on exact accounting rules.
+            // For now, let's assume general expenses also reduce cassaReinvestimento for simplicity.
+            cassaReinvestimento -= amount;
+            totalFunds -= amount; // Also reduce total funds if it's a general expense
+          }
+        }
+      }
+    });
+
     return {
-      totalFunds: totalFunds - fundTransfers.reduce((sum, t) => sum + Number(t.importo), 0) + cassaReinvestimento,
+      totalFunds: totalFunds - fundTransfers.reduce((sum, t) => sum + Number(t.importo), 0) + cassaReinvestimento, // Recalculate totalFunds based on initial sales minus transfers and expenses
       memberBalances: Object.values(memberBalances).filter(mb => mb.total > 0),
       accountTotals,
       cassaReinvestimento
@@ -220,6 +244,7 @@ export default function FinancialManagement() {
       setTransferDescription("");
       queryClient.invalidateQueries({ queryKey: ["/api/fund-transfers"] });
       queryClient.invalidateQueries({ queryKey: ["/api/financial-history"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sales"] }); // Invalidate sales to recalculate summary
     },
     onError: (error: Error) => {
       toast({
@@ -230,7 +255,74 @@ export default function FinancialManagement() {
     },
   });
 
-  if (salesLoading || transfersLoading) {
+  // Mutation for updating a financial history entry
+  const updateHistoryEntry = useMutation({
+    mutationFn: async ({ id, descrizione, importo }: { id: string; descrizione: string; importo: string }) => {
+      const amountNum = parseFloat(importo);
+      if (isNaN(amountNum) || amountNum < 0) {
+        throw new Error("L'importo deve essere un numero valido e non negativo.");
+      }
+      if (!descrizione.trim()) {
+        throw new Error("La descrizione non può essere vuota.");
+      }
+      return await apiRequest("PUT", `/api/financial-history/${id}`, { descrizione, importo: importo });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Movimento aggiornato con successo",
+        description: "Il movimento è stato modificato.",
+      });
+      setEditingEntry(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/financial-history"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sales"] }); // Invalidate sales to recalculate summary
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Errore durante l'aggiornamento",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation for deleting a financial history entry
+  const deleteHistoryEntry = useMutation({
+    mutationFn: async (id: string) => {
+      // Basic confirmation before sending the request
+      if (!window.confirm("Sei sicuro di voler eliminare questo movimento? Questa azione non può essere annullata.")) {
+        throw new Error("Eliminazione annullata dall'utente.");
+      }
+      return await apiRequest("DELETE", `/api/financial-history/${id}`);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Movimento eliminato con successo",
+        description: "Il movimento è stato rimosso.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/financial-history"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sales"] }); // Invalidate sales to recalculate summary
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Errore durante l'eliminazione",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Handler to prepare for editing
+  const handleEditClick = (item: FinancialHistoryItem) => {
+    setEditingEntry(item);
+    setEditForm({ id: item.id, descrizione: item.descrizione, importo: item.importo || "" });
+  };
+
+  // Handler to submit edited form
+  const handleUpdateEntry = () => {
+    updateHistoryEntry.mutate(editForm);
+  };
+
+  if (salesLoading || transfersLoading || historyLoading) {
     return (
       <div className="container mx-auto p-6">
         <div className="space-y-6">
@@ -385,7 +477,7 @@ export default function FinancialManagement() {
                 Seleziona gli importi da trasferire da ciascun membro e conto alla Cassa Reinvestimento
               </DialogDescription>
             </DialogHeader>
-            
+
             <div className="space-y-6">
               {financialSummary.memberBalances.map((memberBalance) => (
                 <div key={memberBalance.member} className="space-y-3">
@@ -496,10 +588,16 @@ export default function FinancialManagement() {
                     <p className="text-sm">{item.descrizione}</p>
                   </div>
                   {item.importo && (
-                    <div className="text-right">
+                    <div className="text-right flex items-center gap-3">
                       <span className="font-medium">
                         {formatCurrency(Number(item.importo))}
                       </span>
+                      <Button variant="ghost" size="icon" onClick={() => handleEditClick(item)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => deleteHistoryEntry.mutate(item.id)} className="text-red-600 hover:text-red-800">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -508,6 +606,59 @@ export default function FinancialManagement() {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Entry Modal */}
+      <Dialog open={!!editingEntry} onOpenChange={() => setEditingEntry(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Modifica Movimento</DialogTitle>
+            <DialogDescription>
+              Modifica la descrizione e l'importo del movimento finanziario
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-descrizione">Descrizione</Label>
+              <Textarea
+                id="edit-descrizione"
+                value={editForm.descrizione}
+                onChange={(e) => setEditForm(prev => ({ ...prev, descrizione: e.target.value }))}
+                placeholder="Descrizione del movimento..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-importo">Importo (€)</Label>
+              <Input
+                id="edit-importo"
+                type="number"
+                step="0.01"
+                value={editForm.importo}
+                onChange={(e) => setEditForm(prev => ({ ...prev, importo: e.target.value }))}
+                placeholder="0.00"
+              />
+            </div>
+
+            <div className="flex gap-2 pt-4">
+              <Button 
+                variant="outline" 
+                onClick={() => setEditingEntry(null)}
+                className="flex-1"
+              >
+                Annulla
+              </Button>
+              <Button 
+                onClick={handleUpdateEntry}
+                disabled={updateHistoryEntry.isPending || !editForm.descrizione.trim()}
+                className="flex-1"
+              >
+                {updateHistoryEntry.isPending ? "Aggiornamento..." : "Salva Modifiche"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
