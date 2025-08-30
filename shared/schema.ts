@@ -87,6 +87,17 @@ export const inventario = pgTable("inventario", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const inventarioBatches = pgTable("inventario_batches", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  inventarioId: uuid("inventario_id").notNull().references(() => inventario.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  activityId: uuid("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
+  quantita: integer("quantita").notNull(), // Quantità aggiunta nel rifornimento
+  nuovoCosto: decimal("nuovo_costo", { precision: 10, scale: 2 }).notNull(),
+  vecchioCosto: decimal("vecchio_costo", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const vendite = pgTable("vendite", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -198,6 +209,22 @@ export const inventarioRelations = relations(inventario, ({ one, many }) => ({
     references: [activities.id],
   }),
   vendite: many(vendite),
+  batches: many(inventarioBatches),
+}));
+
+export const inventarioBatchesRelations = relations(inventarioBatches, ({ one }) => ({
+  inventario: one(inventario, {
+    fields: [inventarioBatches.inventarioId],
+    references: [inventario.id],
+  }),
+  user: one(users, {
+    fields: [inventarioBatches.userId],
+    references: [users.id],
+  }),
+  activity: one(activities, {
+    fields: [inventarioBatches.activityId],
+    references: [activities.id],
+  }),
 }));
 
 export const venditeRelations = relations(vendite, ({ one }) => ({
@@ -316,6 +343,13 @@ export const insertInventarioSchema = createInsertSchema(inventario).omit({
   activityId: true,  // Excluded because it's added server-side
   createdAt: true,
   immagineUrl: true,
+});
+
+export const insertInventarioBatchesSchema = createInsertSchema(inventarioBatches).omit({
+  id: true,
+  userId: true,
+  activityId: true,
+  createdAt: true,
 });
 
 export const insertVenditaSchema = createInsertSchema(vendite).omit({

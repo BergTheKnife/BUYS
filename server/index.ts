@@ -2,7 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import cookieParser from "cookie-parser";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { SyncScheduler } from './sync-scheduler.js';
+// Sync system removed
 import path from "path";
 
 const app = express();
@@ -46,17 +46,8 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
-  // 🔄 Initialize and start data synchronization system
-  const syncScheduler = new SyncScheduler();
-  
-  // Database and environment check
-  console.log('🔍 Database configuration:');
-  console.log('DATABASE_URL configured:', !!process.env.DATABASE_URL);
-  console.log('NODE_ENV:', process.env.NODE_ENV);
-
-  // SYNC TEMPORANEAMENTE DISABILITATO - I dati della produzione sono vuoti
-  // syncScheduler.start();
-  console.log('⚠️ [SYNC] Automatic sync temporarily disabled - production database is empty');
+  // Sincronizzazione disabilitata - lavoriamo solo in locale
+  console.log('🔍 Local development environment ready');
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
