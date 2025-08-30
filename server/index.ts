@@ -77,17 +77,6 @@ app.use((req, res, next) => {
   // Avvia il sistema di sincronizzazione automatica
   syncScheduler.start();
 
-  // Trigger di test della sincronizzazione dopo 5 secondi
-  setTimeout(async () => {
-    try {
-      console.log('🔄 [TEST] Triggering manual sync for testing...');
-      const result = await syncScheduler.triggerManualSync();
-      console.log('🔄 [TEST] Sync result:', JSON.stringify(result, null, 2));
-    } catch (error: any) {
-      console.error('❌ [TEST] Sync test failed:', error.message);
-    }
-  }, 5000);
-
   server.listen({
     port,
     host: "0.0.0.0",
