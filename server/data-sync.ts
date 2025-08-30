@@ -4,6 +4,7 @@ import {
   users, 
   activities, 
   inventario, 
+  inventarioBatches,
   vendite, 
   spese, 
   fundTransfers, 
@@ -107,22 +108,23 @@ export class DataSyncService {
       const prodSpese = await this.prodDb.select().from(spese);
       const prodFundTransfers = await this.prodDb.select().from(fundTransfers);
       const prodFinancialHistory = await this.prodDb.select().from(financialHistory);
+      const prodInventarioBatches = await this.prodDb.select().from(inventarioBatches);
 
       this.log('info', `Read ${prodUsers.length} users, ${prodActivities.length} activities from production`);
 
       // 🔧 CORREZIONE AUTOMATICA: Assegna dati orfani all'attività DAVALB
       const validActivityIds = prodActivities.map(a => a.id);
-      const orphanInventario = prodInventario.filter(i => !validActivityIds.includes(i.activity_id));
-      const orphanVendite = prodVendite.filter(v => !validActivityIds.includes(v.activity_id));
-      const orphanSpese = prodSpese.filter(s => !validActivityIds.includes(s.activity_id));
+      const orphanInventario = prodInventario.filter(i => !validActivityIds.includes(i.activityId));
+      const orphanVendite = prodVendite.filter(v => !validActivityIds.includes(v.activityId));
+      const orphanSpese = prodSpese.filter(s => !validActivityIds.includes(s.activityId));
       
       const davalbActivity = prodActivities.find(a => a.nome === 'DAVALB');
       if (davalbActivity && (orphanInventario.length > 0 || orphanVendite.length > 0 || orphanSpese.length > 0)) {
         this.log('info', `Auto-fixing ${orphanInventario.length + orphanVendite.length + orphanSpese.length} orphan records to DAVALB`);
         
-        orphanInventario.forEach(item => item.activity_id = davalbActivity.id);
-        orphanVendite.forEach(item => item.activity_id = davalbActivity.id);
-        orphanSpese.forEach(item => item.activity_id = davalbActivity.id);
+        orphanInventario.forEach(item => item.activityId = davalbActivity.id);
+        orphanVendite.forEach(item => item.activityId = davalbActivity.id);
+        orphanSpese.forEach(item => item.activityId = davalbActivity.id);
       }
 
       // 3. Svuota e sincronizza le tabelle nell'ordine corretto (rispettando le foreign keys)
@@ -131,6 +133,7 @@ export class DataSyncService {
       await this.syncTable('activities', prodActivities);
       await this.syncTable('activityUsers', prodActivityUsers);
       await this.syncTable('inventario', prodInventario);
+      await this.syncTable('inventario_batches', prodInventarioBatches);
       await this.syncTable('vendite', prodVendite);
       await this.syncTable('spese', prodSpese);
       await this.syncTable('fundTransfers', prodFundTransfers);
@@ -140,6 +143,7 @@ export class DataSyncService {
         users: prodUsers.length,
         activities: prodActivities.length,
         inventario: prodInventario.length,
+        inventario_batches: prodInventarioBatches.length,
         vendite: prodVendite.length,
         spese: prodSpese.length,
         fundTransfers: prodFundTransfers.length,
