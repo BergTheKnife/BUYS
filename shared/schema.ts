@@ -87,20 +87,6 @@ export const inventario = pgTable("inventario", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// New table for inventory batches to track different costs
-export const inventarioBatches = pgTable("inventario_batches", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  inventarioId: uuid("inventario_id").notNull().references(() => inventario.id, { onDelete: "cascade" }),
-  costo: decimal("costo", { precision: 10, scale: 2 }).notNull(),
-  quantita: integer("quantita").notNull(),
-  quantitaRimanente: integer("quantita_rimanente").notNull(),
-  dataAcquisto: timestamp("data_acquisto").defaultNow(),
-  createdAt: timestamp("created_at").defaultNow(),
-}, (table) => [
-  index("inventario_batches_inventario_idx").on(table.inventarioId),
-  index("inventario_batches_data_idx").on(table.dataAcquisto),
-]);
-
 export const vendite = pgTable("vendite", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -212,14 +198,6 @@ export const inventarioRelations = relations(inventario, ({ one, many }) => ({
     references: [activities.id],
   }),
   vendite: many(vendite),
-  batches: many(inventarioBatches),
-}));
-
-export const inventarioBatchesRelations = relations(inventarioBatches, ({ one }) => ({
-  inventario: one(inventario, {
-    fields: [inventarioBatches.inventarioId],
-    references: [inventario.id],
-  }),
 }));
 
 export const venditeRelations = relations(vendite, ({ one }) => ({
@@ -385,12 +363,6 @@ export type InsertSpesa = z.infer<typeof insertSpesaSchema>;
 export type Spesa = typeof spese.$inferSelect;
 export type InsertFundTransfer = z.infer<typeof insertFundTransferSchema>;
 export type FundTransfer = typeof fundTransfers.$inferSelect;
-export const insertInventarioBatchSchema = createInsertSchema(inventarioBatches).omit({
-  id: true,
-  quantitaRimanente: true,
-  createdAt: true,
-});
-
 export type InsertFinancialHistory = z.infer<typeof insertFinancialHistorySchema>;
 export type FinancialHistory = typeof financialHistory.$inferSelect;
 export type Activity = typeof activities.$inferSelect;
@@ -402,8 +374,6 @@ export type EmailVerificationToken = typeof emailVerificationTokens.$inferSelect
 export type InsertEmailVerificationToken = typeof emailVerificationTokens.$inferInsert;
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;
-export type InventarioBatch = typeof inventarioBatches.$inferSelect;
-export type InsertInventarioBatch = z.infer<typeof insertInventarioBatchSchema>;
 
 export type ForgotPassword = z.infer<typeof forgotPasswordSchema>;
 export type ResetPassword = z.infer<typeof resetPasswordSchema>;

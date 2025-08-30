@@ -55,7 +55,6 @@ export default function Inventory() {
   const [itemToDelete, setItemToDelete] = useState<Inventario | null>(null);
   const [restockItem, setRestockItem] = useState<Inventario | null>(null);
   const [restockQuantity, setRestockQuantity] = useState("1");
-  const [restockCost, setRestockCost] = useState("");
   const [sortConfig, setSortConfig] = useState<{
     key: keyof Inventario | null;
     direction: 'asc' | 'desc';
@@ -225,8 +224,8 @@ export default function Inventory() {
   });
 
   const restockMutation = useMutation({
-    mutationFn: async ({ id, quantita, costo }: { id: string; quantita: number; costo: string }) => {
-      const response = await apiRequest("POST", `/api/inventario/${id}/restock`, { quantita, costo });
+    mutationFn: async ({ id, quantita }: { id: string; quantita: number }) => {
+      const response = await apiRequest("POST", `/api/inventario/${id}/restock`, { quantita });
       return response.json();
     },
     onSuccess: () => {
@@ -239,7 +238,6 @@ export default function Inventory() {
       });
       setRestockItem(null);
       setRestockQuantity("1");
-      setRestockCost("");
     },
     onError: (error: any) => {
       toast({
@@ -251,11 +249,10 @@ export default function Inventory() {
   });
 
   const handleRestock = () => {
-    if (restockItem && restockQuantity && restockCost) {
+    if (restockItem && restockQuantity) {
       restockMutation.mutate({ 
         id: restockItem.id, 
-        quantita: parseInt(restockQuantity),
-        costo: restockCost
+        quantita: parseInt(restockQuantity) 
       });
     }
   };
@@ -449,7 +446,7 @@ export default function Inventory() {
                 Cancella Filtri
               </Button>
               <div className="text-sm text-muted-foreground text-center sm:text-left">
-                Articoli: <span className="font-medium">{filteredInventory.reduce((sum, item) => sum + item.quantita, 0)}</span> di <span className="font-medium">{inventory.reduce((sum, item) => sum + item.quantita, 0)}</span>
+                Risultati: <span className="font-medium">{filteredInventory.length}</span> di <span className="font-medium">{inventory.length}</span>
               </div>
             </div>
           </CardContent>
@@ -595,10 +592,7 @@ export default function Inventory() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => {
-                                setRestockItem(item);
-                                setRestockCost(item.costo);
-                              }}
+                              onClick={() => setRestockItem(item)}
                               title="Rifornisci"
                               className="min-w-[36px] h-9 p-2"
                             >
@@ -697,26 +691,11 @@ export default function Inventory() {
                   className="col-span-3"
                 />
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="cost" className="text-right">
-                  Costo (€)
-                </Label>
-                <Input
-                  id="cost"
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  placeholder={restockItem ? restockItem.costo : "0.00"}
-                  value={restockCost}
-                  onChange={(e) => setRestockCost(e.target.value)}
-                  className="col-span-3"
-                />
-              </div>
               {restockItem && (
                 <div className="text-sm text-muted-foreground">
                   <p>Quantità attuale: {restockItem.quantita}</p>
                   <p>Nuova quantità: {restockItem.quantita + parseInt(restockQuantity || "0")}</p>
-                  <p>Costo rifornimento: {formatCurrency(Number(restockCost || restockItem?.costo || "0") * parseInt(restockQuantity || "0"))}</p>
+                  <p>Costo rifornimento: {formatCurrency(Number(restockItem.costo) * parseInt(restockQuantity || "0"))}</p>
                 </div>
               )}
             </div>
@@ -726,7 +705,7 @@ export default function Inventory() {
               </Button>
               <Button 
                 onClick={handleRestock}
-                disabled={restockMutation.isPending || !restockQuantity || parseInt(restockQuantity) <= 0 || !restockCost || Number(restockCost) <= 0}
+                disabled={restockMutation.isPending || !restockQuantity || parseInt(restockQuantity) <= 0}
               >
                 {restockMutation.isPending ? "Rifornendo..." : "Rifornisci"}
               </Button>
