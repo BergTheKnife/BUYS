@@ -110,6 +110,21 @@ export class DataSyncService {
 
       this.log('info', `Read ${prodUsers.length} users, ${prodActivities.length} activities from production`);
 
+      // 🔧 CORREZIONE AUTOMATICA: Assegna dati orfani all'attività DAVALB
+      const validActivityIds = prodActivities.map(a => a.id);
+      const orphanInventario = prodInventario.filter(i => !validActivityIds.includes(i.activity_id));
+      const orphanVendite = prodVendite.filter(v => !validActivityIds.includes(v.activity_id));
+      const orphanSpese = prodSpese.filter(s => !validActivityIds.includes(s.activity_id));
+      
+      const davalbActivity = prodActivities.find(a => a.nome === 'DAVALB');
+      if (davalbActivity && (orphanInventario.length > 0 || orphanVendite.length > 0 || orphanSpese.length > 0)) {
+        this.log('info', `Auto-fixing ${orphanInventario.length + orphanVendite.length + orphanSpese.length} orphan records to DAVALB`);
+        
+        orphanInventario.forEach(item => item.activity_id = davalbActivity.id);
+        orphanVendite.forEach(item => item.activity_id = davalbActivity.id);
+        orphanSpese.forEach(item => item.activity_id = davalbActivity.id);
+      }
+
       // 3. Svuota e sincronizza le tabelle nell'ordine corretto (rispettando le foreign keys)
       // Prima le tabelle PADRE (senza foreign key), poi le FIGLIE (con foreign key)
       await this.syncTable('users', prodUsers);
