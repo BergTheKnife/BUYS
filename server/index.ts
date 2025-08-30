@@ -77,6 +77,7 @@ app.use((req, res, next) => {
   // Avvia il sistema di sincronizzazione automatica
   syncScheduler.start();
 
+
   server.listen({
     port,
     host: "0.0.0.0",
