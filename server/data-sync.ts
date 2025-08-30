@@ -111,14 +111,15 @@ export class DataSyncService {
       this.log('info', `Read ${prodUsers.length} users, ${prodActivities.length} activities from production`);
 
       // 3. Svuota e sincronizza le tabelle nell'ordine corretto (rispettando le foreign keys)
-      await this.syncTable('financialHistory', prodFinancialHistory);
-      await this.syncTable('fundTransfers', prodFundTransfers);
-      await this.syncTable('spese', prodSpese);
-      await this.syncTable('vendite', prodVendite);
-      await this.syncTable('inventario', prodInventario);
-      await this.syncTable('activityUsers', prodActivityUsers);
-      await this.syncTable('activities', prodActivities);
+      // Prima le tabelle PADRE (senza foreign key), poi le FIGLIE (con foreign key)
       await this.syncTable('users', prodUsers);
+      await this.syncTable('activities', prodActivities);
+      await this.syncTable('activityUsers', prodActivityUsers);
+      await this.syncTable('inventario', prodInventario);
+      await this.syncTable('vendite', prodVendite);
+      await this.syncTable('spese', prodSpese);
+      await this.syncTable('fundTransfers', prodFundTransfers);
+      await this.syncTable('financialHistory', prodFinancialHistory);
 
       const syncedCounts = {
         users: prodUsers.length,
