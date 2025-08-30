@@ -2509,6 +2509,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Endpoint temporaneo per test sync senza autenticazione
+  app.post('/api/sync/test-run', async (req, res) => {
+    try {
+      const result = await syncScheduler.triggerManualSync();
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ 
+        success: false, 
+        message: `Sync failed: ${error.message}`,
+        syncedCounts: {
+          users: 0,
+          activities: 0,
+          inventario: 0,
+          vendite: 0,
+          spese: 0,
+          fundTransfers: 0,
+          financialHistory: 0
+        }
+      });
+    }
+  });
+
   app.post('/api/sync/run', requireActivity, async (req, res) => {
     try {
       const result = await syncScheduler.triggerManualSync();
