@@ -15,6 +15,8 @@ import path from "path";
 import fs from "fs";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { DataProtectionService, dataProtectionMiddleware } from './dataProtection';
+import { dataSyncService } from './data-sync';
+import { syncScheduler } from './sync-scheduler';
 import { 
   insertUserSchema, 
   loginUserSchema, 
@@ -2491,6 +2493,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Errore nell'eliminazione del movimento:", error);
       res.status(500).json({ message: "Errore del server" });
+    }
+  });
+
+  // Data synchronization routes
+  app.get('/api/sync/test', requireActivity, async (req, res) => {
+    try {
+      const result = await dataSyncService.testProductionConnection();
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ 
+        success: false, 
+        message: `Test failed: ${error.message}` 
+      });
+    }
+  });
+
+  app.post('/api/sync/run', requireActivity, async (req, res) => {
+    try {
+      const result = await syncScheduler.triggerManualSync();
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ 
+        success: false, 
+        message: `Sync failed: ${error.message}`,
+        syncedCounts: {
+          users: 0,
+          activities: 0,
+          inventario: 0,
+          vendite: 0,
+          spese: 0,
+          fundTransfers: 0,
+          financialHistory: 0
+        }
+      });
+    }
+  });
+
+  app.get('/api/sync/logs', requireActivity, async (req, res) => {
+    try {
+      const logs = dataSyncService.getSyncLogs();
+      res.json(logs);
+    } catch (error: any) {
+      res.status(500).json({ message: `Error getting logs: ${error.message}` });
+    }
+  });
+
+  app.get('/api/sync/status', requireActivity, async (req, res) => {
+    try {
+      const logs = dataSyncService.getSyncLogs();
+      const schedulerStatus = syncScheduler.getStatus();
+      const lastSync = logs.filter(log => log.action === 'sync' && log.status === 'success')
+                          .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0];
+      
+      res.json({
+        lastSync: lastSync ? {
+          timestamp: lastSync.timestamp,
+          details: lastSync.details
+        } : null,
+        totalLogs: logs.length,
+        scheduler: {
+          isRunning: schedulerStatus.isRunning,
+          syncInProgress: schedulerStatus.syncInProgress,
+          nextSyncIn: schedulerStatus.nextSyncIn
+        },
+        hasProductionConnection: schedulerStatus.hasProductionConnection
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: `Error getting status: ${error.message}` });
     }
   });
 
