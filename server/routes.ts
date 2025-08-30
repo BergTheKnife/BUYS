@@ -2121,10 +2121,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/inventario/:id/restock', requireActivity, async (req, res) => {
     try {
       const { id } = req.params;
-      const { quantita } = req.body;
+      const { quantita, costo } = req.body;
 
       if (!quantita || quantita <= 0) {
         return res.status(400).json({ message: "Quantità non valida" });
+      }
+
+      if (!costo || Number(costo) <= 0) {
+        return res.status(400).json({ message: "Costo non valido" });
       }
 
       const item = await storage.getInventoryItem(id, req.session.activityId!);
@@ -2132,16 +2136,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Articolo non trovato" });
       }
 
-      // Update inventory quantity
-      const newQuantity = item.quantita + parseInt(quantita);
-      await storage.updateInventoryQuantity(id, newQuantity);
+      // Add new batch with the new cost
+      await storage.addInventoryBatch(id, costo, parseInt(quantita));
 
-      // Create expense for restock
-      const totalCost = Number(item.costo) * parseInt(quantita);
+      // Create expense for restock with new cost
+      const totalCost = Number(costo) * parseInt(quantita);
       await storage.createExpense({
         userId: req.session.userId!,
         activityId: req.session.activityId!,
-        voce: `Rifornimento: ${item.nomeArticolo} - ${item.taglia} (${quantita} pz)`,
+        voce: `Rifornimento: ${item.nomeArticolo} - ${item.taglia} (${quantita} pz a €${costo})`,
         importo: totalCost.toString(),
         categoria: "Inventario",
         data: new Date(),
@@ -2192,8 +2195,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Quantità insufficiente in magazzino" });
       }
 
-      // Calculate margin (per unit * quantity sold)
-      const marginePerUnit = Number(saleData.prezzoVendita) - Number(inventoryItem.costo);
+      // Consume inventory using FIFO and get weighted average cost
+      const fifoResult = await storage.consumeInventoryFIFO(saleData.inventarioId, quantitaVenduta);
+      
+      // Calculate margin using FIFO weighted average cost
+      const marginePerUnit = Number(saleData.prezzoVendita) - fifoResult.costoMedioPonderato;
       const margineTotal = marginePerUnit * quantitaVenduta;
 
       // Create sale
@@ -2205,9 +2211,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         taglia: inventoryItem.taglia,
         margine: margineTotal.toString(),
       });
-
-      // Update inventory quantity
-      await storage.updateInventoryQuantity(saleData.inventarioId, inventoryItem.quantita - quantitaVenduta);
 
       res.json(sale);
     } catch (error: any) {

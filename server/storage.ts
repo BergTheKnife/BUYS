@@ -10,6 +10,7 @@ import {
   emailVerificationTokens,
   passwordResetTokens,
   rememberTokens, // Import remember tokens table
+  inventarioBatches, // Import inventory batches schema
   type User, 
   type InsertUser,
   type Inventario,
@@ -78,10 +79,15 @@ export interface IStorage {
   // Inventory methods (now with activity context)
   getInventoryByActivity(activityId: string): Promise<Inventario[]>;
   getInventoryItem(id: string, activityId: string): Promise<Inventario | undefined>;
-  createInventoryItem(item: InsertInventario & { userId: string; activityId: string }): Promise<Inventario>;
+  createInventoryItem(item: InsertInventario & { userId: string; activityId: string; immagineUrl?: string }): Promise<Inventario>;
   updateInventoryItem(id: string, activityId: string, updates: Partial<InsertInventario>): Promise<Inventario | undefined>;
   deleteInventoryItem(id: string, activityId: string): Promise<boolean>;
   updateInventoryQuantity(id: string, newQuantity: number): Promise<void>;
+
+  // Batch inventory methods
+  addInventoryBatch(inventarioId: string, costo: string, quantita: number): Promise<any>;
+  getInventoryBatches(inventarioId: string): Promise<any[]>;
+  consumeInventoryFIFO(inventarioId: string, quantitaDaConsumare: number): Promise<{ costoMedioPonderato: number; quantitaConsumata: number }>;
 
   // Sales methods (now with activity context)
   getSalesByActivity(activityId: string): Promise<Vendita[]>;
@@ -171,7 +177,7 @@ export interface IStorage {
   // Fund transfer methods
   getFundTransfersByActivity(activityId: string): Promise<FundTransfer[]>;
   createFundTransfers(transfers: Array<InsertFundTransfer & { userId: string; activityId: string }>): Promise<FundTransfer[]>;
-  
+
   // Financial history methods
   getFinancialHistoryByActivity(activityId: string): Promise<FinancialHistory[]>;
   createFinancialHistoryEntry(entry: InsertFinancialHistory & { userId: string; activityId: string }): Promise<FinancialHistory>;
@@ -534,11 +540,21 @@ export class DatabaseStorage implements IStorage {
     return item || undefined;
   }
 
-  async createInventoryItem(item: InsertInventario & { userId: string; activityId: string }): Promise<Inventario> {
+  async createInventoryItem(item: InsertInventario & { userId: string; activityId: string; immagineUrl?: string }): Promise<Inventario> {
     const [newItem] = await db
       .insert(inventario)
       .values(item)
       .returning();
+
+    // Create initial batch for this inventory item
+    await db.insert(inventarioBatches).values({
+      inventarioId: newItem.id,
+      costo: item.costo,
+      quantita: item.quantita,
+      quantitaRimanente: item.quantita,
+      dataAcquisto: new Date(),
+    });
+
     return newItem;
   }
 
@@ -562,21 +578,21 @@ export class DatabaseStorage implements IStorage {
           .select()
           .from(vendite)
           .where(eq(vendite.inventarioId, id));
-        
+
         // Update each sale with new margin calculation and item info
         for (const sale of relatedSales) {
           const newMargin = (Number(sale.prezzoVendita) - Number(updates.costo)) * sale.quantita;
           const salesUpdates: any = {
             margine: newMargin.toString()
           };
-          
+
           if (updates.nomeArticolo) {
             salesUpdates.nomeArticolo = updates.nomeArticolo;
           }
           if (updates.taglia) {
             salesUpdates.taglia = updates.taglia;
           }
-          
+
           await db
             .update(vendite)
             .set(salesUpdates)
@@ -585,14 +601,14 @@ export class DatabaseStorage implements IStorage {
       } else if (updates.nomeArticolo || updates.taglia) {
         // Update only name/size without recalculating margin
         const salesUpdates: any = {};
-        
+
         if (updates.nomeArticolo) {
           salesUpdates.nomeArticolo = updates.nomeArticolo;
         }
         if (updates.taglia) {
           salesUpdates.taglia = updates.taglia;
         }
-        
+
         await db
           .update(vendite)
           .set(salesUpdates)
@@ -656,6 +672,9 @@ export class DatabaseStorage implements IStorage {
         )
       ));
 
+    // Delete all associated inventory batches
+    await db.delete(inventarioBatches).where(eq(inventarioBatches.inventarioId, id));
+
     // Finally, delete the inventory item
     const result = await db
       .delete(inventario)
@@ -710,15 +729,112 @@ export class DatabaseStorage implements IStorage {
       .where(eq(inventario.id, id));
   }
 
+  // Batch inventory methods
+  async addInventoryBatch(inventarioId: string, costo: string, quantita: number) {
+    // Add new batch
+    const [newBatch] = await db.insert(inventarioBatches).values({
+      inventarioId,
+      costo,
+      quantita,
+      quantitaRimanente: quantita,
+      dataAcquisto: new Date(),
+    }).returning();
+
+    // Update main inventory quantity
+    await db
+      .update(inventario)
+      .set({ 
+        quantita: sql`${inventario.quantita} + ${quantita}`
+      })
+      .where(eq(inventario.id, inventarioId));
+
+    return newBatch;
+  }
+
+  async getInventoryBatches(inventarioId: string) {
+    return db
+      .select()
+      .from(inventarioBatches)
+      .where(eq(inventarioBatches.inventarioId, inventarioId))
+      .orderBy(inventarioBatches.dataAcquisto); // FIFO order
+  }
+
+  async consumeInventoryFIFO(inventarioId: string, quantitaDaConsumare: number) {
+    const batches = await this.getInventoryBatches(inventarioId);
+    const batchesWithStock = batches.filter(batch => batch.quantitaRimanente > 0);
+
+    let rimanenteDaConsumare = quantitaDaConsumare;
+    let costoMedioPonderato = 0;
+    let quantitaTotaleConsumata = 0;
+
+    for (const batch of batchesWithStock) {
+      if (rimanenteDaConsumare <= 0) break;
+
+      const daConsumareInQuestoBatch = Math.min(rimanenteDaConsumare, batch.quantitaRimanente);
+
+      // Update batch remaining quantity
+      await db
+        .update(inventarioBatches)
+        .set({ 
+          quantitaRimanente: batch.quantitaRimanente - daConsumareInQuestoBatch
+        })
+        .where(eq(inventarioBatches.id, batch.id));
+
+      // Calculate weighted cost
+      costoMedioPonderato += Number(batch.costo) * daConsumareInQuestoBatch;
+      quantitaTotaleConsumata += daConsumareInQuestoBatch;
+      rimanenteDaConsumare -= daConsumareInQuestoBatch;
+    }
+
+    if (rimanenteDaConsumare > 0) {
+      throw new Error("Quantità insufficiente in magazzino");
+    }
+
+    // Update main inventory quantity
+    await db
+      .update(inventario)
+      .set({ 
+        quantita: sql`${inventario.quantita} - ${quantitaDaConsumare}`
+      })
+      .where(eq(inventario.id, inventarioId));
+
+    return {
+      costoMedioPonderato: costoMedioPonderato / quantitaTotaleConsumata,
+      quantitaConsumata: quantitaTotaleConsumata
+    };
+  }
+
+
   // Updated sales methods with activity context
   async getSalesByActivity(activityId: string): Promise<Vendita[]> {
     return await db.select().from(vendite).where(eq(vendite.activityId, activityId)).orderBy(desc(vendite.data));
   }
 
   async createSale(saleData: InsertVendita & { userId: string; activityId: string; nomeArticolo: string; taglia: string; margine: string }): Promise<Vendita> {
+    const { inventarioId, quantita, ...restOfSaleData } = saleData;
+
+    if (!inventarioId) {
+      throw new Error("Inventario ID is required for sale creation.");
+    }
+
+    // Consume inventory using FIFO
+    const { costoMedioPonderato, quantitaConsumata } = await this.consumeInventoryFIFO(inventarioId, quantita);
+
+    // Calculate margin based on FIFO cost
+    const calculatedMargine = (Number(restOfSaleData.prezzoVendita) - costoMedioPonderato) * quantitaConsumata;
+
+    const finalSaleData = {
+      ...restOfSaleData,
+      inventarioId: inventarioId,
+      quantita: quantitaConsumata,
+      margine: calculatedMargine.toString(),
+      userId: saleData.userId,
+      activityId: saleData.activityId,
+    };
+
     const [newSale] = await db
       .insert(vendite)
-      .values(saleData)
+      .values(finalSaleData)
       .returning();
     return newSale;
   }
@@ -770,7 +886,7 @@ export class DatabaseStorage implements IStorage {
             quantita: sql`${inventario.quantita} - ${oldQuantity}`
           })
           .where(eq(inventario.id, oldInventarioId));
-        
+
         throw new Error("Quantità insufficiente nel nuovo articolo selezionato");
       }
 
@@ -784,7 +900,7 @@ export class DatabaseStorage implements IStorage {
     } else {
       // Same item, just quantity change
       const quantityDifference = newQuantity - oldQuantity;
-      
+
       if (quantityDifference !== 0) {
         // Check if we have enough inventory for the quantity change
         if (quantityDifference > 0) {
@@ -792,7 +908,7 @@ export class DatabaseStorage implements IStorage {
             .select()
             .from(inventario)
             .where(eq(inventario.id, oldInventarioId));
-          
+
           if (!item || item.quantita < quantityDifference) {
             throw new Error("Quantità insufficiente in magazzino per questa modifica");
           }
@@ -1351,7 +1467,7 @@ export class DatabaseStorage implements IStorage {
 
   async createFundTransfers(transfers: Array<InsertFundTransfer & { userId: string; activityId: string }>): Promise<FundTransfer[]> {
     const results = [];
-    
+
     for (const transfer of transfers) {
       // Create fund transfer record
       const [newTransfer] = await db
