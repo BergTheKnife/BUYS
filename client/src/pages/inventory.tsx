@@ -449,7 +449,7 @@ export default function Inventory() {
                 Cancella Filtri
               </Button>
               <div className="text-sm text-muted-foreground text-center sm:text-left">
-                Risultati: <span className="font-medium">{filteredInventory.length}</span> di <span className="font-medium">{inventory.length}</span>
+                Articoli: <span className="font-medium">{filteredInventory.reduce((sum, item) => sum + item.quantita, 0)}</span> di <span className="font-medium">{inventory.reduce((sum, item) => sum + item.quantita, 0)}</span>
               </div>
             </div>
           </CardContent>
