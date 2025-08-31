@@ -177,8 +177,8 @@ export function AddExpenseModal({ isOpen, onClose, editingExpense }: AddExpenseM
 
           <div className="space-y-2">
             <Label htmlFor="categoria">Categoria</Label>
-            <Select 
-              value={form.watch("categoria")} 
+            <Select
+              value={form.watch("categoria")}
               onValueChange={(value) => form.setValue("categoria", value)}
             >
               <SelectTrigger>
@@ -217,15 +217,15 @@ export function AddExpenseModal({ isOpen, onClose, editingExpense }: AddExpenseM
             <Button type="button" variant="outline" onClick={onClose}>
               Annulla
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={mutation.isPending}
               className="bg-yellow-600 hover:bg-yellow-700"
             >
-              {mutation.isPending 
-                ? "Salvando..." 
-                : editingExpense 
-                  ? "Aggiorna Spesa" 
+              {mutation.isPending
+                ? "Salvando..."
+                : editingExpense
+                  ? "Aggiorna Spesa"
                   : "Salva Spesa"
               }
             </Button>

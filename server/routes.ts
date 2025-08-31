@@ -2317,26 +2317,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         voce: req.body.voce,
         importo: req.body.importo,
         categoria: req.body.categoria,
-        data: new Date(req.body.data),
-        usaCassaReinvestimento: req.body.usaCassaReinvestimento === true
+        data: new Date(req.body.data)
       };
       
       const expenseData = insertSpesaSchema.parse(formData);
-      const importo = Number(expenseData.importo);
-
-      // Se si vuole usare la cassa reinvestimento, verifica e marca la spesa
-      if (formData.usaCassaReinvestimento) {
-        const cassaBalance = await storage.getCassaReinvestimentoBalance(req.session.activityId!);
-        if (cassaBalance < importo) {
-          return res.status(400).json({ 
-            message: `Fondi insufficienti nella cassa reinvestimento. Disponibili: €${cassaBalance.toFixed(2)}, Richiesti: €${importo.toFixed(2)}` 
-          });
-        }
-
-        // Marca la spesa come utilizzante la cassa reinvestimento
-        expenseData.voce = `CASSA_REINVESTIMENTO: ${expenseData.voce}`;
-      }
       
+      // Tutte le spese vengono create normalmente
+      // Il sistema scalerà automaticamente dalla cassa reinvestimento se disponibile
       const expense = await storage.createExpense({
         ...expenseData,
         userId: req.session.userId!,

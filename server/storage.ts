@@ -177,24 +177,6 @@ export interface IStorage {
   getFinancialHistoryByActivity(activityId: string): Promise<FinancialHistory[]>;
   createFinancialHistoryEntry(entry: InsertFinancialHistory & { userId: string; activityId: string }): Promise<FinancialHistory>;
   deleteFinancialHistoryEntry(entryId: string, activityId: string): Promise<boolean>;
-
-  // Inventory batch methods
-  createInventoryBatch(data: {
-    inventarioId: string;
-    activityId: string;
-    userId: string;
-    costo: string;
-    quantita: number;
-    dataAcquisto?: Date;
-  }): Promise<any>; // Return type needs to be defined based on schema
-  getInventoryBatches(inventarioId: string): Promise<any[]>; // Return type needs to be defined based on schema
-  updateBatchQuantity(batchId: string, newQuantity: number): Promise<any | undefined>; // Return type needs to be defined based on schema
-  calculateFIFOMargin(inventarioId: string, quantitaVenduta: number, prezzoVendita: number): Promise<{ margine: number; batchesUsed: Array<{batchId: string, quantitaUsata: number, nuovaQuantitaRimanente: number}>; costoMedio: number }>;
-  updateBatchesAfterSale(batchesUsed: Array<{batchId: string, nuovaQuantitaRimanente: number}>): Promise<void>;
-
-  // Cassa reinvestimento methods
-  getCassaReinvestimentoBalance(activityId: string): Promise<number>;
-  updateCassaReinvestimento(activityId: string, importo: number, descrizione: string, userId: string): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -507,7 +489,6 @@ export class DatabaseStorage implements IStorage {
         proprietarioId: activities.proprietarioId,
         createdAt: activities.createdAt,
         proprietarioNome: users.nome,
-        proprietarioCognome: users.cognome,
         proprietarioEmail: users.email,
         proprietarioUsername: users.username
       })
@@ -1050,7 +1031,7 @@ export class DatabaseStorage implements IStorage {
     const [expense] = await db
       .select()
       .from(spese)
-      .where(and(eq(spese.id, id), eq(spese.activityId, activityId)));
+      .where(and(eq(expense.id, id), eq(expense.activityId, activityId)));
 
     if (!expense) return false;
 
@@ -1590,7 +1571,7 @@ export class DatabaseStorage implements IStorage {
     // For simplicity, we'll assume that 'Riunisci fondi' operations are not directly deletable
     // from the history UI, or if they are, they need to be handled with care.
     // For other types of entries, direct deletion is fine.
-    
+
     // Example: preventing deletion of 'Riunisci fondi' for now.
     const [entry] = await db
       .select()
@@ -1611,7 +1592,7 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .delete(financialHistory)
       .where(and(eq(financialHistory.id, entryId), eq(financialHistory.activityId, activityId)));
-      
+
     return (result.rowCount ?? 0) > 0;
   }
 }
