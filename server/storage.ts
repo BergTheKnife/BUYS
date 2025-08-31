@@ -1392,23 +1392,6 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return newEntry;
   }
-
-  async updateFinancialHistoryEntry(id: string, updates: { descrizione?: string; importo?: string | null }): Promise<FinancialHistory> {
-    const [updatedEntry] = await db
-      .update(financialHistory)
-      .set(updates)
-      .where(eq(financialHistory.id, id))
-      .returning();
-    return updatedEntry;
-  }
-
-  async deleteFinancialHistoryEntry(id: string): Promise<void> {
-    await db.delete(financialHistory).where(eq(financialHistory.id, id));
-  }
-
-  async getExpensesByActivity(activityId: string): Promise<Spesa[]> {
-    return await db.select().from(spese).where(eq(spese.activityId, activityId));
-  }
 }
 
 export const storage = new DatabaseStorage();

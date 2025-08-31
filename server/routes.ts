@@ -101,7 +101,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Check if user exists with this Google ID or email
       let user = await storage.getUserByEmail(profile.emails?.[0]?.value || "");
-
+      
       if (!user) {
         // Create new user from Google profile
         const userData = {
@@ -111,10 +111,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           username: profile.emails?.[0]?.value?.split('@')[0] || `user_${Date.now()}`,
           password: "" // No password for Google users
         };
-
+        
         user = await storage.createUser(userData);
       }
-
+      
       return done(null, user);
     } catch (error) {
       return done(error);
@@ -137,7 +137,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Serve uploaded files  
   app.use('/uploads', express.static(uploadDir));
-
+  
   // Add data protection middleware to log and protect all operations
   app.use(dataProtectionMiddleware);
 
@@ -151,14 +151,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error('Error cleaning up remember tokens:', error);
       }
     };
-
+    
     // Run cleanup every hour (3600000 ms)
     setInterval(cleanup, 3600000);
-
+    
     // Run initial cleanup after 5 minutes
     setTimeout(cleanup, 300000);
   };
-
+  
   startTokenCleanup();
 
   // Auth middleware
@@ -200,7 +200,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/auth/register', async (req, res) => {
     try {
       const userData = insertUserSchema.parse(req.body);
-
+      
       // Check if user already exists
       const existingUserByEmail = await storage.getUserByEmail(userData.email);
       if (existingUserByEmail) {
@@ -214,7 +214,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Hash password
       const hashedPassword = await bcrypt.hash(userData.password, 10);
-
+      
       // Create user with email verification pending
       const user = await storage.createUser({
         ...userData,
@@ -225,7 +225,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate verification token
       const { generateVerificationToken, getTokenExpiration, sendVerificationEmail } = await import('./emailService');
       const verificationToken = generateVerificationToken();
-
+      
       // Create verification token in database
       await storage.createEmailVerificationToken({
         userId: user.id,
@@ -236,7 +236,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Send verification email
       try {
         await sendVerificationEmail(user.email, user.nome, user.cognome, verificationToken);
-
+        
         res.json({ 
           message: "Registrazione completata! Controlla la tua email per il link di verifica.",
           user: { 
@@ -252,7 +252,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       } catch (emailError) {
         console.error('Failed to send verification email:', emailError);
-
+        
         // For development: provide fallback verification option
         if (process.env.NODE_ENV === 'development') {
           res.json({ 
@@ -284,7 +284,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/auth/login', async (req, res) => {
     try {
       const { emailOrUsername, password, rememberMe } = req.body;
-
+      
       const user = await storage.getUserByEmailOrUsername(emailOrUsername);
       if (!user) {
         return res.status(401).json({ message: "Credenziali non valide" });
@@ -306,17 +306,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Set session
       req.session.userId = user.id;
-
+      
       // Set session duration based on remember me checkbox
       if (rememberMe) {
         req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
-
+        
         // Create remember token for auto-login
         const rememberToken = randomBytes(64).toString('hex');
         const expiresAt = new Date(Date.now() + (30 * 24 * 60 * 60 * 1000)); // 30 days
-
+        
         await storage.createRememberToken(user.id, rememberToken, expiresAt);
-
+        
         // Set httpOnly cookie with remember token
         res.cookie('rememberToken', rememberToken, {
           httpOnly: true,
@@ -327,7 +327,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         req.session.cookie.maxAge = 24 * 60 * 60 * 1000; // 24 hours if not remembered
       }
-
+      
       // If user has a last activity, auto-restore it in session
       let restoredActivity = null;
       if (user.lastActivityId) {
@@ -342,14 +342,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log('Could not restore last activity:', error);
         }
       }
-
+      
       // Save session and return response 
       req.session.save((err) => {
         if (err) {
           console.log('Session save error:', err);
           return res.status(500).json({ message: "Errore di sessione" });
         }
-
+        
         res.json({ 
           user: { 
             id: user.id, 
@@ -377,10 +377,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/auth/verify-email/:token', async (req, res) => {
     try {
       const { token } = req.params;
-
+      
       // Clean up expired tokens first
       await storage.deleteExpiredTokens();
-
+      
       // Find the verification token
       const verificationToken = await storage.getEmailVerificationToken(token);
       if (!verificationToken) {
@@ -466,7 +466,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Delete the used token
       await storage.deleteEmailVerificationToken(token);
-
+      
       // Send welcome email
       try {
         const { sendWelcomeEmail } = await import('./emailService');
@@ -478,7 +478,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Redirect to app login with success message
       const successMessage = encodeURIComponent(`Registrazione completata con successo! Benvenuto ${verifiedUser.nome}, ora puoi accedere al tuo account.`);
       res.redirect(`/?verified=success&message=${successMessage}`);
-
+      
     } catch (error: any) {
       console.error('Email verification error:', error);
       res.status(500).send(`
@@ -510,14 +510,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/auth/forgot-password', async (req, res) => {
     try {
       const { emailOrUsername } = req.body;
-
+      
       if (!emailOrUsername) {
         return res.status(400).json({ message: "Email o username richiesto" });
       }
 
       // Find user by email or username
       const user = await storage.getUserByEmailOrUsername(emailOrUsername);
-
+      
       // Always return success to prevent user enumeration
       if (!user) {
         return res.json({ 
@@ -540,7 +540,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate password reset token
       const { generatePasswordResetToken, getTokenExpiration, sendPasswordResetEmail } = await import('./emailService');
       const resetToken = generatePasswordResetToken();
-
+      
       // Store reset token (reuse email verification tokens table structure)
       await storage.createPasswordResetToken({
         userId: user.id,
@@ -551,7 +551,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Send password reset email
       try {
         await sendPasswordResetEmail(user.email, user.nome, user.cognome, resetToken);
-
+        
         return res.json({ 
           message: "Se l'account esiste, riceverai un'email con le istruzioni per il reset della password.",
           success: true
@@ -563,7 +563,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           success: false
         });
       }
-
+      
     } catch (error: any) {
       console.error('Password reset request error:', error);
       res.status(500).json({ 
@@ -578,7 +578,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { token } = req.params;
       const { newPassword } = req.body;
-
+      
       if (!newPassword || newPassword.length < 6) {
         return res.status(400).json({ 
           message: "La nuova password deve essere di almeno 6 caratteri" 
@@ -587,7 +587,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Clean up expired tokens first
       await storage.deleteExpiredPasswordResetTokens();
-
+      
       // Find the reset token
       const resetToken = await storage.getPasswordResetToken(token);
       if (!resetToken) {
@@ -618,7 +618,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Delete the used token
       await storage.deletePasswordResetToken(token);
-
+      
       // Send confirmation email
       try {
         const { sendPasswordChangeConfirmationEmail } = await import('./emailService');
@@ -631,7 +631,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Password aggiornata con successo. Ora puoi accedere con la nuova password.",
         success: true
       });
-
+      
     } catch (error: any) {
       console.error('Password reset error:', error);
       res.status(500).json({ 
@@ -645,7 +645,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/auth/resend-verification', async (req, res) => {
     try {
       const { email } = req.body;
-
+      
       if (!email) {
         return res.status(400).json({ message: "Email richiesta" });
       }
@@ -655,7 +655,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!user) {
         user = await storage.getUserByUsername(email);
       }
-
+      
       if (!user) {
         return res.status(404).json({ message: "Utente non trovato" });
       }
@@ -671,7 +671,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate new verification token
       const { generateVerificationToken, getTokenExpiration } = await import('./emailService');
       const verificationToken = generateVerificationToken();
-
+      
       // Store new token
       await storage.createEmailVerificationToken({
         userId: user.id,
@@ -682,12 +682,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Send verification email
       const { sendVerificationEmail } = await import('./emailService');
       await sendVerificationEmail(user.email, user.nome, user.cognome, verificationToken);
-
+      
       res.json({ 
         message: "Email di verifica inviata nuovamente. Controlla la tua casella di posta.",
         success: true
       });
-
+      
     } catch (error: any) {
       console.error('Resend verification email error:', error);
       res.status(500).json({ 
@@ -702,10 +702,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (process.env.NODE_ENV === 'production') {
       return res.status(404).json({ message: 'Not found' });
     }
-
+    
     try {
       const { testEmailConnection, sendVerificationEmail, generateVerificationToken } = await import('./emailService');
-
+      
       // Test SMTP connection first
       const isConnected = await testEmailConnection();
       if (!isConnected) {
@@ -751,7 +751,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.deleteRememberToken(rememberToken);
         res.clearCookie('rememberToken');
       }
-
+      
       req.session.destroy((err) => {
         if (err) {
           return res.status(500).json({ message: "Errore durante il logout" });
@@ -769,13 +769,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/auth/auto-login', async (req, res) => {
     try {
       const rememberToken = req.cookies.rememberToken;
-
+      
       if (!rememberToken) {
         return res.status(401).json({ message: "Nessun token di ricordo trovato" });
       }
 
       const tokenData = await storage.getRememberToken(rememberToken);
-
+      
       if (!tokenData) {
         res.clearCookie('rememberToken');
         return res.status(401).json({ message: "Token di ricordo non valido" });
@@ -799,7 +799,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Set session
       req.session.userId = user.id;
       req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
-
+      
       // Restore last activity if available
       let restoredActivity = null;
       if (user.lastActivityId) {
@@ -813,13 +813,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log('Could not restore last activity:', error);
         }
       }
-
+      
       req.session.save((err) => {
         if (err) {
           console.log('Session save error:', err);
           return res.status(500).json({ message: "Errore di sessione" });
         }
-
+        
         res.json({ 
           user: { 
             id: user.id, 
@@ -857,7 +857,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Check if user still has access to this activity
           const userActivities = await storage.getActivitiesByUserId(user.id);
           const hasAccessToLastActivity = userActivities.some(activity => activity.id === user.lastActivityId);
-
+          
           if (hasAccessToLastActivity) {
             req.session.activityId = user.lastActivityId;
             console.log('DEBUG: Auto-restored last activity in /me endpoint:', user.lastActivityId);
@@ -910,13 +910,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/auth/check-username/:username', async (req, res) => {
     try {
       const { username } = req.params;
-
+      
       if (!username || username.length < 3) {
         return res.json({ available: false, message: "Username deve essere di almeno 3 caratteri" });
       }
 
       const existingUser = await storage.getUserByUsername(username);
-
+      
       res.json({ 
         available: !existingUser,
         message: existingUser ? "Username già in uso" : "Username disponibile"
@@ -931,7 +931,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const { nome } = req.body;
-
+      
       if (!nome || nome.trim().length === 0) {
         return res.status(400).json({ message: "Nome attività richiesto" });
       }
@@ -979,7 +979,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const { currentPassword, newPassword } = req.body;
-
+      
       if (!currentPassword || !newPassword) {
         return res.status(400).json({ message: "Password attuale e nuova password richieste" });
       }
@@ -1025,7 +1025,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const { password } = req.body;
-
+      
       if (!password) {
         return res.status(400).json({ message: "Password richiesta per eliminare l'attività" });
       }
@@ -1050,13 +1050,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Delete all related data first (cascade delete)
       // Delete user activity relations
       await db.delete(activityUsers).where(eq(activityUsers.activityId, id));
-
+      
       // Delete sales
       await db.delete(vendite).where(eq(vendite.activityId, id));
-
+      
       // Delete expenses  
       await db.delete(spese).where(eq(spese.activityId, id));
-
+      
       // Delete inventory
       await db.delete(inventario).where(eq(inventario.activityId, id));
 
@@ -1066,7 +1066,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Clear session if this was the current activity
       if (req.session.activityId === id) {
         req.session.activityId = undefined;
-
+        
         // Update user's lastActivityId to null if it was this activity
         await storage.updateUser(req.session.userId!, { lastActivityId: null });
       }
@@ -1082,12 +1082,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { activityId } = req.params;
       const userId = req.session.userId!;
-
+      
       // Check if this is current activity
       if (req.session.activityId !== activityId) {
         return res.status(400).json({ message: "Devi essere nell'attività per abbandonarla" });
       }
-
+      
       // Check if user is the owner
       const activity = await storage.getActivityById(activityId);
       if (activity?.proprietarioId === userId) {
@@ -1095,13 +1095,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: "Non puoi abbandonare un'attività che hai creato. Puoi solo eliminarla." 
         });
       }
-
+      
       // Leave activity
       await storage.leaveActivity(activityId, userId);
-
+      
       // Clear session activity
       delete req.session.activityId;
-
+      
       res.json({ message: "Hai abbandonato l'attività con successo" });
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nell'abbandono dell'attività" });
@@ -1160,23 +1160,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/admin/activities/:id', isAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-
+      
       // CRITICAL DATA PROTECTION: Prevent accidental deletion of activities with data
       const inventoryCount = await db.select({ count: sql`count(*)` }).from(inventario).where(eq(inventario.activityId, id));
       const salesCount = await db.select({ count: sql`count(*)` }).from(vendite).where(eq(vendite.activityId, id));
       const expensesCount = await db.select({ count: sql`count(*)` }).from(spese).where(eq(spese.activityId, id));
-
+      
       const totalRecords = Number(inventoryCount[0]?.count || 0) + Number(salesCount[0]?.count || 0) + Number(expensesCount[0]?.count || 0);
-
+      
       if (totalRecords > 0) {
         return res.status(403).json({ 
           message: `PROTEZIONE DATI: Impossibile eliminare l'attività. Contiene ${totalRecords} record di dati (inventario, vendite, spese). Solo il proprietario può eliminarla dall'interfaccia utente.` 
         });
       }
-
+      
       // Only delete if activity is completely empty
       await db.delete(activities).where(eq(activities.id, id));
-
+      
       res.json({ message: "Attività eliminata con successo" });
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nell'eliminazione dell'attività" });
@@ -1186,28 +1186,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/admin/users/:id', isAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-
+      
       // CRITICAL DATA PROTECTION: Check for user activities with data
       const userActivities = await storage.getActivitiesByUserId(id);
       let totalDataRecords = 0;
-
+      
       for (const activity of userActivities) {
         const inventoryCount = await db.select({ count: sql`count(*)` }).from(inventario).where(eq(inventario.activityId, activity.id));
         const salesCount = await db.select({ count: sql`count(*)` }).from(vendite).where(eq(vendite.activityId, activity.id));
         const expensesCount = await db.select({ count: sql`count(*)` }).from(spese).where(eq(spese.activityId, activity.id));
-
+        
         totalDataRecords += Number(inventoryCount[0]?.count || 0) + Number(salesCount[0]?.count || 0) + Number(expensesCount[0]?.count || 0);
       }
-
+      
       if (totalDataRecords > 0) {
         return res.status(403).json({ 
           message: `PROTEZIONE DATI: Impossibile eliminare l'utente. Le sue attività contengono ${totalDataRecords} record di dati. L'utente deve prima eliminare le sue attività con dati dall'interfaccia utente.` 
         });
       }
-
+      
       // Only delete if user has no activities with data
       await db.delete(users).where(eq(users.id, id));
-
+      
       res.json({ message: "Utente eliminato con successo" });
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nell'eliminazione dell'utente" });
@@ -1234,7 +1234,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get current activity details
       const currentActivity = await storage.getActivityById(activityId);
-
+      
       if (!currentActivity) {
         return res.status(404).json({ message: "Attività non trovata" });
       }
@@ -1257,7 +1257,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/activity-members/:activityId', requireAuth, requireActivity, async (req, res) => {
     try {
       const { activityId } = req.params;
-
+      
       // Check if user is the owner
       const activity = await storage.getActivityById(activityId);
       if (!activity || activity.proprietarioId !== req.session.userId) {
@@ -1289,7 +1289,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { activityId } = req.params;
       const { emailOrUsername } = req.body;
-
+      
       // Check if user is the owner
       const activity = await storage.getActivityById(activityId);
       if (!activity || activity.proprietarioId !== req.session.userId) {
@@ -1346,7 +1346,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/activities/:activityId/members/:userId', requireAuth, requireActivity, async (req, res) => {
     try {
       const { activityId, userId } = req.params;
-
+      
       // Check if user is the owner
       const activity = await storage.getActivityById(activityId);
       if (!activity || activity.proprietarioId !== req.session.userId) {
@@ -1371,7 +1371,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/auth/username', requireAuth, async (req, res) => {
     try {
       const { username } = updateUsernameSchema.parse(req.body);
-
+      
       // Check if username is already in use by another user
       const existingUser = await storage.getUserByUsername(username);
       if (existingUser && existingUser.id !== req.session.userId) {
@@ -1403,15 +1403,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Validate frontend data (expects 'password' field)
       const { nome, password } = req.body;
-
+      
       if (!nome || !password) {
         return res.status(400).json({ message: "Nome attività e password sono richiesti" });
       }
-
+      
       if (password.length < 6) {
         return res.status(400).json({ message: "Password deve essere di almeno 6 caratteri" });
       }
-
+      
       // Check if activity name already exists
       const existingActivity = await storage.getActivityByName(nome);
       if (existingActivity) {
@@ -1420,7 +1420,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Hash activity password
       const hashedPassword = await bcrypt.hash(password, 10);
-
+      
       const activity = await storage.createActivity({
         nome: nome,
         passwordHash: hashedPassword,
@@ -1448,11 +1448,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Validate frontend data (expects 'password' field)
       const { nome, password } = req.body;
-
+      
       if (!nome || !password) {
         return res.status(400).json({ message: "Nome attività e password sono richiesti" });
       }
-
+      
       // Find activity by name
       const activity = await storage.getActivityByName(nome);
       if (!activity) {
@@ -1502,11 +1502,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/activities/switch/:activityId', requireAuth, async (req, res) => {
     try {
       const { activityId } = req.params;
-
+      
       // Check if user is member of this activity
       const activities = await storage.getActivitiesByUserId(req.session.userId!);
       const activity = activities.find(a => a.id === activityId);
-
+      
       if (!activity) {
         return res.status(403).json({ message: "Non sei membro di questa attività" });
       }
@@ -1532,7 +1532,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/auth/profile', requireAuth, async (req, res) => {
     try {
       const profileData = updateProfileSchema.parse(req.body);
-
+      
       // Check if new email is already in use by another user
       if (profileData.email) {
         const existingUser = await storage.getUserByEmail(profileData.email);
@@ -1564,7 +1564,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/auth/password', requireAuth, async (req, res) => {
     try {
       const { currentPassword, newPassword } = changePasswordSchema.parse(req.body);
-
+      
       const user = await storage.getUser(req.session.userId!);
       if (!user) {
         return res.status(404).json({ message: "Utente non trovato" });
@@ -1619,10 +1619,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/auth/account', requireAuth, async (req, res) => {
     try {
       const userId = req.session.userId!;
-
+      
       // SECURITY: Validate this is a user-initiated deletion
       DataProtectionService.validateDeletionRequest('user', 'user', userId);
-
+      
       // Check for protected data
       const protection = await DataProtectionService.hasProtectedData(userId);
       if (protection.hasData) {
@@ -1632,10 +1632,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           counts: protection.counts
         });
       }
-
+      
       // Create backup before deletion
       await DataProtectionService.createBackup(userId, 'USER_INITIATED_ACCOUNT_DELETION');
-
+      
       await storage.deleteUser(userId);
 
       req.session.destroy((err) => {
@@ -1668,9 +1668,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const activityId = req.session.activityId;
       const { period = 'all', month, year } = req.query;
-
+      
       let dateFilter = sql`1=1`; // No filter by default
-
+      
       // Apply date filters
       if (period === 'today') {
         dateFilter = sql`DATE(created_at) = CURRENT_DATE`;
@@ -1679,7 +1679,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else if (period === 'year' && year) {
         dateFilter = sql`EXTRACT(YEAR FROM created_at) = ${year}`;
       }
-
+      
       // Get inventory additions
       const inventoryHistory = await db.select({
         id: inventario.id,
@@ -1690,7 +1690,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         details: sql`json_build_object('nome', ${inventario.nomeArticolo}, 'taglia', ${inventario.taglia}, 'quantita', ${inventario.quantita})`
       }).from(inventario)
         .where(sql`${eq(inventario.activityId, activityId!)} AND ${dateFilter}`);
-
+      
       // Get sales
       const salesHistory = await db.select({
         id: vendite.id,
@@ -1701,7 +1701,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         details: sql`json_build_object('nome', ${vendite.nomeArticolo}, 'taglia', ${vendite.taglia}, 'quantita', ${vendite.quantita}, 'incassato_da', ${vendite.incassatoDa})`
       }).from(vendite)
         .where(sql`${eq(vendite.activityId, activityId!)} AND ${dateFilter}`);
-
+      
       // Get expenses
       const expensesHistory = await db.select({
         id: spese.id,
@@ -1712,11 +1712,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         details: sql`json_build_object('categoria', ${spese.categoria})`
       }).from(spese)
         .where(sql`${eq(spese.activityId, activityId!)} AND ${dateFilter}`);
-
+      
       // Combine and sort by date (newest first)
       const allHistory = [...inventoryHistory, ...salesHistory, ...expensesHistory]
         .sort((a, b) => new Date(b.data || new Date()).getTime() - new Date(a.data || new Date()).getTime());
-
+        
       res.json(allHistory);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore del server" });
@@ -1737,7 +1737,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/activity-members', requireActivity, async (req, res) => {
     try {
       const activityId = req.session.activityId;
-
+      
       const members = await db.select({
         id: users.id,
         nome: users.nome,
@@ -1746,7 +1746,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }).from(activityUsers)
         .innerJoin(users, eq(activityUsers.userId, users.id))
         .where(eq(activityUsers.activityId, activityId!));
-
+      
       res.json(members);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nel recupero dei membri" });
@@ -1766,7 +1766,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/profile/upload-url', requireAuth, async (req, res) => {
     try {
       console.log('🚀 Profile upload URL endpoint called');
-
+      
       // Check if object storage is available
       if (!process.env.PRIVATE_OBJECT_DIR) {
         console.log('❌ PRIVATE_OBJECT_DIR not configured');
@@ -1776,10 +1776,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       console.log('✅ Object storage configured:', process.env.PRIVATE_OBJECT_DIR);
-
+      
       const objectStorageService = new ObjectStorageService();
       const uploadURL = await objectStorageService.getProfileImageUploadURL();
-
+      
       console.log('✅ Upload URL generated:', uploadURL);
       res.json({ uploadURL });
     } catch (error: any) {
@@ -1879,26 +1879,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const xlsx = await import('xlsx');
       const activityId = req.session.activityId!;
-
+      
       // Get inventory and sales data
       const inventory = await storage.getInventoryByActivity(activityId);
       const sales = await storage.getSalesByActivity(activityId);
-
+      
       // Calculate sold quantities for each inventory item
       const soldQuantities = new Map<string, number>();
-
+      
       sales.forEach(sale => {
         const key = `${sale.nomeArticolo}-${sale.taglia}`;
         const currentSold = soldQuantities.get(key) || 0;
         soldQuantities.set(key, currentSold + sale.quantita);
       });
-
+      
       // Prepare data for Excel export
       const excelData = inventory.map(item => {
         const key = `${item.nomeArticolo}-${item.taglia}`;
         const quantitaVenduta = soldQuantities.get(key) || 0;
         const valoreTotale = Number(item.costo) * item.quantita;
-
+        
         return {
           'Nome Articolo': item.nomeArticolo,
           'Taglia': item.taglia,
@@ -1909,11 +1909,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'Data Creazione': new Date(item.createdAt || '').toLocaleDateString('it-IT')
         };
       });
-
+      
       // Create workbook and worksheet
       const workbook = xlsx.utils.book_new();
       const worksheet = xlsx.utils.json_to_sheet(excelData);
-
+      
       // Set column widths
       worksheet['!cols'] = [
         { wch: 20 }, // Nome Articolo
@@ -1924,18 +1924,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { wch: 16 }, // Valore Totale
         { wch: 15 }  // Data Creazione
       ];
-
+      
       // Add worksheet to workbook
       xlsx.utils.book_append_sheet(workbook, worksheet, 'Inventario');
-
+      
       // Generate Excel file buffer
       const excelBuffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-
+      
       // Set response headers for file download
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename="inventario_${new Date().toISOString().split('T')[0]}.xlsx"`);
       res.setHeader('Content-Length', excelBuffer.length);
-
+      
       // Send the Excel file
       res.send(excelBuffer);
     } catch (error: any) {
@@ -1975,16 +1975,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         costo: req.body.costo,
         quantita: parseInt(req.body.quantita)
       };
-
+      
       const itemData = insertInventarioSchema.parse(formData);
-
+      
       let immagineUrl = null;
       if (req.file) {
         try {
           // Use Object Storage for inventory images
           const objectStorageService = new ObjectStorageService();
           const uploadURL = await objectStorageService.getInventoryImageUploadURL();
-
+          
           // Upload file to Object Storage
           const fileBuffer = fs.readFileSync(req.file.path);
           const uploadResponse = await fetch(uploadURL, {
@@ -2001,7 +2001,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } else {
             console.error('Failed to upload to Object Storage:', uploadResponse.status);
           }
-
+          
           // Clean up temp file
           fs.unlinkSync(req.file.path);
         } catch (storageError) {
@@ -2042,23 +2042,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/inventario/:id', requireActivity, upload.single('immagine'), async (req, res) => {
     try {
       const { id } = req.params;
-
+      
       // Convert form data types properly for updates
       const formData: any = {};
       if (req.body.nomeArticolo !== undefined) formData.nomeArticolo = req.body.nomeArticolo;
       if (req.body.taglia !== undefined) formData.taglia = req.body.taglia;
       if (req.body.costo !== undefined) formData.costo = req.body.costo;
       if (req.body.quantita !== undefined) formData.quantita = parseInt(req.body.quantita);
-
+      
       const updates = insertInventarioSchema.partial().parse(formData);
-
+      
       // Solo aggiorna l'immagine se è stata fornita una nuova immagine
       if (req.file) {
         try {
           // Use Object Storage for inventory images
           const objectStorageService = new ObjectStorageService();
           const uploadURL = await objectStorageService.getInventoryImageUploadURL();
-
+          
           // Upload file to Object Storage
           const fileBuffer = fs.readFileSync(req.file.path);
           const uploadResponse = await fetch(uploadURL, {
@@ -2075,7 +2075,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } else {
             console.error('Failed to upload to Object Storage:', uploadResponse.status);
           }
-
+          
           // Clean up temp file
           fs.unlinkSync(req.file.path);
         } catch (storageError) {
@@ -2105,7 +2105,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const deleted = await storage.deleteInventoryItem(id, req.session.activityId!);
-
+      
       if (!deleted) {
         return res.status(404).json({ message: "Articolo non trovato" });
       }
@@ -2120,7 +2120,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const { quantita } = req.body;
-
+      
       if (!quantita || quantita <= 0) {
         return res.status(400).json({ message: "Quantità non valida" });
       }
@@ -2175,9 +2175,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         incassatoSu: req.body.incassatoSu,
         data: new Date(req.body.data)
       };
-
+      
       const saleData = insertVenditaSchema.parse(formData);
-
+      
       // Get inventory item to calculate margin and update quantity
       const inventoryItem = await storage.getInventoryItem(saleData.inventarioId, req.session.activityId!);
       if (!inventoryItem) {
@@ -2185,7 +2185,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const quantitaVenduta = saleData.quantita || 1;
-
+      
       if (inventoryItem.quantita < quantitaVenduta) {
         return res.status(400).json({ message: "Quantità insufficiente in magazzino" });
       }
@@ -2217,7 +2217,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/vendite/:id', requireActivity, async (req, res) => {
     try {
       const { id } = req.params;
-
+      
       // Convert form data types
       const formData = {
         inventarioId: req.body.inventarioId,
@@ -2227,27 +2227,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         incassatoSu: req.body.incassatoSu,
         data: new Date(req.body.data)
       };
-
+      
       const updates = insertVenditaSchema.partial().parse(formData);
-
+      
       // Get existing sale to compare quantities and calculate margin difference
       const existingSale = await storage.getSaleById(id, req.session.activityId!);
       if (!existingSale) {
         return res.status(404).json({ message: "Vendita non trovata" });
       }
-
+      
       // Get inventory item to calculate new margin and article info
       const inventoryItem = await storage.getInventoryItem(updates.inventarioId || existingSale.inventarioId, req.session.activityId!);
       if (!inventoryItem) {
         return res.status(404).json({ message: "Articolo non trovato nell'inventario" });
       }
-
+      
       // Calculate new margin
       const newPrice = updates.prezzoVendita || existingSale.prezzoVendita;
       const newQuantity = updates.quantita || existingSale.quantita;
       const marginePerUnit = Number(newPrice) - Number(inventoryItem.costo);
       const margineTotal = marginePerUnit * newQuantity;
-
+      
       // Update sale with new margin and article info (inventory quantities are handled in updateSale)
       const updatedSale = await storage.updateSale(id, req.session.activityId!, {
         ...updates,
@@ -2255,7 +2255,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         taglia: inventoryItem.taglia,
         margine: margineTotal.toString(),
       });
-
+      
       res.json(updatedSale);
     } catch (error: any) {
       console.error('Sale update error:', error);
@@ -2267,7 +2267,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const deleted = await storage.deleteSale(id, req.session.activityId!);
-
+      
       if (!deleted) {
         return res.status(404).json({ message: "Vendita non trovata" });
       }
@@ -2290,63 +2290,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/spese', requireActivity, async (req, res) => {
     try {
-      const user = req.user!;
-      const { 
-        descrizione, 
-        importo, 
-        categoria, 
-        data,
-        dettagli 
-      } = req.body;
-
-      const activity = await storage.getUserCurrentActivity(user.id);
-      if (!activity) {
-        return res.status(400).json({ message: "Nessuna attività selezionata" });
-      }
-
-      // Verifica che ci siano fondi sufficienti nella cassa reinvestimento
-      const fundTransfers = await storage.getFundTransfersByActivity(activity.id);
-      const cassaReinvestimento = fundTransfers.reduce((sum, transfer) => {
-        return sum + Number(transfer.importo);
-      }, 0);
-
-      const speseTotali = await storage.getExpensesByActivity(activity.id);
-      const speseGiaRegistrate = speseTotali.reduce((sum, spesa) => {
-        return sum + Number(spesa.importo);
-      }, 0);
-
-      const fondisponibili = cassaReinvestimento - speseGiaRegistrate;
-
-      if (fondisponibili < Number(importo)) {
-        return res.status(400).json({ 
-          message: `Fondi insufficienti nella Cassa Reinvestimento. Disponibili: €${fondisponibili.toFixed(2)}, Richiesti: €${Number(importo).toFixed(2)}` 
-        });
-      }
-
-      const newExpense = await storage.createExpense({
-        userId: user.id,
-        activityId: activity.id,
-        descrizione,
-        importo: importo.toString(),
-        categoria,
-        data: data || new Date().toISOString(),
-        dettagli: dettagli || null,
+      // Convert form data types
+      const formData = {
+        voce: req.body.voce,
+        importo: req.body.importo,
+        categoria: req.body.categoria,
+        data: new Date(req.body.data)
+      };
+      
+      const expenseData = insertSpesaSchema.parse(formData);
+      
+      const expense = await storage.createExpense({
+        ...expenseData,
+        userId: req.session.userId!,
+        activityId: req.session.activityId!,
       });
 
-      // Add to financial history
-      await storage.createFinancialHistoryEntry({
-        userId: user.id,
-        activityId: activity.id,
-        azione: "Spesa da Cassa Reinvestimento",
-        descrizione: `Spesa scalata dalla Cassa Reinvestimento: ${descrizione} - Categoria: ${categoria}`,
-        importo: importo.toString(),
-        dettagli: JSON.stringify({ spesaId: newExpense.id, categoria, fonte: "Cassa Reinvestimento" })
-      });
-
-      res.status(201).json(newExpense);
-    } catch (error) {
-      console.error("Errore nella creazione della spesa:", error);
-      res.status(500).json({ message: "Errore del server" });
+      res.json(expense);
+    } catch (error: any) {
+      console.error('Expense creation error:', error);
+      res.status(400).json({ message: error.message || "Errore nell'aggiunta della spesa" });
     }
   });
 
@@ -2354,7 +2317,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const updates = insertSpesaSchema.partial().parse(req.body);
-
+      
       const expense = await storage.updateExpense(id, req.session.activityId!, updates);
       if (!expense) {
         return res.status(404).json({ message: "Spesa non trovata" });
@@ -2370,7 +2333,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const deleted = await storage.deleteExpense(id, req.session.activityId!);
-
+      
       if (!deleted) {
         return res.status(404).json({ message: "Spesa non trovata" });
       }
@@ -2394,7 +2357,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/fund-transfers', requireActivity, async (req, res) => {
     try {
       const { transfers } = req.body;
-
+      
       if (!transfers || !Array.isArray(transfers) || transfers.length === 0) {
         return res.status(400).json({ message: "Almeno un trasferimento è richiesto" });
       }
@@ -2404,7 +2367,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!transfer.fromMember || !transfer.fromAccount || !transfer.importo) {
           throw new Error("Campi richiesti mancanti nel trasferimento");
         }
-
+        
         const amount = Number(transfer.importo);
         if (isNaN(amount) || amount <= 0) {
           throw new Error("Importo non valido");
@@ -2422,7 +2385,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const createdTransfers = await storage.createFundTransfers(validatedTransfers);
-
+      
       res.json({
         message: "Trasferimenti completati con successo",
         transfers: createdTransfers
@@ -2434,63 +2397,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Financial history routes  
-  app.get("/api/financial-history", requireAuth, async (req, res) => {
+  app.get('/api/financial-history', requireActivity, async (req, res) => {
     try {
-      const user = req.user!;
-      const activity = await storage.getUserCurrentActivity(user.id);
-
-      if (!activity) {
-        return res.status(400).json({ message: "Nessuna attività selezionata" });
-      }
-
-      const history = await storage.getFinancialHistoryByActivity(activity.id);
+      const history = await storage.getFinancialHistoryByActivity(req.session.activityId!);
       res.json(history);
-    } catch (error) {
-      console.error("Errore nel recupero della cronologia finanziaria:", error);
-      res.status(500).json({ message: "Errore del server" });
-    }
-  });
-
-  // Update financial history entry
-  app.put("/api/financial-history/:id", requireAuth, async (req, res) => {
-    try {
-      const user = req.user!;
-      const { id } = req.params;
-      const { descrizione, importo } = req.body;
-
-      const activity = await storage.getUserCurrentActivity(user.id);
-      if (!activity) {
-        return res.status(400).json({ message: "Nessuna attività selezionata" });
-      }
-
-      const updatedEntry = await storage.updateFinancialHistoryEntry(id, {
-        descrizione,
-        importo: importo ? importo.toString() : null
-      });
-
-      res.json(updatedEntry);
-    } catch (error) {
-      console.error("Errore nella modifica del movimento:", error);
-      res.status(500).json({ message: "Errore del server" });
-    }
-  });
-
-  // Delete financial history entry
-  app.delete("/api/financial-history/:id", requireAuth, async (req, res) => {
-    try {
-      const user = req.user!;
-      const { id } = req.params;
-
-      const activity = await storage.getUserCurrentActivity(user.id);
-      if (!activity) {
-        return res.status(400).json({ message: "Nessuna attività selezionata" });
-      }
-
-      await storage.deleteFinancialHistoryEntry(id);
-      res.json({ message: "Movimento eliminato con successo" });
-    } catch (error) {
-      console.error("Errore nell'eliminazione del movimento:", error);
-      res.status(500).json({ message: "Errore del server" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nel recupero della cronologia finanziaria" });
     }
   });
 
@@ -2500,14 +2412,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { password } = req.body;
       // Simple admin password check - in production, use environment variable
       const adminPassword = process.env.ADMIN_PASSWORD || "Alby1989@";
-
+      
       if (password !== adminPassword) {
         return res.status(401).json({ message: "Password amministratore non corretta" });
       }
-
+      
       // Set admin session
       (req.session as any).adminAuthenticated = true;
-
+      
       res.json({ success: true });
     } catch (error) {
       console.error("Admin auth error:", error);
