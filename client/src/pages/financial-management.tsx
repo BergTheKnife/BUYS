@@ -34,7 +34,7 @@ import {
   Plus
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
-import type { Vendita } from "@shared/schema";
+import type { Vendita, Spesa } from "@shared/schema";
 
 // Types for our financial data
 interface MemberBalance {
@@ -110,7 +110,7 @@ export default function FinancialManagement() {
   };
 
   // Fetch expenses to calculate cassa reinvestimento usage
-  const { data: expenses = [] } = useQuery({
+  const { data: expenses = [] } = useQuery<Spesa[]>({
     queryKey: ["/api/spese"],
   });
 
@@ -547,7 +547,7 @@ export default function FinancialManagement() {
                     </Button>
                   </div>
                 </div>
-              ))}</div>
+              ))}
             </div>
           )}
         </CardContent>

@@ -310,8 +310,6 @@ export const joinActivitySchema = z.object({
   password: z.string().min(6),
 });
 
-export type JoinActivity = z.infer<typeof joinActivitySchema>;
-
 export const inventoryBatchSchema = z.object({
   id: z.string(),
   inventarioId: z.string(),
