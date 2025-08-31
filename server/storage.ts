@@ -176,6 +176,7 @@ export interface IStorage {
   // Financial history methods
   getFinancialHistoryByActivity(activityId: string): Promise<FinancialHistory[]>;
   createFinancialHistoryEntry(entry: InsertFinancialHistory & { userId: string; activityId: string }): Promise<FinancialHistory>;
+  deleteFinancialHistoryEntry(entryId: string, activityId: string): Promise<boolean>;
 
   // Inventory batch methods
   createInventoryBatch(data: {
@@ -816,30 +817,35 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Ottenere saldo cassa reinvestimento
-  async getCassaReinvestimentoBalance(activityId: string) {
-    // Somma di tutti i trasferimenti alla cassa reinvestimento
+  async getCassaReinvestimentoBalance(activityId: string): Promise<number> {
+    // Somma tutti i trasferimenti verso la cassa reinvestimento
     const transfers = await db
       .select({
         total: sql<number>`COALESCE(SUM(CAST(${fundTransfers.importo} AS NUMERIC)), 0)`
       })
       .from(fundTransfers)
-      .where(eq(fundTransfers.activityId, activityId));
+      .where(and(
+        eq(fundTransfers.activityId, activityId),
+        eq(fundTransfers.toAccount, "Cassa Reinvestimento")
+      ));
 
-    // Sottrai spese e riassortimenti che utilizzano la cassa
-    const expenses = await db
+    // Sottrai solo le spese che utilizzano esplicitamente la cassa reinvestimento
+    // (non più le spese automatiche di inventario)
+    const manualExpenses = await db
       .select({
         total: sql<number>`COALESCE(SUM(CAST(${spese.importo} AS NUMERIC)), 0)`
       })
       .from(spese)
       .where(and(
         eq(spese.activityId, activityId),
-        eq(spese.categoria, "Inventario") // Solo spese di inventario usano la cassa
+        // Solo spese manuali che usano esplicitamente la cassa
+        sql`${spese.voce} LIKE 'CASSA_REINVESTIMENTO:%'`
       ));
 
     const transfersTotal = Number(transfers[0]?.total || 0);
-    const expensesTotal = Number(expenses[0]?.total || 0);
+    const manualExpensesTotal = Number(manualExpenses[0]?.total || 0);
 
-    return transfersTotal - expensesTotal;
+    return transfersTotal - manualExpensesTotal;
   }
 
   // Aggiorna saldo cassa reinvestimento
@@ -851,15 +857,13 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Registra nella cronologia finanziaria
-    const { financialHistory } = await import('../migrations/schema'); // Ensure schema is imported correctly
-
-    await db.insert(financialHistory).values({
+    const [newEntry] = await db.insert(financialHistory).values({
       userId,
       activityId,
       azione: importo > 0 ? "DEPOSITO_CASSA" : "PRELIEVO_CASSA",
       descrizione,
       importo: Math.abs(importo).toString(),
-    });
+    }).returning();
 
     return currentBalance + importo;
   }
@@ -873,7 +877,7 @@ export class DatabaseStorage implements IStorage {
     // Calculate FIFO margin and update batches
     const { margine, batchesUsed, costoMedio } = await this.calculateFIFOMargin(saleData.inventarioId, saleData.quantita, Number(saleData.prezzoVendita));
     await this.updateBatchesAfterSale(batchesUsed);
-    
+
     // Create the sale record with calculated margin
     const [newSale] = await db
       .insert(vendite)
@@ -1024,20 +1028,10 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(spese).where(eq(spese.activityId, activityId)).orderBy(desc(spese.data));
   }
 
-  async createExpense(expense: InsertSpesa & { userId: string; activityId: string }): Promise<Spesa> {
-    // If the expense is for inventory (e.g., restocking), deduct from reinvestment fund
-    if (expense.categoria === "Inventario" || expense.categoria === "Aggiunta articolo") {
-      await this.updateCassaReinvestimento(
-        expense.activityId,
-        -Number(expense.importo), // Deduct the cost
-        `Spesa inventario: ${expense.voce}`,
-        expense.userId
-      );
-    }
-    
+  async createExpense(expenseData: InsertSpesa & { userId: string; activityId: string }): Promise<Spesa> {
     const [newExpense] = await db
       .insert(spese)
-      .values(expense)
+      .values(expenseData)
       .returning();
     return newExpense;
   }
@@ -1588,6 +1582,37 @@ export class DatabaseStorage implements IStorage {
       .values(entry)
       .returning();
     return newEntry;
+  }
+
+  async deleteFinancialHistoryEntry(entryId: string, activityId: string): Promise<boolean> {
+    // First, check if the entry is a 'Riunisci fondi' operation.
+    // These operations might have side effects (like updating the reinvestment fund).
+    // For simplicity, we'll assume that 'Riunisci fondi' operations are not directly deletable
+    // from the history UI, or if they are, they need to be handled with care.
+    // For other types of entries, direct deletion is fine.
+    
+    // Example: preventing deletion of 'Riunisci fondi' for now.
+    const [entry] = await db
+      .select()
+      .from(financialHistory)
+      .where(and(eq(financialHistory.id, entryId), eq(financialHistory.activityId, activityId)));
+
+    if (!entry) {
+      return false; // Entry not found
+    }
+
+    if (entry.azione === "Riunisci fondi") {
+      // Optionally, implement logic to reverse the fund transfer and reinvestment fund update
+      // For now, we'll disallow direct deletion of this type of entry via this method.
+      // In a real scenario, you'd likely have a specific "undo" operation.
+      throw new Error("Impossibile eliminare le operazioni di 'Riunisci fondi' direttamente dalla cronologia. Utilizzare la funzione di annullamento specifica.");
+    }
+
+    const result = await db
+      .delete(financialHistory)
+      .where(and(eq(financialHistory.id, entryId), eq(financialHistory.activityId, activityId)));
+      
+    return (result.rowCount ?? 0) > 0;
   }
 }
 

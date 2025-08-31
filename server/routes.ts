@@ -2021,17 +2021,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         immagineUrl: immagineUrl,
       } as any);
 
-      // Create automatic expense for inventory purchase
-      const totalCost = Number(itemData.costo) * itemData.quantita;
-      await storage.createExpense({
-        userId: req.session.userId!,
-        activityId: req.session.activityId!,
-        voce: `Acquisto inventario: ${itemData.nomeArticolo} - ${itemData.taglia}`,
-        importo: totalCost.toString(),
-        categoria: "Inventario",
-        data: new Date(),
-      });
-
       res.json(item);
     } catch (error: any) {
       console.error('Inventory creation error:', error);
@@ -2163,14 +2152,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           costo: avgCost.toFixed(2) 
         });
       }
-
-      // Scala dalla cassa reinvestimento
-      await storage.updateCassaReinvestimento(
-        req.session.activityId!,
-        -totalCost,
-        `Rifornimento: ${item.nomeArticolo} - ${item.taglia} (${quantita} pz) a €${newCost}/pz`,
-        req.session.userId!
-      );
 
       // Create expense for restock
       await storage.createExpense({
@@ -2343,7 +2324,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const expenseData = insertSpesaSchema.parse(formData);
       const importo = Number(expenseData.importo);
 
-      // Se si vuole usare la cassa reinvestimento, verifica e scala
+      // Se si vuole usare la cassa reinvestimento, verifica e marca la spesa
       if (formData.usaCassaReinvestimento) {
         const cassaBalance = await storage.getCassaReinvestimentoBalance(req.session.activityId!);
         if (cassaBalance < importo) {
@@ -2352,13 +2333,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
 
-        // Scala dalla cassa reinvestimento
-        await storage.updateCassaReinvestimento(
-          req.session.activityId!,
-          -importo,
-          `Spesa: ${expenseData.voce}`,
-          req.session.userId!
-        );
+        // Marca la spesa come utilizzante la cassa reinvestimento
+        expenseData.voce = `CASSA_REINVESTIMENTO: ${expenseData.voce}`;
       }
       
       const expense = await storage.createExpense({
@@ -2464,6 +2440,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(history);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nel recupero della cronologia finanziaria" });
+    }
+  });
+
+  app.delete('/api/financial-history/:id', requireActivity, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const activityId = req.session.activityId!;
+      
+      // Get the financial action to reverse it
+      const action = await db.select().from(financialHistory)
+        .where(and(
+          eq(financialHistory.id, id),
+          eq(financialHistory.activityId, activityId)
+        ));
+
+      if (!action.length) {
+        return res.status(404).json({ message: "Azione non trovata" });
+      }
+
+      const financialAction = action[0];
+
+      // If it's a fund transfer, reverse it
+      if (financialAction.azione === 'Riunisci fondi') {
+        // Find and delete the corresponding fund transfer
+        const details = JSON.parse(financialAction.dettagli || '{}');
+        await db.delete(fundTransfers)
+          .where(and(
+            eq(fundTransfers.activityId, activityId),
+            eq(fundTransfers.fromMember, details.fromMember),
+            eq(fundTransfers.fromAccount, details.fromAccount),
+            eq(fundTransfers.importo, financialAction.importo || '0')
+          ));
+      }
+
+      // Delete the financial history entry
+      await db.delete(financialHistory).where(eq(financialHistory.id, id));
+
+      res.json({ message: "Azione annullata con successo" });
+    } catch (error: any) {
+      console.error('Financial history delete error:', error);
+      res.status(500).json({ message: error.message || "Errore nell'annullamento dell'azione" });
     }
   });
 

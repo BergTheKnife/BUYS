@@ -198,6 +198,28 @@ export default function FinancialManagement() {
     }, 0);
   };
 
+  // Delete financial action
+  const deleteFinancialAction = useMutation({
+    mutationFn: async (actionId: string) => {
+      return await apiRequest("DELETE", `/api/financial-history/${actionId}`);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Azione annullata",
+        description: "L'azione finanziaria è stata annullata con successo",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/fund-transfers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/financial-history"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Errore",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Submit fund transfer
   const transferFunds = useMutation({
     mutationFn: async () => {
@@ -507,15 +529,25 @@ export default function FinancialManagement() {
                     </div>
                     <p className="text-sm">{item.descrizione}</p>
                   </div>
-                  {item.importo && (
-                    <div className="text-right">
-                      <span className="font-medium">
-                        {formatCurrency(Number(item.importo))}
-                      </span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-3">
+                    {item.importo && (
+                      <div className="text-right">
+                        <span className="font-medium">
+                          {formatCurrency(Number(item.importo))}
+                        </span>
+                      </div>
+                    )}
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => deleteFinancialAction.mutate(item.id)}
+                      disabled={deleteFinancialAction.isPending}
+                    >
+                      Elimina
+                    </Button>
+                  </div>
                 </div>
-              ))}
+              ))}</div>
             </div>
           )}
         </CardContent>
