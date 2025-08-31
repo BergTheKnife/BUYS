@@ -2438,6 +2438,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Cassa reinvestimento balance route
+  app.get('/api/cassa-reinvestimento-balance', requireActivity, async (req, res) => {
+    try {
+      const balance = await storage.getCassaReinvestimentoBalance(req.session.activityId!);
+      res.json({ balance });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nel recupero del saldo cassa reinvestimento" });
+    }
+  });
+
   // Financial history routes  
   app.get('/api/financial-history', requireActivity, async (req, res) => {
     try {
@@ -2468,15 +2478,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // If it's a fund transfer, reverse it
       if (financialAction.azione === 'Riunisci fondi') {
-        // Find and delete the corresponding fund transfer
-        const details = JSON.parse(financialAction.dettagli || '{}');
-        await db.delete(fundTransfers)
-          .where(and(
-            eq(fundTransfers.activityId, activityId),
-            eq(fundTransfers.fromMember, details.fromMember),
-            eq(fundTransfers.fromAccount, details.fromAccount),
-            eq(fundTransfers.importo, financialAction.importo || '0')
-          ));
+        try {
+          // Find and delete the corresponding fund transfer
+          const details = JSON.parse(financialAction.dettagli || '{}');
+          await db.delete(fundTransfers)
+            .where(and(
+              eq(fundTransfers.activityId, activityId),
+              eq(fundTransfers.fromMember, details.fromMember),
+              eq(fundTransfers.fromAccount, details.fromAccount),
+              sql`CAST(${fundTransfers.importo} AS TEXT) = ${financialAction.importo || '0'}`
+            ));
+        } catch (error) {
+          console.error('Error deleting corresponding fund transfer:', error);
+          // Continue anyway - the financial history entry will still be deleted
+        }
       }
 
       // Delete the financial history entry

@@ -114,12 +114,16 @@ export default function FinancialManagement() {
     queryKey: ["/api/spese"],
   });
 
+  // Fetch cassa reinvestimento balance from API
+  const { data: cassaBalance } = useQuery<{ balance: number }>({
+    queryKey: ["/api/cassa-reinvestimento-balance"],
+  });
+
   // Calculate financial summary from sales data
   const calculateFinancialSummary = (): FinancialSummary => {
     const memberBalances: { [member: string]: MemberBalance } = {};
     const accountTotals: { [account: string]: number } = {};
     let totalFunds = 0;
-    let cassaReinvestimento = 0;
 
     // Process sales to calculate initial balances
     sales.forEach(sale => {
@@ -155,19 +159,13 @@ export default function FinancialManagement() {
         accountTotals[fromAccount] = (accountTotals[fromAccount] || 0) - amount;
       }
 
-      if (toAccount === "Cassa Reinvestimento") {
-        cassaReinvestimento += amount;
-      } else {
+      if (toAccount !== "Cassa Reinvestimento") {
         accountTotals[toAccount] = (accountTotals[toAccount] || 0) + amount;
       }
     });
 
-    // Subtract inventory expenses from cassa reinvestimento
-    expenses.forEach(expense => {
-      if (expense.categoria === "Inventario") {
-        cassaReinvestimento -= Number(expense.importo);
-      }
-    });
+    // Use cassa reinvestimento balance from API instead of calculating locally
+    const cassaReinvestimento = cassaBalance?.balance || 0;
 
     return {
       totalFunds: totalFunds - fundTransfers.reduce((sum, t) => sum + Number(t.importo), 0) + cassaReinvestimento,
@@ -210,6 +208,7 @@ export default function FinancialManagement() {
       });
       queryClient.invalidateQueries({ queryKey: ["/api/fund-transfers"] });
       queryClient.invalidateQueries({ queryKey: ["/api/financial-history"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cassa-reinvestimento-balance"] });
     },
     onError: (error: Error) => {
       toast({
