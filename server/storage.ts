@@ -799,7 +799,7 @@ export class DatabaseStorage implements IStorage {
 
   // Ottenere saldo cassa reinvestimento
   async getCassaReinvestimentoBalance(activityId: string): Promise<number> {
-    // Somma tutti i trasferimenti verso la cassa reinvestimento
+    // Somma tutti i trasferimenti verso la cassa reinvestimento (entrate)
     const transfers = await db
       .select({
         total: sql<number>`COALESCE(SUM(CAST(${fundTransfers.importo} AS NUMERIC)), 0)`
@@ -810,23 +810,36 @@ export class DatabaseStorage implements IStorage {
         eq(fundTransfers.toAccount, "Cassa Reinvestimento")
       ));
 
-    // Sottrai solo le spese che utilizzano esplicitamente la cassa reinvestimento
-    // (non più le spese automatiche di inventario)
-    const manualExpenses = await db
+    // Sottrai tutte le spese create DOPO la prima riunione fondi
+    // Trova la data della prima riunione fondi
+    const firstTransfer = await db
       .select({
-        total: sql<number>`COALESCE(SUM(CAST(${spese.importo} AS NUMERIC)), 0)`
+        minDate: sql<Date>`MIN(${fundTransfers.data})`
       })
-      .from(spese)
+      .from(fundTransfers)
       .where(and(
-        eq(spese.activityId, activityId),
-        // Solo spese manuali che usano esplicitamente la cassa
-        sql`${spese.voce} LIKE 'CASSA_REINVESTIMENTO:%'`
+        eq(fundTransfers.activityId, activityId),
+        eq(fundTransfers.toAccount, "Cassa Reinvestimento")
       ));
 
-    const transfersTotal = Number(transfers[0]?.total || 0);
-    const manualExpensesTotal = Number(manualExpenses[0]?.total || 0);
+    let expensesAfterTransfers = 0;
+    if (firstTransfer[0]?.minDate) {
+      // Tutte le spese create dopo la prima riunione fondi devono scalare la cassa
+      const expensesQuery = await db
+        .select({
+          total: sql<number>`COALESCE(SUM(CAST(${spese.importo} AS NUMERIC)), 0)`
+        })
+        .from(spese)
+        .where(and(
+          eq(spese.activityId, activityId),
+          sql`${spese.data} >= ${firstTransfer[0].minDate}`
+        ));
 
-    return transfersTotal - manualExpensesTotal;
+      expensesAfterTransfers = Number(expensesQuery[0]?.total || 0);
+    }
+
+    const transfersTotal = Number(transfers[0]?.total || 0);
+    return transfersTotal - expensesAfterTransfers;
   }
 
   // Aggiorna saldo cassa reinvestimento
@@ -871,16 +884,6 @@ export class DatabaseStorage implements IStorage {
 
     // Update inventory quantity
     await this.updateInventoryQuantity(saleData.inventarioId, Number(saleData.quantita) * -1); // Decrease quantity
-
-    // Record expense for the cost of goods sold using the reinvestment fund if applicable
-    if (saleData.categoria === "Vendita") { // Assuming 'Vendita' category implies using reinvestment fund
-      await this.updateCassaReinvestimento(
-        saleData.activityId,
-        - (costoMedio * saleData.quantita), // Cost of goods sold as a negative amount
-        `Costo articolo venduto: ${saleData.nomeArticolo} - ${saleData.taglia}`,
-        saleData.userId
-      );
-    }
 
     return newSale;
   }

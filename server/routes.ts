@@ -2124,10 +2124,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Verifica disponibilità cassa reinvestimento
       const cassaBalance = await storage.getCassaReinvestimentoBalance(req.session.activityId!);
-      if (cassaBalance < totalCost) {
-        return res.status(400).json({ 
-          message: `Fondi insufficienti nella cassa reinvestimento. Disponibili: €${cassaBalance.toFixed(2)}, Richiesti: €${totalCost.toFixed(2)}` 
-        });
+      
+      if (cassaBalance >= totalCost) {
+        // Utilizza la cassa reinvestimento per coprire il riassortimento
+        await storage.updateCassaReinvestimento(
+          req.session.activityId!,
+          -totalCost,
+          `Riassortimento coperto da cassa reinvestimento: ${item.nomeArticolo} - ${item.taglia}`,
+          req.session.userId!
+        );
       }
 
       // Crea nuovo lotto di inventario
@@ -2153,7 +2158,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Create expense for restock
+      // Crea comunque la spesa per registrare il movimento
       await storage.createExpense({
         userId: req.session.userId!,
         activityId: req.session.activityId!,
@@ -2322,8 +2327,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const expenseData = insertSpesaSchema.parse(formData);
       
-      // Tutte le spese vengono create normalmente
-      // Il sistema scalerà automaticamente dalla cassa reinvestimento se disponibile
+      // Verifica se ci sono fondi nella cassa reinvestimento
+      const cassaBalance = await storage.getCassaReinvestimentoBalance(req.session.activityId!);
+      const expenseAmount = Number(expenseData.importo);
+      
+      if (cassaBalance >= expenseAmount) {
+        // Utilizza la cassa reinvestimento per coprire la spesa
+        await storage.updateCassaReinvestimento(
+          req.session.activityId!,
+          -expenseAmount,
+          `Spesa coperta da cassa reinvestimento: ${expenseData.voce}`,
+          req.session.userId!
+        );
+      }
+      
+      // Crea comunque la spesa per registrare il movimento
       const expense = await storage.createExpense({
         ...expenseData,
         userId: req.session.userId!,
