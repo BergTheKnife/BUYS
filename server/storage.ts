@@ -799,47 +799,32 @@ export class DatabaseStorage implements IStorage {
 
   // Ottenere saldo cassa reinvestimento
   async getCassaReinvestimentoBalance(activityId: string): Promise<number> {
-    // Somma tutti i trasferimenti verso la cassa reinvestimento (entrate)
-    const transfers = await db
+    // Somma tutti i fondi riuniti dalla cronologia finanziaria
+    const fundGathering = await db
       .select({
-        total: sql<number>`COALESCE(SUM(CAST(${fundTransfers.importo} AS NUMERIC)), 0)`
+        total: sql<number>`COALESCE(SUM(CAST(${financialHistory.importo} AS NUMERIC)), 0)`
       })
-      .from(fundTransfers)
+      .from(financialHistory)
       .where(and(
-        eq(fundTransfers.activityId, activityId),
-        eq(fundTransfers.toAccount, "Cassa Reinvestimento")
+        eq(financialHistory.activityId, activityId),
+        eq(financialHistory.azione, "Riunisci fondi")
       ));
 
-    // Sottrai tutte le spese create DOPO la prima riunione fondi
-    // Trova la data della prima riunione fondi
-    const firstTransfer = await db
+    // Sottrai solo le spese che utilizzano esplicitamente la cassa reinvestimento
+    const cassaExpenses = await db
       .select({
-        minDate: sql<Date>`MIN(${fundTransfers.data})`
+        total: sql<number>`COALESCE(SUM(CAST(${spese.importo} AS NUMERIC)), 0)`
       })
-      .from(fundTransfers)
+      .from(spese)
       .where(and(
-        eq(fundTransfers.activityId, activityId),
-        eq(fundTransfers.toAccount, "Cassa Reinvestimento")
+        eq(spese.activityId, activityId),
+        sql`${spese.voce} LIKE 'CASSA_REINVESTIMENTO:%'`
       ));
 
-    let expensesAfterTransfers = 0;
-    if (firstTransfer[0]?.minDate) {
-      // Tutte le spese create dopo la prima riunione fondi devono scalare la cassa
-      const expensesQuery = await db
-        .select({
-          total: sql<number>`COALESCE(SUM(CAST(${spese.importo} AS NUMERIC)), 0)`
-        })
-        .from(spese)
-        .where(and(
-          eq(spese.activityId, activityId),
-          sql`${spese.data} >= ${firstTransfer[0].minDate}`
-        ));
-
-      expensesAfterTransfers = Number(expensesQuery[0]?.total || 0);
-    }
-
-    const transfersTotal = Number(transfers[0]?.total || 0);
-    return transfersTotal - expensesAfterTransfers;
+    const gatheredTotal = Number(fundGathering[0]?.total || 0);
+    const expensesTotal = Number(cassaExpenses[0]?.total || 0);
+    
+    return gatheredTotal - expensesTotal;
   }
 
   // Aggiorna saldo cassa reinvestimento
