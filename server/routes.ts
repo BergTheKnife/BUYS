@@ -2119,7 +2119,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/inventario/:id/restock', requireActivity, async (req, res) => {
     try {
       const { id } = req.params;
-      const { quantita } = req.body;
+      const { quantita, costo } = req.body;
       
       if (!quantita || quantita <= 0) {
         return res.status(400).json({ message: "Quantità non valida" });
@@ -2130,12 +2130,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Articolo non trovato" });
       }
 
+      const newCost = costo || item.costo;
+      const totalCost = Number(newCost) * parseInt(quantita);
+
+      // Verifica disponibilità cassa reinvestimento
+      const cassaBalance = await storage.getCassaReinvestimentoBalance(req.session.activityId!);
+      if (cassaBalance < totalCost) {
+        return res.status(400).json({ 
+          message: `Fondi insufficienti nella cassa reinvestimento. Disponibili: €${cassaBalance.toFixed(2)}, Richiesti: €${totalCost.toFixed(2)}` 
+        });
+      }
+
+      // Crea nuovo lotto di inventario
+      await storage.createInventoryBatch({
+        inventarioId: id,
+        activityId: req.session.activityId!,
+        userId: req.session.userId!,
+        costo: newCost,
+        quantita: parseInt(quantita),
+      });
+
       // Update inventory quantity
       const newQuantity = item.quantita + parseInt(quantita);
       await storage.updateInventoryQuantity(id, newQuantity);
 
+      // Aggiorna costo medio nell'inventario se diverso
+      if (Number(newCost) !== Number(item.costo)) {
+        const totalValue = (Number(item.costo) * item.quantita) + (Number(newCost) * parseInt(quantita));
+        const avgCost = totalValue / newQuantity;
+        
+        await storage.updateInventoryItem(id, req.session.activityId!, { 
+          costo: avgCost.toFixed(2) 
+        });
+      }
+
+      // Scala dalla cassa reinvestimento
+      await storage.updateCassaReinvestimento(
+        req.session.activityId!,
+        -totalCost,
+        `Rifornimento: ${item.nomeArticolo} - ${item.taglia} (${quantita} pz) a €${newCost}/pz`,
+        req.session.userId!
+      );
+
       // Create expense for restock
-      const totalCost = Number(item.costo) * parseInt(quantita);
       await storage.createExpense({
         userId: req.session.userId!,
         activityId: req.session.activityId!,
@@ -2190,22 +2227,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Quantità insufficiente in magazzino" });
       }
 
-      // Calculate margin (per unit * quantity sold)
-      const marginePerUnit = Number(saleData.prezzoVendita) - Number(inventoryItem.costo);
-      const margineTotal = marginePerUnit * quantitaVenduta;
+      // Calculate FIFO margin
+      const fifoResult = await storage.calculateFIFOMargin(
+        saleData.inventarioId, 
+        quantitaVenduta, 
+        Number(saleData.prezzoVendita)
+      );
 
-      // Create sale
+      // Create sale with FIFO margin
       const sale = await storage.createSale({
         ...saleData,
         userId: req.session.userId!,
         activityId: req.session.activityId!,
         nomeArticolo: inventoryItem.nomeArticolo,
         taglia: inventoryItem.taglia,
-        margine: margineTotal.toString(),
+        margine: fifoResult.margine.toString(),
       });
 
-      // Update inventory quantity
+      // Update inventory quantity and batches
       await storage.updateInventoryQuantity(saleData.inventarioId, inventoryItem.quantita - quantitaVenduta);
+      await storage.updateBatchesAfterSale(fifoResult.batchesUsed);
 
       res.json(sale);
     } catch (error: any) {
@@ -2295,10 +2336,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         voce: req.body.voce,
         importo: req.body.importo,
         categoria: req.body.categoria,
-        data: new Date(req.body.data)
+        data: new Date(req.body.data),
+        usaCassaReinvestimento: req.body.usaCassaReinvestimento === true
       };
       
       const expenseData = insertSpesaSchema.parse(formData);
+      const importo = Number(expenseData.importo);
+
+      // Se si vuole usare la cassa reinvestimento, verifica e scala
+      if (formData.usaCassaReinvestimento) {
+        const cassaBalance = await storage.getCassaReinvestimentoBalance(req.session.activityId!);
+        if (cassaBalance < importo) {
+          return res.status(400).json({ 
+            message: `Fondi insufficienti nella cassa reinvestimento. Disponibili: €${cassaBalance.toFixed(2)}, Richiesti: €${importo.toFixed(2)}` 
+          });
+        }
+
+        // Scala dalla cassa reinvestimento
+        await storage.updateCassaReinvestimento(
+          req.session.activityId!,
+          -importo,
+          `Spesa: ${expenseData.voce}`,
+          req.session.userId!
+        );
+      }
       
       const expense = await storage.createExpense({
         ...expenseData,

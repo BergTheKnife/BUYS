@@ -306,8 +306,29 @@ export const insertActivitySchema = createInsertSchema(activities, {
 });
 
 export const joinActivitySchema = z.object({
-  nome: z.string().min(1, "Nome attività richiesto"),
-  password: z.string().min(1, "Password richiesta"),
+  nome: z.string().min(1),
+  password: z.string().min(6),
+});
+
+export type JoinActivity = z.infer<typeof joinActivitySchema>;
+
+export const inventoryBatchSchema = z.object({
+  id: z.string(),
+  inventarioId: z.string(),
+  activityId: z.string(),
+  userId: z.string(),
+  costo: z.string(),
+  quantitaIniziale: z.number(),
+  quantitaRimanente: z.number(),
+  dataAcquisto: z.string(),
+  createdAt: z.string().optional(),
+});
+
+export type InventoryBatch = z.infer<typeof inventoryBatchSchema>;
+
+export const restockItemSchema = z.object({
+  quantita: z.number().min(1),
+  costo: z.string().optional(), // Nuovo costo opzionale
 });
 
 export const insertInventarioSchema = createInsertSchema(inventario).omit({

@@ -109,6 +109,11 @@ export default function FinancialManagement() {
     });
   };
 
+  // Fetch expenses to calculate cassa reinvestimento usage
+  const { data: expenses = [] } = useQuery({
+    queryKey: ["/api/spese"],
+  });
+
   // Calculate financial summary from sales data
   const calculateFinancialSummary = (): FinancialSummary => {
     const memberBalances: { [member: string]: MemberBalance } = {};
@@ -137,7 +142,7 @@ export default function FinancialManagement() {
       totalFunds += amount;
     });
 
-    // Apply fund transfers
+    // Apply fund transfers (deposits to cassa)
     fundTransfers.forEach(transfer => {
       const fromMember = transfer.fromMember;
       const fromAccount = transfer.fromAccount;
@@ -154,6 +159,13 @@ export default function FinancialManagement() {
         cassaReinvestimento += amount;
       } else {
         accountTotals[toAccount] = (accountTotals[toAccount] || 0) + amount;
+      }
+    });
+
+    // Subtract inventory expenses from cassa reinvestimento
+    expenses.forEach(expense => {
+      if (expense.categoria === "Inventario") {
+        cassaReinvestimento -= Number(expense.importo);
       }
     });
 

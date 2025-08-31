@@ -55,6 +55,7 @@ export default function Inventory() {
   const [itemToDelete, setItemToDelete] = useState<Inventario | null>(null);
   const [restockItem, setRestockItem] = useState<Inventario | null>(null);
   const [restockQuantity, setRestockQuantity] = useState("1");
+  const [restockNewCost, setRestockNewCost] = useState("");
   const [sortConfig, setSortConfig] = useState<{
     key: keyof Inventario | null;
     direction: 'asc' | 'desc';
@@ -224,8 +225,8 @@ export default function Inventory() {
   });
 
   const restockMutation = useMutation({
-    mutationFn: async ({ id, quantita }: { id: string; quantita: number }) => {
-      const response = await apiRequest("POST", `/api/inventario/${id}/restock`, { quantita });
+    mutationFn: async ({ id, quantita, costo }: { id: string; quantita: number; costo?: string }) => {
+      const response = await apiRequest("POST", `/api/inventario/${id}/restock`, { quantita, costo });
       return response.json();
     },
     onSuccess: () => {
@@ -238,6 +239,7 @@ export default function Inventory() {
       });
       setRestockItem(null);
       setRestockQuantity("1");
+      setRestockNewCost("");
     },
     onError: (error: any) => {
       toast({
@@ -252,7 +254,8 @@ export default function Inventory() {
     if (restockItem && restockQuantity) {
       restockMutation.mutate({ 
         id: restockItem.id, 
-        quantita: parseInt(restockQuantity) 
+        quantita: parseInt(restockQuantity),
+        costo: restockNewCost || undefined
       });
     }
   };
@@ -674,7 +677,7 @@ export default function Inventory() {
               <DialogDescription>
                 Aggiungi quantità per "{restockItem?.nomeArticolo} - {restockItem?.taglia}".
                 <br />
-                Costo per pezzo: {restockItem && formatCurrency(restockItem.costo)}
+                Costo attuale per pezzo: {restockItem && formatCurrency(restockItem.costo)}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -691,11 +694,27 @@ export default function Inventory() {
                   className="col-span-3"
                 />
               </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="newCost" className="text-right">
+                  Nuovo Costo
+                </Label>
+                <Input
+                  id="newCost"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder={restockItem?.costo}
+                  value={restockNewCost}
+                  onChange={(e) => setRestockNewCost(e.target.value)}
+                  className="col-span-3"
+                />
+              </div>
               {restockItem && (
                 <div className="text-sm text-muted-foreground">
                   <p>Quantità attuale: {restockItem.quantita}</p>
                   <p>Nuova quantità: {restockItem.quantita + parseInt(restockQuantity || "0")}</p>
-                  <p>Costo rifornimento: {formatCurrency(Number(restockItem.costo) * parseInt(restockQuantity || "0"))}</p>
+                  <p>Costo per pezzo: {formatCurrency(Number(restockNewCost || restockItem.costo))}</p>
+                  <p>Costo rifornimento: {formatCurrency(Number(restockNewCost || restockItem.costo) * parseInt(restockQuantity || "0"))}</p>
                 </div>
               )}
             </div>

@@ -211,3 +211,33 @@ export const financialHistory = pgTable("financial_history", {
 			name: "financial_history_activityId_fkey"
 		}).onDelete("cascade"),
 ]);
+
+export const inventoryBatches = pgTable("inventory_batches", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	inventarioId: uuid("inventario_id").notNull(),
+	activityId: uuid("activity_id").notNull(),
+	userId: uuid("user_id").notNull(),
+	costo: numeric({ precision: 10, scale: 2 }).notNull(),
+	quantitaIniziale: integer("quantita_iniziale").notNull(),
+	quantitaRimanente: integer("quantita_rimanente").notNull(),
+	dataAcquisto: timestamp("data_acquisto", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+}, (table) => [
+	foreignKey({
+			columns: [table.inventarioId],
+			foreignColumns: [inventario.id],
+			name: "inventory_batches_inventario_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.activityId],
+			foreignColumns: [activities.id],
+			name: "inventory_batches_activity_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.userId],
+			foreignColumns: [users.id],
+			name: "inventory_batches_user_fk"
+		}).onDelete("cascade"),
+	index("inventory_batches_inventario_idx").using("btree", table.inventarioId.asc().nullsLast().op("uuid_ops")),
+	index("inventory_batches_date_idx").using("btree", table.dataAcquisto.asc().nullsLast()),
+]);

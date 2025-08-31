@@ -72,6 +72,7 @@ export interface IStorage {
   getActivityByName(nome: string): Promise<Activity | undefined>;
   getActivityById(id: string): Promise<Activity | undefined>;
   joinActivity(activityId: string, userId: string): Promise<void>;
+  leaveActivity(activityId: string, userId: string): Promise<void>; // Added leaveActivity
   addUserToActivity(userId: string, activityId: string): Promise<void>;
   removeUserFromActivity(userId: string, activityId: string): Promise<void>;
 
@@ -171,10 +172,28 @@ export interface IStorage {
   // Fund transfer methods
   getFundTransfersByActivity(activityId: string): Promise<FundTransfer[]>;
   createFundTransfers(transfers: Array<InsertFundTransfer & { userId: string; activityId: string }>): Promise<FundTransfer[]>;
-  
+
   // Financial history methods
   getFinancialHistoryByActivity(activityId: string): Promise<FinancialHistory[]>;
   createFinancialHistoryEntry(entry: InsertFinancialHistory & { userId: string; activityId: string }): Promise<FinancialHistory>;
+
+  // Inventory batch methods
+  createInventoryBatch(data: {
+    inventarioId: string;
+    activityId: string;
+    userId: string;
+    costo: string;
+    quantita: number;
+    dataAcquisto?: Date;
+  }): Promise<any>; // Return type needs to be defined based on schema
+  getInventoryBatches(inventarioId: string): Promise<any[]>; // Return type needs to be defined based on schema
+  updateBatchQuantity(batchId: string, newQuantity: number): Promise<any | undefined>; // Return type needs to be defined based on schema
+  calculateFIFOMargin(inventarioId: string, quantitaVenduta: number, prezzoVendita: number): Promise<{ margine: number; batchesUsed: Array<{batchId: string, quantitaUsata: number, nuovaQuantitaRimanente: number}>; costoMedio: number }>;
+  updateBatchesAfterSale(batchesUsed: Array<{batchId: string, nuovaQuantitaRimanente: number}>): Promise<void>;
+
+  // Cassa reinvestimento methods
+  getCassaReinvestimentoBalance(activityId: string): Promise<number>;
+  updateCassaReinvestimento(activityId: string, importo: number, descrizione: string, userId: string): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -562,21 +581,21 @@ export class DatabaseStorage implements IStorage {
           .select()
           .from(vendite)
           .where(eq(vendite.inventarioId, id));
-        
+
         // Update each sale with new margin calculation and item info
         for (const sale of relatedSales) {
           const newMargin = (Number(sale.prezzoVendita) - Number(updates.costo)) * sale.quantita;
           const salesUpdates: any = {
             margine: newMargin.toString()
           };
-          
+
           if (updates.nomeArticolo) {
             salesUpdates.nomeArticolo = updates.nomeArticolo;
           }
           if (updates.taglia) {
             salesUpdates.taglia = updates.taglia;
           }
-          
+
           await db
             .update(vendite)
             .set(salesUpdates)
@@ -585,14 +604,14 @@ export class DatabaseStorage implements IStorage {
       } else if (updates.nomeArticolo || updates.taglia) {
         // Update only name/size without recalculating margin
         const salesUpdates: any = {};
-        
+
         if (updates.nomeArticolo) {
           salesUpdates.nomeArticolo = updates.nomeArticolo;
         }
         if (updates.taglia) {
           salesUpdates.taglia = updates.taglia;
         }
-        
+
         await db
           .update(vendite)
           .set(salesUpdates)
@@ -703,11 +722,146 @@ export class DatabaseStorage implements IStorage {
     return (result.rowCount ?? 0) > 0;
   }
 
-  async updateInventoryQuantity(id: string, newQuantity: number): Promise<void> {
-    await db
+  async updateInventoryQuantity(id: string, newQuantity: number): Promise<Inventario | undefined> {
+    const [updatedItem] = await db
       .update(inventario)
       .set({ quantita: newQuantity })
-      .where(eq(inventario.id, id));
+      .where(eq(inventario.id, id))
+      .returning();
+
+    return updatedItem;
+  }
+
+  // Gestione lotti inventario
+  async createInventoryBatch(data: {
+    inventarioId: string;
+    activityId: string;
+    userId: string;
+    costo: string;
+    quantita: number;
+    dataAcquisto?: Date;
+  }) {
+    const { inventoryBatches } = await import('../migrations/schema');
+
+    const [batch] = await db.insert(inventoryBatches).values({
+      inventarioId: data.inventarioId,
+      activityId: data.activityId,
+      userId: data.userId,
+      costo: data.costo,
+      quantitaIniziale: data.quantita,
+      quantitaRimanente: data.quantita,
+      dataAcquisto: data.dataAcquisto || new Date(),
+    }).returning();
+
+    return batch;
+  }
+
+  async getInventoryBatches(inventarioId: string) {
+    const { inventoryBatches } = await import('../migrations/schema');
+
+    return await db
+      .select()
+      .from(inventoryBatches)
+      .where(eq(inventoryBatches.inventarioId, inventarioId))
+      .orderBy(inventoryBatches.dataAcquisto);
+  }
+
+  async updateBatchQuantity(batchId: string, newQuantity: number) {
+    const { inventoryBatches } = await import('../migrations/schema');
+
+    const [updatedBatch] = await db
+      .update(inventoryBatches)
+      .set({ quantitaRimanente: newQuantity })
+      .where(eq(inventoryBatches.id, batchId))
+      .returning();
+
+    return updatedBatch;
+  }
+
+  // Calcola margine FIFO per una vendita
+  async calculateFIFOMargin(inventarioId: string, quantitaVenduta: number, prezzoVendita: number) {
+    const batches = await this.getInventoryBatches(inventarioId);
+    let quantitaRimanenteDaVendere = quantitaVenduta;
+    let costoTotaleVendita = 0;
+    const batchesUsed = [];
+
+    for (const batch of batches) {
+      if (quantitaRimanenteDaVendere <= 0) break;
+      if (batch.quantitaRimanente <= 0) continue;
+
+      const quantitaDaBatch = Math.min(quantitaRimanenteDaVendere, batch.quantitaRimanente);
+      costoTotaleVendita += quantitaDaBatch * Number(batch.costo);
+      quantitaRimanenteDaVendere -= quantitaDaBatch;
+
+      batchesUsed.push({
+        batchId: batch.id,
+        quantitaUsata: quantitaDaBatch,
+        nuovaQuantitaRimanente: batch.quantitaRimanente - quantitaDaBatch
+      });
+    }
+
+    if (quantitaRimanenteDaVendere > 0) {
+      throw new Error("Quantità insufficiente in magazzino per la vendita");
+    }
+
+    const margine = (prezzoVendita * quantitaVenduta) - costoTotaleVendita;
+    return { margine, batchesUsed, costoMedio: costoTotaleVendita / quantitaVenduta };
+  }
+
+  // Aggiorna quantità nei lotti dopo una vendita
+  async updateBatchesAfterSale(batchesUsed: Array<{batchId: string, nuovaQuantitaRimanente: number}>) {
+    for (const batchUpdate of batchesUsed) {
+      await this.updateBatchQuantity(batchUpdate.batchId, batchUpdate.nuovaQuantitaRimanente);
+    }
+  }
+
+  // Ottenere saldo cassa reinvestimento
+  async getCassaReinvestimentoBalance(activityId: string) {
+    // Somma di tutti i trasferimenti alla cassa reinvestimento
+    const transfers = await db
+      .select({
+        total: sql<number>`COALESCE(SUM(CAST(${fundTransfers.importo} AS NUMERIC)), 0)`
+      })
+      .from(fundTransfers)
+      .where(eq(fundTransfers.activityId, activityId));
+
+    // Sottrai spese e riassortimenti che utilizzano la cassa
+    const expenses = await db
+      .select({
+        total: sql<number>`COALESCE(SUM(CAST(${spese.importo} AS NUMERIC)), 0)`
+      })
+      .from(spese)
+      .where(and(
+        eq(spese.activityId, activityId),
+        eq(spese.categoria, "Inventario") // Solo spese di inventario usano la cassa
+      ));
+
+    const transfersTotal = Number(transfers[0]?.total || 0);
+    const expensesTotal = Number(expenses[0]?.total || 0);
+
+    return transfersTotal - expensesTotal;
+  }
+
+  // Aggiorna saldo cassa reinvestimento
+  async updateCassaReinvestimento(activityId: string, importo: number, descrizione: string, userId: string) {
+    const currentBalance = await this.getCassaReinvestimentoBalance(activityId);
+
+    if (currentBalance + importo < 0) {
+      throw new Error("Fondi insufficienti nella cassa reinvestimento");
+    }
+
+    // Registra nella cronologia finanziaria
+    const { financialHistory } = await import('../migrations/schema'); // Ensure schema is imported correctly
+
+    await db.insert(financialHistory).values({
+      userId,
+      activityId,
+      azione: importo > 0 ? "DEPOSITO_CASSA" : "PRELIEVO_CASSA",
+      descrizione,
+      importo: Math.abs(importo).toString(),
+    });
+
+    return currentBalance + importo;
   }
 
   // Updated sales methods with activity context
@@ -716,10 +870,33 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createSale(saleData: InsertVendita & { userId: string; activityId: string; nomeArticolo: string; taglia: string; margine: string }): Promise<Vendita> {
+    // Calculate FIFO margin and update batches
+    const { margine, batchesUsed, costoMedio } = await this.calculateFIFOMargin(saleData.inventarioId, saleData.quantita, Number(saleData.prezzoVendita));
+    await this.updateBatchesAfterSale(batchesUsed);
+    
+    // Create the sale record with calculated margin
     const [newSale] = await db
       .insert(vendite)
-      .values(saleData)
+      .values({
+        ...saleData,
+        margine: margine.toString(),
+        costo: (costoMedio * saleData.quantita).toString() // Store total cost
+      })
       .returning();
+
+    // Update inventory quantity
+    await this.updateInventoryQuantity(saleData.inventarioId, Number(saleData.quantita) * -1); // Decrease quantity
+
+    // Record expense for the cost of goods sold using the reinvestment fund if applicable
+    if (saleData.categoria === "Vendita") { // Assuming 'Vendita' category implies using reinvestment fund
+      await this.updateCassaReinvestimento(
+        saleData.activityId,
+        - (costoMedio * saleData.quantita), // Cost of goods sold as a negative amount
+        `Costo articolo venduto: ${saleData.nomeArticolo} - ${saleData.taglia}`,
+        saleData.userId
+      );
+    }
+
     return newSale;
   }
 
@@ -770,7 +947,7 @@ export class DatabaseStorage implements IStorage {
             quantita: sql`${inventario.quantita} - ${oldQuantity}`
           })
           .where(eq(inventario.id, oldInventarioId));
-        
+
         throw new Error("Quantità insufficiente nel nuovo articolo selezionato");
       }
 
@@ -784,7 +961,7 @@ export class DatabaseStorage implements IStorage {
     } else {
       // Same item, just quantity change
       const quantityDifference = newQuantity - oldQuantity;
-      
+
       if (quantityDifference !== 0) {
         // Check if we have enough inventory for the quantity change
         if (quantityDifference > 0) {
@@ -792,7 +969,7 @@ export class DatabaseStorage implements IStorage {
             .select()
             .from(inventario)
             .where(eq(inventario.id, oldInventarioId));
-          
+
           if (!item || item.quantita < quantityDifference) {
             throw new Error("Quantità insufficiente in magazzino per questa modifica");
           }
@@ -848,6 +1025,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createExpense(expense: InsertSpesa & { userId: string; activityId: string }): Promise<Spesa> {
+    // If the expense is for inventory (e.g., restocking), deduct from reinvestment fund
+    if (expense.categoria === "Inventario" || expense.categoria === "Aggiunta articolo") {
+      await this.updateCassaReinvestimento(
+        expense.activityId,
+        -Number(expense.importo), // Deduct the cost
+        `Spesa inventario: ${expense.voce}`,
+        expense.userId
+      );
+    }
+    
     const [newExpense] = await db
       .insert(spese)
       .values(expense)
@@ -1351,7 +1538,7 @@ export class DatabaseStorage implements IStorage {
 
   async createFundTransfers(transfers: Array<InsertFundTransfer & { userId: string; activityId: string }>): Promise<FundTransfer[]> {
     const results = [];
-    
+
     for (const transfer of transfers) {
       // Create fund transfer record
       const [newTransfer] = await db
@@ -1359,6 +1546,16 @@ export class DatabaseStorage implements IStorage {
         .values(transfer)
         .returning();
       results.push(newTransfer);
+
+      // Update reinvestment fund if it's a reinvestment transfer
+      if (transfer.tipo === "Reinvestimento") {
+        await this.updateCassaReinvestimento(
+          transfer.activityId,
+          Number(transfer.importo),
+          `Versamento cassa reinvestimento: ${transfer.descrizione || ''}`,
+          transfer.userId
+        );
+      }
 
       // Create financial history entry
       const description = `Trasferimento fondi: ${transfer.importo}€ da ${transfer.fromMember} (${transfer.fromAccount}) a ${transfer.toAccount}`;
