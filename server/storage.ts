@@ -82,7 +82,7 @@ export interface IStorage {
   createInventoryItem(item: InsertInventario & { userId: string; activityId: string }): Promise<Inventario>;
   updateInventoryItem(id: string, activityId: string, updates: Partial<InsertInventario>): Promise<Inventario | undefined>;
   deleteInventoryItem(id: string, activityId: string): Promise<boolean>;
-  updateInventoryQuantity(id: string, newQuantity: number): Promise<void>;
+  updateInventoryQuantity(id: string, newQuantity: number): Promise<Inventario | undefined>;
 
   // Sales methods (now with activity context)
   getSalesByActivity(activityId: string): Promise<Vendita[]>;
@@ -535,12 +535,31 @@ export class DatabaseStorage implements IStorage {
     return item || undefined;
   }
 
-  async createInventoryItem(item: InsertInventario & { userId: string; activityId: string }): Promise<Inventario> {
-    const [newItem] = await db
-      .insert(inventario)
-      .values(item)
-      .returning();
-    return newItem;
+  async createInventoryItem(data: any): Promise<Inventario> {
+    const [item] = await db.insert(inventario).values(data).returning();
+
+    // Automatically create an inventory batch for the initial stock
+    if (item) {
+      await this.createInventoryBatch({
+        inventarioId: item.id,
+        activityId: data.activityId,
+        userId: data.userId,
+        costo: data.costo,
+        quantita: data.quantita,
+      });
+
+      // Also create an expense for this inventory addition
+      await this.createExpense({
+        userId: data.userId,
+        activityId: data.activityId,
+        voce: `Acquisto: ${data.nomeArticolo} - ${data.taglia} (${data.quantita} pz)`,
+        importo: (Number(data.costo) * data.quantita).toString(),
+        categoria: "Inventario",
+        data: new Date(),
+      });
+    }
+
+    return item;
   }
 
   async updateInventoryItem(id: string, activityId: string, updates: Partial<InsertInventario>): Promise<Inventario | undefined> {
@@ -762,38 +781,95 @@ export class DatabaseStorage implements IStorage {
 
   // Calcola margine FIFO per una vendita
   async calculateFIFOMargin(inventarioId: string, quantitaVenduta: number, prezzoVendita: number) {
-    const batches = await this.getInventoryBatches(inventarioId);
-    let quantitaRimanenteDaVendere = quantitaVenduta;
-    let costoTotaleVendita = 0;
-    const batchesUsed = [];
+    const { inventoryBatches } = await import('../migrations/schema');
+
+    // Get available batches ordered by date (FIFO)
+    const batches = await db
+      .select()
+      .from(inventoryBatches)
+      .where(
+        and(
+          eq(inventoryBatches.inventarioId, inventarioId),
+          sql`${inventoryBatches.quantitaRimanente} > 0`
+        )
+      )
+      .orderBy(inventoryBatches.dataAcquisto);
+
+    // Calculate total available quantity from batches
+    const totalAvailableFromBatches = batches.reduce((sum, batch) => sum + batch.quantitaRimanente, 0);
+
+    // If no batches exist, fall back to current inventory item cost
+    if (batches.length === 0 || totalAvailableFromBatches === 0) {
+      const [inventoryItem] = await db
+        .select()
+        .from(inventario)
+        .where(eq(inventario.id, inventarioId));
+
+      if (!inventoryItem || inventoryItem.quantita < quantitaVenduta) {
+        throw new Error("Quantità insufficiente in magazzino per completare la vendita");
+      }
+
+      const costoTotale = quantitaVenduta * Number(inventoryItem.costo);
+      const ricavoTotale = quantitaVenduta * prezzoVendita;
+      const margine = ricavoTotale - costoTotale;
+
+      return {
+        margine,
+        batchesUsed: []
+      };
+    }
+
+    // Check if we have enough quantity in batches
+    if (totalAvailableFromBatches < quantitaVenduta) {
+      throw new Error("Quantità insufficiente in magazzino per completare la vendita");
+    }
+
+    let rimanenteVendita = quantitaVenduta;
+    let costoTotale = 0;
+    const batchesUsed: { id: string; quantitaUsata: number }[] = [];
 
     for (const batch of batches) {
-      if (quantitaRimanenteDaVendere <= 0) break;
-      if (batch.quantitaRimanente <= 0) continue;
+      if (rimanenteVendita <= 0) break;
 
-      const quantitaDaBatch = Math.min(quantitaRimanenteDaVendere, batch.quantitaRimanente);
-      costoTotaleVendita += quantitaDaBatch * Number(batch.costo);
-      quantitaRimanenteDaVendere -= quantitaDaBatch;
+      const quantitaUsata = Math.min(rimanenteVendita, batch.quantitaRimanente);
+      costoTotale += quantitaUsata * Number(batch.costo);
 
       batchesUsed.push({
-        batchId: batch.id,
-        quantitaUsata: quantitaDaBatch,
-        nuovaQuantitaRimanente: batch.quantitaRimanente - quantitaDaBatch
+        id: batch.id,
+        quantitaUsata
       });
+
+      rimanenteVendita -= quantitaUsata;
     }
 
-    if (quantitaRimanenteDaVendere > 0) {
-      throw new Error("Quantità insufficiente in magazzino per la vendita");
-    }
+    const ricavoTotale = quantitaVenduta * prezzoVendita;
+    const margine = ricavoTotale - costoTotale;
 
-    const margine = (prezzoVendita * quantitaVenduta) - costoTotaleVendita;
-    return { margine, batchesUsed, costoMedio: costoTotaleVendita / quantitaVenduta };
+    return {
+      margine,
+      batchesUsed
+    };
   }
 
   // Aggiorna quantità nei lotti dopo una vendita
-  async updateBatchesAfterSale(batchesUsed: Array<{batchId: string, nuovaQuantitaRimanente: number}>) {
-    for (const batchUpdate of batchesUsed) {
-      await this.updateBatchQuantity(batchUpdate.batchId, batchUpdate.nuovaQuantitaRimanente);
+  async updateBatchesAfterSale(batchesUsed: { id: string; quantitaUsata: number }[]) {
+    const { inventoryBatches } = await import('../migrations/schema');
+
+    for (const batchUsage of batchesUsed) {
+      const [updatedBatch] = await db
+        .update(inventoryBatches)
+        .set({
+          quantitaRimanente: sql`${inventoryBatches.quantitaRimanente} - ${batchUsage.quantitaUsata}`
+        })
+        .where(eq(inventoryBatches.id, batchUsage.id))
+        .returning();
+
+      // If batch is depleted, we could optionally delete it
+      if (updatedBatch && updatedBatch.quantitaRimanente <= 0) {
+        await db
+          .delete(inventoryBatches)
+          .where(eq(inventoryBatches.id, batchUsage.id));
+      }
     }
   }
 
@@ -823,7 +899,7 @@ export class DatabaseStorage implements IStorage {
 
     const gatheredTotal = Number(fundGathering[0]?.total || 0);
     const expensesTotal = Number(cassaExpenses[0]?.total || 0);
-    
+
     return gatheredTotal - expensesTotal;
   }
 
@@ -972,7 +1048,7 @@ export class DatabaseStorage implements IStorage {
     const [sale] = await db
       .select()
       .from(vendite)
-      .where(and(eq(vendite.id, id), eq(vendite.activityId, activityId)));
+      .where(and(eq(sale.id, id), eq(sale.activityId, activityId)));
 
     if (!sale) return false;
 
