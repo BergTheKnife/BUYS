@@ -129,7 +129,7 @@ export default function Dashboard() {
 
   const statsCards = [
     {
-      title: "Articoli in Magazzino",
+      title: "Pezzi in Magazzino",
       value: stats?.inventoryCount || 0,
       icon: Package,
       color: "bg-primary",

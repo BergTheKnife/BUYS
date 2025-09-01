@@ -1118,7 +1118,7 @@ export class DatabaseStorage implements IStorage {
     netMargin: number;
   }> {
     const [inventoryCountResult] = await db
-      .select({ count: sql<number>`count(*)` })
+      .select({ count: sql<number>`coalesce(sum(${inventario.quantita}), 0)` })
       .from(inventario)
       .where(eq(inventario.activityId, activityId));
 
@@ -1132,7 +1132,7 @@ export class DatabaseStorage implements IStorage {
       .from(spese)
       .where(eq(spese.activityId, activityId));
 
-    const inventoryCount = inventoryCountResult?.count || 0;
+    const inventoryCount = Number(inventoryCountResult?.count || 0);
     const totalSales = Number(salesSumResult?.total || 0);
     const totalExpenses = Number(expensesSumResult?.total || 0);
     const netMargin = totalSales - totalExpenses;
