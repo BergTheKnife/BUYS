@@ -1048,7 +1048,7 @@ export class DatabaseStorage implements IStorage {
     const [sale] = await db
       .select()
       .from(vendite)
-      .where(and(eq(sale.id, id), eq(sale.activityId, activityId)));
+      .where(and(eq(vendite.id, id), eq(vendite.activityId, activityId)));
 
     if (!sale) return false;
 
@@ -1095,7 +1095,7 @@ export class DatabaseStorage implements IStorage {
     const [expense] = await db
       .select()
       .from(spese)
-      .where(and(eq(expense.id, id), eq(expense.activityId, activityId)));
+      .where(and(eq(spese.id, id), eq(spese.activityId, activityId)));
 
     if (!expense) return false;
 
