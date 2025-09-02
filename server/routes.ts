@@ -1960,6 +1960,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/inventario', requireActivity, async (req, res) => {
     try {
       const inventory = await storage.getInventoryByActivity(req.session.activityId!);
+      
+      // Run integrity check and log any issues (in background)
+      storage.checkInventoryIntegrity(req.session.activityId!)
+        .then(check => {
+          if (!check.isValid) {
+            console.warn(`Data integrity issues found for activity ${req.session.activityId}:`, check.issues);
+          }
+        })
+        .catch(error => {
+          console.error('Error checking data integrity:', error);
+        });
+      
       res.json(inventory);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nel recupero dell'inventario" });
@@ -2181,6 +2193,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/vendite', requireActivity, async (req, res) => {
     try {
       const sales = await storage.getSalesByActivity(req.session.activityId!);
+      
+      // Run integrity check and log any issues (in background)
+      storage.checkInventoryIntegrity(req.session.activityId!)
+        .then(check => {
+          if (!check.isValid) {
+            console.warn(`Data integrity issues found for activity ${req.session.activityId}:`, check.issues);
+          }
+        })
+        .catch(error => {
+          console.error('Error checking data integrity:', error);
+        });
+      
       res.json(sales);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nel recupero delle vendite" });
@@ -2445,6 +2469,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ balance });
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nel recupero del saldo cassa reinvestimento" });
+    }
+  });
+
+  // Data integrity check endpoints
+  app.get('/api/data-integrity/check', requireActivity, async (req, res) => {
+    try {
+      const integrityCheck = await storage.checkInventoryIntegrity(req.session.activityId!);
+      res.json(integrityCheck);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nella verifica dell'integrità dei dati" });
+    }
+  });
+
+  app.post('/api/data-integrity/fix', requireActivity, async (req, res) => {
+    try {
+      const result = await storage.fixInventoryIntegrity(req.session.activityId!);
+      res.json({
+        message: `Corretti ${result.corrected} elementi dell'inventario`,
+        details: result.details
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nella correzione dell'integrità dei dati" });
     }
   });
 

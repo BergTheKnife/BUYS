@@ -575,37 +575,17 @@ export class DatabaseStorage implements IStorage {
 
     // Update related sales with new inventory item information
     if (updates.nomeArticolo || updates.taglia || updates.costo) {
-      // If cost changed, recalculate margin for all related sales
-      if (updates.costo) {
-        // Get all sales for this inventory item
-        const relatedSales = await db
-          .select()
-          .from(vendite)
-          .where(eq(vendite.inventarioId, id));
+      // Get all sales for this inventory item
+      const relatedSales = await db
+        .select()
+        .from(vendite)
+        .where(eq(vendite.inventarioId, id));
 
-        // Update each sale with new margin calculation and item info
-        for (const sale of relatedSales) {
-          const newMargin = (Number(sale.prezzoVendita) - Number(updates.costo)) * sale.quantita;
-          const salesUpdates: any = {
-            margine: newMargin.toString()
-          };
-
-          if (updates.nomeArticolo) {
-            salesUpdates.nomeArticolo = updates.nomeArticolo;
-          }
-          if (updates.taglia) {
-            salesUpdates.taglia = updates.taglia;
-          }
-
-          await db
-            .update(vendite)
-            .set(salesUpdates)
-            .where(eq(vendite.id, sale.id));
-        }
-      } else if (updates.nomeArticolo || updates.taglia) {
-        // Update only name/size without recalculating margin
+      // Update each sale with new information
+      for (const sale of relatedSales) {
         const salesUpdates: any = {};
 
+        // Always update name and size if they changed
         if (updates.nomeArticolo) {
           salesUpdates.nomeArticolo = updates.nomeArticolo;
         }
@@ -613,10 +593,19 @@ export class DatabaseStorage implements IStorage {
           salesUpdates.taglia = updates.taglia;
         }
 
-        await db
-          .update(vendite)
-          .set(salesUpdates)
-          .where(eq(vendite.inventarioId, id));
+        // Recalculate margin if cost changed
+        if (updates.costo) {
+          const newMargin = (Number(sale.prezzoVendita) - Number(updates.costo)) * sale.quantita;
+          salesUpdates.margine = newMargin.toString();
+        }
+
+        // Only update if there are actual changes
+        if (Object.keys(salesUpdates).length > 0) {
+          await db
+            .update(vendite)
+            .set(salesUpdates)
+            .where(eq(vendite.id, sale.id));
+        }
       }
     }
 
@@ -929,6 +918,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createSale(saleData: InsertVendita & { userId: string; activityId: string; nomeArticolo: string; taglia: string; margine: string }): Promise<Vendita> {
+    // Verify inventory item exists and has sufficient quantity
+    const [inventoryItem] = await db
+      .select()
+      .from(inventario)
+      .where(and(
+        eq(inventario.id, saleData.inventarioId),
+        eq(inventario.activityId, saleData.activityId)
+      ));
+
+    if (!inventoryItem) {
+      throw new Error("Articolo non trovato nell'inventario");
+    }
+
+    if (inventoryItem.quantita < saleData.quantita) {
+      throw new Error("Quantità insufficiente in magazzino");
+    }
+
     // Calculate FIFO margin and update batches
     const { margine, batchesUsed, costoMedio } = await this.calculateFIFOMargin(saleData.inventarioId, saleData.quantita, Number(saleData.prezzoVendita));
     await this.updateBatchesAfterSale(batchesUsed);
@@ -972,35 +978,45 @@ export class DatabaseStorage implements IStorage {
     const oldInventarioId = existingSale.inventarioId;
     const newInventarioId = updates.inventarioId || oldInventarioId;
 
-    // If the inventory item changed, we need to handle both items
-    if (newInventarioId !== oldInventarioId) {
-      // Restore quantity to the old item
-      await db
-        .update(inventario)
-        .set({ 
-          quantita: sql`${inventario.quantita} + ${oldQuantity}`
-        })
-        .where(eq(inventario.id, oldInventarioId));
+    // ALWAYS restore the old quantity first to ensure inventory consistency
+    await db
+      .update(inventario)
+      .set({ 
+        quantita: sql`${inventario.quantita} + ${oldQuantity}`
+      })
+      .where(eq(inventario.id, oldInventarioId));
 
-      // Check if new item has enough quantity
-      const [newItem] = await db
+    // If we're changing to a different inventory item OR keeping the same item
+    if (newInventarioId !== oldInventarioId || newQuantity !== oldQuantity) {
+      // Check if target item has enough quantity
+      const [targetItem] = await db
         .select()
         .from(inventario)
         .where(eq(inventario.id, newInventarioId));
 
-      if (!newItem || newItem.quantita < newQuantity) {
-        // Restore the old item quantity back if new item doesn't have enough stock
+      if (!targetItem) {
+        // Restore the old quantity since we're failing
         await db
           .update(inventario)
           .set({ 
             quantita: sql`${inventario.quantita} - ${oldQuantity}`
           })
           .where(eq(inventario.id, oldInventarioId));
+        throw new Error("Articolo di destinazione non trovato");
+      }
 
+      if (targetItem.quantita < newQuantity) {
+        // Restore the old quantity since we're failing
+        await db
+          .update(inventario)
+          .set({ 
+            quantita: sql`${inventario.quantita} - ${oldQuantity}`
+          })
+          .where(eq(inventario.id, oldInventarioId));
         throw new Error("Quantità insufficiente nel nuovo articolo selezionato");
       }
 
-      // Subtract quantity from the new item
+      // Reduce quantity from the target item
       await db
         .update(inventario)
         .set({ 
@@ -1008,29 +1024,13 @@ export class DatabaseStorage implements IStorage {
         })
         .where(eq(inventario.id, newInventarioId));
     } else {
-      // Same item, just quantity change
-      const quantityDifference = newQuantity - oldQuantity;
-
-      if (quantityDifference !== 0) {
-        // Check if we have enough inventory for the quantity change
-        if (quantityDifference > 0) {
-          const [item] = await db
-            .select()
-            .from(inventario)
-            .where(eq(inventario.id, oldInventarioId));
-
-          if (!item || item.quantita < quantityDifference) {
-            throw new Error("Quantità insufficiente in magazzino per questa modifica");
-          }
-        }
-
-        await db
-          .update(inventario)
-          .set({ 
-            quantita: sql`${inventario.quantita} - ${quantityDifference}`
-          })
-          .where(eq(inventario.id, oldInventarioId));
-      }
+      // Same item, same quantity - just restore the original state
+      await db
+        .update(inventario)
+        .set({ 
+          quantita: sql`${inventario.quantita} - ${oldQuantity}`
+        })
+        .where(eq(inventario.id, oldInventarioId));
     }
 
     // Update the sale
