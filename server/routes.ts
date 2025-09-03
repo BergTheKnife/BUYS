@@ -2250,32 +2250,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Quantità insufficiente in magazzino" });
       }
 
-      // Calculate FIFO margin
-      const fifoResult = await storage.calculateFIFOMargin(
-        saleData.inventarioId, 
-        quantitaVenduta, 
-        Number(saleData.prezzoVendita)
-      );
-
-      // Create sale with FIFO margin
+      // Create sale - createSale handles FIFO calculation, inventory and batch updates internally
       const sale = await storage.createSale({
         ...saleData,
         userId: req.session.userId!,
         activityId: req.session.activityId!,
         nomeArticolo: inventoryItem.nomeArticolo,
         taglia: inventoryItem.taglia,
-        margine: fifoResult.margine.toString(),
+        margine: "0" // Will be calculated internally by createSale
       });
 
-      // Update inventory quantity and batches
-      await storage.updateInventoryQuantity(saleData.inventarioId, inventoryItem.quantita - quantitaVenduta);
-      await storage.updateBatchesAfterSale(fifoResult.batchesUsed);
-
-      // Add batch details to response for UI display
-      res.json({
-        ...sale,
-        batchDetails: fifoResult.batchDetails
-      });
+      res.json(sale);
     } catch (error: any) {
       console.error('Sale creation error:', error);
       res.status(400).json({ message: error.message || "Errore nella registrazione della vendita" });
@@ -2310,18 +2295,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Articolo non trovato nell'inventario" });
       }
       
-      // Calculate new margin
-      const newPrice = updates.prezzoVendita || existingSale.prezzoVendita;
-      const newQuantity = updates.quantita || existingSale.quantita;
-      const marginePerUnit = Number(newPrice) - Number(inventoryItem.costo);
-      const margineTotal = marginePerUnit * newQuantity;
-      
-      // Update sale with new margin and article info (inventory quantities are handled in updateSale)
+      // updateSale handles inventory restoration, quantity updates, and FIFO margin calculation internally
       const updatedSale = await storage.updateSale(id, req.session.activityId!, {
         ...updates,
         nomeArticolo: inventoryItem.nomeArticolo,
         taglia: inventoryItem.taglia,
-        margine: margineTotal.toString(),
       });
       
       res.json(updatedSale);

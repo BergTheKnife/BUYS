@@ -593,11 +593,9 @@ export class DatabaseStorage implements IStorage {
           salesUpdates.taglia = updates.taglia;
         }
 
-        // Recalculate margin if cost changed
-        if (updates.costo) {
-          const newMargin = (Number(sale.prezzoVendita) - Number(updates.costo)) * sale.quantita;
-          salesUpdates.margine = newMargin.toString();
-        }
+        // NOTE: We intentionally do NOT recalculate historical sale margins when cost changes
+        // Historical margins should remain based on the original FIFO costs at time of sale
+        // Changing historical margins would corrupt financial data integrity
 
         // Only update if there are actual changes
         if (Object.keys(salesUpdates).length > 0) {
@@ -912,7 +910,6 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    console.log(`DEBUG: Saldo cassa reinvestimento calcolato: ${balance}€ (${movements.length} movimenti)`);
     return balance;
   }
 
@@ -1065,6 +1062,22 @@ export class DatabaseStorage implements IStorage {
         .where(eq(inventario.id, oldInventarioId));
     }
 
+    // If quantity or item changed, recalculate FIFO margin for new data
+    if ((updates.quantita && updates.quantita !== oldQuantity) || 
+        (updates.inventarioId && updates.inventarioId !== oldInventarioId) ||
+        (updates.prezzoVendita && updates.prezzoVendita !== existingSale.prezzoVendita)) {
+      
+      const finalInventarioId = updates.inventarioId || oldInventarioId;
+      const finalQuantity = updates.quantita || oldQuantity;
+      const finalPrice = Number(updates.prezzoVendita || existingSale.prezzoVendita);
+      
+      // Calculate FIFO margin and update batches for the new sale parameters
+      const { margine, batchesUsed } = await this.calculateFIFOMargin(finalInventarioId, finalQuantity, finalPrice);
+      await this.updateBatchesAfterSale(batchesUsed);
+      
+      updates.margine = margine.toString();
+    }
+
     // Update the sale
     const [updatedSale] = await db
       .update(vendite)
@@ -1092,12 +1105,56 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(inventario.id, sale.inventarioId));
 
+    // Restore FIFO batches - this is a best-effort approach since we don't track which specific batches were used
+    // We'll restore to the oldest batches first (FIFO order) up to the sold quantity
+    await this.restoreBatchesAfterSaleDelete(sale.inventarioId, sale.quantita, Number(sale.costo));
+
     // Delete the sale
     const result = await db
       .delete(vendite)
       .where(and(eq(vendite.id, id), eq(vendite.activityId, activityId)));
 
     return (result.rowCount ?? 0) > 0;
+  }
+
+  // Helper method to restore batches when a sale is deleted
+  async restoreBatchesAfterSaleDelete(inventarioId: string, quantitaToRestore: number, costoTotale: number) {
+    const { inventoryBatches } = await import('../migrations/schema');
+    
+    // Get all batches for this inventory item, ordered by date (FIFO)
+    const batches = await db
+      .select()
+      .from(inventoryBatches)
+      .where(eq(inventoryBatches.inventarioId, inventarioId))
+      .orderBy(inventoryBatches.dataAcquisto);
+
+    // Calculate average cost of the deleted sale
+    const costoMedio = costoTotale / quantitaToRestore;
+    
+    let rimanenteRestore = quantitaToRestore;
+    
+    // Try to restore to batches with similar cost (FIFO order)
+    for (const batch of batches) {
+      if (rimanenteRestore <= 0) break;
+      
+      const batchCost = Number(batch.costo);
+      // Only restore to batches with similar cost (within 10% tolerance)
+      if (Math.abs(batchCost - costoMedio) / costoMedio <= 0.1) {
+        const quantitaToRestoreToBatch = Math.min(rimanenteRestore, batch.quantitaIniziale - batch.quantitaRimanente);
+        
+        if (quantitaToRestoreToBatch > 0) {
+          await db
+            .update(inventoryBatches)
+            .set({
+              quantitaRimanente: sql`${inventoryBatches.quantitaRimanente} + ${quantitaToRestoreToBatch}`
+            })
+            .where(eq(inventoryBatches.id, batch.id));
+          
+          rimanenteRestore -= quantitaToRestoreToBatch;
+        }
+      }
+    }
+    
   }
 
   // Updated expenses methods with activity context
@@ -1112,7 +1169,6 @@ export class DatabaseStorage implements IStorage {
     
     // Se l'importo è positivo (uscita) e ci sono fondi sufficienti nella cassa reinvestimento
     if (expenseAmount > 0 && cassaBalance >= expenseAmount) {
-      console.log(`DEBUG: Scalando ${expenseAmount}€ dalla cassa reinvestimento (saldo: ${cassaBalance}€) per: ${expenseData.voce}`);
       // Utilizza la cassa reinvestimento per coprire la spesa
       await this.updateCassaReinvestimento(
         expenseData.activityId,
@@ -1120,9 +1176,6 @@ export class DatabaseStorage implements IStorage {
         `Spesa coperta da cassa reinvestimento: ${expenseData.voce}`,
         expenseData.userId
       );
-      console.log(`DEBUG: Scala completata dalla cassa reinvestimento`);
-    } else {
-      console.log(`DEBUG: NON scalando dalla cassa reinvestimento - Amount: ${expenseAmount}, Balance: ${cassaBalance}`);
     }
     
     // Crea la spesa per registrare il movimento
@@ -1154,7 +1207,6 @@ export class DatabaseStorage implements IStorage {
 
     // Se era stata coperta dalla cassa, ripristina l'importo originale
     if (originalCoverage.length > 0) {
-      console.log(`DEBUG: Ripristinando ${originalExpense.importo}€ nella cassa reinvestimento per modifica spesa`);
       await this.updateCassaReinvestimento(
         activityId,
         Number(originalExpense.importo),
@@ -1178,7 +1230,6 @@ export class DatabaseStorage implements IStorage {
       const cassaBalance = await this.getCassaReinvestimentoBalance(activityId);
       
       if (newAmount > 0 && cassaBalance >= newAmount) {
-        console.log(`DEBUG: Coprendo nuovo importo ${newAmount}€ dalla cassa reinvestimento`);
         await this.updateCassaReinvestimento(
           activityId,
           -newAmount,
@@ -1217,7 +1268,6 @@ export class DatabaseStorage implements IStorage {
 
     // Se era stata coperta dalla cassa, ripristina l'importo
     if (coverage.length > 0) {
-      console.log(`DEBUG: Ripristinando ${expense.importo}€ nella cassa reinvestimento per eliminazione spesa`);
       await this.updateCassaReinvestimento(
         activityId,
         Number(expense.importo),

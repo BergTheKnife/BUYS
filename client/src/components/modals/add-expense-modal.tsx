@@ -106,6 +106,7 @@ export function AddExpenseModal({ isOpen, onClose, editingExpense }: AddExpenseM
 
       queryClient.invalidateQueries({ queryKey: ["/api/spese"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cassa-reinvestimento-balance"] });
       toast({
         title: "Successo",
         description: editingExpense ? "Spesa aggiornata con successo" : "Spesa aggiunta con successo",
