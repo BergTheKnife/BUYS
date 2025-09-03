@@ -1108,6 +1108,7 @@ export class DatabaseStorage implements IStorage {
     
     // Se l'importo è positivo (uscita) e ci sono fondi sufficienti nella cassa reinvestimento
     if (expenseAmount > 0 && cassaBalance >= expenseAmount) {
+      console.log(`DEBUG: Scalando ${expenseAmount}€ dalla cassa reinvestimento (saldo: ${cassaBalance}€) per: ${expenseData.voce}`);
       // Utilizza la cassa reinvestimento per coprire la spesa
       await this.updateCassaReinvestimento(
         expenseData.activityId,
@@ -1115,6 +1116,9 @@ export class DatabaseStorage implements IStorage {
         `Spesa coperta da cassa reinvestimento: ${expenseData.voce}`,
         expenseData.userId
       );
+      console.log(`DEBUG: Scala completata dalla cassa reinvestimento`);
+    } else {
+      console.log(`DEBUG: NON scalando dalla cassa reinvestimento - Amount: ${expenseAmount}, Balance: ${cassaBalance}`);
     }
     
     // Crea la spesa per registrare il movimento

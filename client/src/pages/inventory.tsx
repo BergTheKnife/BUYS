@@ -233,6 +233,7 @@ export default function Inventory() {
       queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/spese"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cassa-reinvestimento-balance"] });
       toast({
         title: "Successo",
         description: "Rifornimento completato con successo",
