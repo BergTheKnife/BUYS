@@ -1134,12 +1134,61 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateExpense(id: string, activityId: string, updates: Partial<InsertSpesa>): Promise<Spesa | undefined> {
+    // Recupera la spesa originale
+    const [originalExpense] = await db
+      .select()
+      .from(spese)
+      .where(and(eq(spese.id, id), eq(spese.activityId, activityId)));
+
+    if (!originalExpense) return undefined;
+
+    // Controlla se la spesa originale era stata coperta dalla cassa reinvestimento
+    const originalCoverage = await db
+      .select()
+      .from(financialHistory)
+      .where(and(
+        eq(financialHistory.activityId, activityId),
+        eq(financialHistory.azione, "PRELIEVO_CASSA"),
+        sql`${financialHistory.descrizione} LIKE ${'%' + originalExpense.voce + '%'}`
+      ));
+
+    // Se era stata coperta dalla cassa, ripristina l'importo originale
+    if (originalCoverage.length > 0) {
+      console.log(`DEBUG: Ripristinando ${originalExpense.importo}€ nella cassa reinvestimento per modifica spesa`);
+      await this.updateCassaReinvestimento(
+        activityId,
+        Number(originalExpense.importo),
+        `Ripristino per modifica spesa: ${originalExpense.voce}`,
+        originalExpense.userId
+      );
+    }
+
+    // Aggiorna la spesa
     const [updatedExpense] = await db
       .update(spese)
       .set(updates)
       .where(and(eq(spese.id, id), eq(spese.activityId, activityId)))
       .returning();
-    return updatedExpense || undefined;
+
+    if (!updatedExpense) return undefined;
+
+    // Se l'importo è cambiato, applica la nuova logica di copertura dalla cassa
+    if (updates.importo && updates.importo !== originalExpense.importo) {
+      const newAmount = Number(updates.importo);
+      const cassaBalance = await this.getCassaReinvestimentoBalance(activityId);
+      
+      if (newAmount > 0 && cassaBalance >= newAmount) {
+        console.log(`DEBUG: Coprendo nuovo importo ${newAmount}€ dalla cassa reinvestimento`);
+        await this.updateCassaReinvestimento(
+          activityId,
+          -newAmount,
+          `Spesa coperta da cassa reinvestimento: ${updatedExpense.voce}`,
+          updatedExpense.userId
+        );
+      }
+    }
+
+    return updatedExpense;
   }
 
   async deleteExpense(id: string, activityId: string): Promise<boolean> {
@@ -1154,6 +1203,27 @@ export class DatabaseStorage implements IStorage {
     // Prevent deletion of inventory-related expenses
     if (expense.categoria === "Aggiunta articolo" || expense.categoria === "Inventario") {
       throw new Error("Non è possibile eliminare manualmente le spese relative all'inventario. Gestisci l'inventario dalla sezione Magazzino per aggiornare automaticamente le spese correlate.");
+    }
+
+    // Controlla se la spesa era stata coperta dalla cassa reinvestimento
+    const coverage = await db
+      .select()
+      .from(financialHistory)
+      .where(and(
+        eq(financialHistory.activityId, activityId),
+        eq(financialHistory.azione, "PRELIEVO_CASSA"),
+        sql`${financialHistory.descrizione} LIKE ${'%' + expense.voce + '%'}`
+      ));
+
+    // Se era stata coperta dalla cassa, ripristina l'importo
+    if (coverage.length > 0) {
+      console.log(`DEBUG: Ripristinando ${expense.importo}€ nella cassa reinvestimento per eliminazione spesa`);
+      await this.updateCassaReinvestimento(
+        activityId,
+        Number(expense.importo),
+        `Ripristino per eliminazione spesa: ${expense.voce}`,
+        expense.userId
+      );
     }
 
     const result = await db
