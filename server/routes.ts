@@ -2195,6 +2195,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Preview sale calculation endpoint 
+  app.post('/api/vendite/preview', requireActivity, async (req, res) => {
+    try {
+      const { inventarioId, quantita, prezzoVendita } = req.body;
+      
+      if (!inventarioId || !quantita || !prezzoVendita) {
+        return res.status(400).json({ message: "Dati mancanti per il calcolo del preview" });
+      }
+
+      const inventoryItem = await storage.getInventoryItem(inventarioId, req.session.activityId!);
+      if (!inventoryItem) {
+        return res.status(404).json({ message: "Articolo non trovato nell'inventario" });
+      }
+
+      const quantitaVenduta = parseInt(quantita);
+      
+      if (inventoryItem.quantita < quantitaVenduta) {
+        return res.status(400).json({ message: "Quantità insufficiente in magazzino" });
+      }
+
+      // Calculate FIFO margin preview
+      const fifoResult = await storage.calculateFIFOMargin(
+        inventarioId, 
+        quantitaVenduta, 
+        Number(prezzoVendita)
+      );
+
+      res.json({
+        margineTotal: fifoResult.margine,
+        batchDetails: fifoResult.batchDetails.map(detail => ({
+          ...detail,
+          dataAcquisto: detail.batchId ? undefined : 'Costo medio', // Will be filled from batch data if needed
+        }))
+      });
+    } catch (error: any) {
+      console.error('Sale preview error:', error);
+      res.status(400).json({ message: error.message || "Errore nel calcolo del preview" });
+    }
+  });
+
   app.post('/api/vendite', requireActivity, async (req, res) => {
     try {
       // Convert form data types
@@ -2221,26 +2261,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Quantità insufficiente in magazzino" });
       }
 
-      // Calculate margin using average cost
-      const marginResult = await storage.calculateAverageMargin(
+      // Calculate FIFO margin
+      const fifoResult = await storage.calculateFIFOMargin(
         saleData.inventarioId, 
         quantitaVenduta, 
         Number(saleData.prezzoVendita)
       );
 
-      // Create sale with calculated margin
+      // Create sale with FIFO margin
       const sale = await storage.createSale({
         ...saleData,
         userId: req.session.userId!,
         activityId: req.session.activityId!,
         nomeArticolo: inventoryItem.nomeArticolo,
         taglia: inventoryItem.taglia,
-        margine: marginResult.margine.toString(),
+        margine: fifoResult.margine.toString(),
       });
 
-      // Inventory quantity is automatically updated in createSale method
+      // Update inventory quantity and batches
+      await storage.updateInventoryQuantity(saleData.inventarioId, inventoryItem.quantita - quantitaVenduta);
+      await storage.updateBatchesAfterSale(fifoResult.batchesUsed);
 
-      res.json(sale);
+      // Add batch details to response for UI display
+      res.json({
+        ...sale,
+        batchDetails: fifoResult.batchDetails
+      });
     } catch (error: any) {
       console.error('Sale creation error:', error);
       res.status(400).json({ message: error.message || "Errore nella registrazione della vendita" });

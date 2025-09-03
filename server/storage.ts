@@ -768,28 +768,95 @@ export class DatabaseStorage implements IStorage {
     return updatedBatch;
   }
 
-  // Calcola margine basato sul costo medio dell'articolo
-  async calculateAverageMargin(inventarioId: string, quantitaVenduta: number, prezzoVendita: number) {
-    // Get the inventory item with its average cost
-    const [inventoryItem] = await db
-      .select()
-      .from(inventario)
-      .where(eq(inventario.id, inventarioId));
+  // Calcola margine FIFO per una vendita
+  async calculateFIFOMargin(inventarioId: string, quantitaVenduta: number, prezzoVendita: number) {
+    const { inventoryBatches } = await import('../migrations/schema');
 
-    if (!inventoryItem || inventoryItem.quantita < quantitaVenduta) {
+    // Get available batches ordered by date (FIFO)
+    const batches = await db
+      .select()
+      .from(inventoryBatches)
+      .where(
+        and(
+          eq(inventoryBatches.inventarioId, inventarioId),
+          sql`${inventoryBatches.quantitaRimanente} > 0`
+        )
+      )
+      .orderBy(inventoryBatches.dataAcquisto);
+
+    // Calculate total available quantity from batches
+    const totalAvailableFromBatches = batches.reduce((sum, batch) => sum + batch.quantitaRimanente, 0);
+
+    // If no batches exist, fall back to current inventory item cost
+    if (batches.length === 0 || totalAvailableFromBatches === 0) {
+      const [inventoryItem] = await db
+        .select()
+        .from(inventario)
+        .where(eq(inventario.id, inventarioId));
+
+      if (!inventoryItem || inventoryItem.quantita < quantitaVenduta) {
+        throw new Error("Quantità insufficiente in magazzino per completare la vendita");
+      }
+
+      const costoTotale = quantitaVenduta * Number(inventoryItem.costo);
+      const ricavoTotale = quantitaVenduta * prezzoVendita;
+      const margine = ricavoTotale - costoTotale;
+
+      return {
+        margine,
+        batchesUsed: [],
+        batchDetails: [{
+          batchId: null,
+          costoUnitario: Number(inventoryItem.costo),
+          quantitaUsata: quantitaVenduta,
+          marginePartial: margine
+        }]
+      };
+    }
+
+    // Check if we have enough quantity in batches
+    if (totalAvailableFromBatches < quantitaVenduta) {
       throw new Error("Quantità insufficiente in magazzino per completare la vendita");
     }
 
-    // Calculate margin using the average cost
-    const costoMedio = Number(inventoryItem.costo);
-    const costoTotale = quantitaVenduta * costoMedio;
+    let rimanenteVendita = quantitaVenduta;
+    let costoTotale = 0;
+    const batchesUsed: { id: string; quantitaUsata: number }[] = [];
+    const batchDetails: { batchId: string | null; costoUnitario: number; quantitaUsata: number; marginePartial: number }[] = [];
+
+    for (const batch of batches) {
+      if (rimanenteVendita <= 0) break;
+
+      const quantitaUsata = Math.min(rimanenteVendita, batch.quantitaRimanente);
+      const costoUnitario = Number(batch.costo);
+      const costoPartial = quantitaUsata * costoUnitario;
+      const ricavoPartial = quantitaUsata * prezzoVendita;
+      const marginePartial = ricavoPartial - costoPartial;
+      
+      costoTotale += costoPartial;
+
+      batchesUsed.push({
+        id: batch.id,
+        quantitaUsata
+      });
+
+      batchDetails.push({
+        batchId: batch.id,
+        costoUnitario,
+        quantitaUsata,
+        marginePartial
+      });
+
+      rimanenteVendita -= quantitaUsata;
+    }
+
     const ricavoTotale = quantitaVenduta * prezzoVendita;
     const margine = ricavoTotale - costoTotale;
 
     return {
       margine,
-      costoMedio,
-      costoTotale
+      batchesUsed,
+      batchDetails
     };
   }
 
@@ -888,8 +955,12 @@ export class DatabaseStorage implements IStorage {
       throw new Error("Quantità insufficiente in magazzino");
     }
 
-    // Calculate margin using average cost
-    const { margine, costoMedio, costoTotale } = await this.calculateAverageMargin(saleData.inventarioId, saleData.quantita!, Number(saleData.prezzoVendita));
+    // Calculate FIFO margin and update batches
+    const { margine, batchesUsed, batchDetails } = await this.calculateFIFOMargin(saleData.inventarioId, saleData.quantita!, Number(saleData.prezzoVendita));
+    await this.updateBatchesAfterSale(batchesUsed);
+
+    // Calculate weighted average cost for storage
+    const costoTotale = batchDetails.reduce((sum, detail) => sum + (detail.quantitaUsata * detail.costoUnitario), 0);
 
     // Create the sale record with calculated margin
     const [newSale] = await db

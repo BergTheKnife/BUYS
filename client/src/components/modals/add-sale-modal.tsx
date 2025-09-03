@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -19,6 +19,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { insertVenditaSchema } from "@shared/schema";
@@ -26,6 +28,7 @@ import type { InsertVendita, Inventario, Vendita } from "@shared/schema";
 import { z } from "zod";
 import { capitalizeWords } from "@/lib/utils";
 import { useActionHistory } from "@/hooks/use-action-history";
+import { Calculator } from "lucide-react";
 
 interface AddSaleModalProps {
   isOpen: boolean;
@@ -39,10 +42,25 @@ const saleFormSchema = insertVenditaSchema.extend({
 
 type SaleFormData = z.infer<typeof saleFormSchema>;
 
+interface BatchDetail {
+  batchId: string | null;
+  costoUnitario: number;
+  quantitaUsata: number;
+  marginePartial: number;
+  dataAcquisto?: string;
+}
+
+interface SalePreview {
+  margineTotal: number;
+  batchDetails: BatchDetail[];
+}
+
 export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { addAction } = useActionHistory('sales');
+  const [salePreview, setSalePreview] = useState<SalePreview | null>(null);
+  const [isCalculatingPreview, setIsCalculatingPreview] = useState(false);
 
   const { data: inventory = [] } = useQuery<Inventario[]>({
     queryKey: ["/api/inventario"],
@@ -96,6 +114,46 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
   }, [editingSale, form]);
 
   const selectedItem = inventory.find((item: Inventario) => item.id === form.watch("inventarioId"));
+
+  // Watch form values for preview calculation
+  const watchedValues = form.watch();
+  const { inventarioId, quantita, prezzoVendita } = watchedValues;
+
+  // Calculate preview when relevant values change
+  useEffect(() => {
+    const calculatePreview = async () => {
+      if (!inventarioId || !quantita || !prezzoVendita || quantita <= 0 || Number(prezzoVendita) <= 0 || editingSale) {
+        setSalePreview(null);
+        return;
+      }
+
+      setIsCalculatingPreview(true);
+      try {
+        const response = await apiRequest("POST", "/api/vendite/preview", {
+          inventarioId,
+          quantita: parseInt(quantita.toString()),
+          prezzoVendita: prezzoVendita
+        });
+        const previewData = await response.json();
+        setSalePreview(previewData);
+      } catch (error) {
+        console.error('Preview calculation failed:', error);
+        setSalePreview(null);
+      } finally {
+        setIsCalculatingPreview(false);
+      }
+    };
+
+    const timeoutId = setTimeout(calculatePreview, 500); // Debounce
+    return () => clearTimeout(timeoutId);
+  }, [inventarioId, quantita, prezzoVendita, editingSale]);
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("it-IT", {
+      style: "currency",
+      currency: "EUR",
+    }).format(amount);
+  };
 
   const mutation = useMutation({
     mutationFn: async (data: SaleFormData) => {
@@ -170,7 +228,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editingSale ? "Modifica Vendita" : "Registra Vendita"}</DialogTitle>
           <DialogDescription>
@@ -211,10 +269,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
           {selectedItem && (
             <div className="p-4 bg-muted rounded-lg">
               <p className="text-sm">
-                <strong>Costo articolo:</strong> {new Intl.NumberFormat("it-IT", {
-                  style: "currency",
-                  currency: "EUR",
-                }).format(Number(selectedItem.costo))}
+                <strong>Costo medio articolo:</strong> {formatCurrency(Number(selectedItem.costo))}
               </p>
               <p className="text-sm">
                 <strong>Quantità disponibile:</strong> {selectedItem.quantita}
@@ -253,6 +308,60 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
               </p>
             )}
           </div>
+
+          {/* Sale Preview */}
+          {!editingSale && salePreview && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <Calculator className="h-4 w-4" />
+                  Calcolo Margine FIFO
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="text-xs text-muted-foreground">
+                  Questo calcolo mostra esattamente quali lotti verranno utilizzati per questa vendita
+                </div>
+                
+                {salePreview.batchDetails.map((batch, index) => (
+                  <div key={index} className="flex justify-between items-center py-2 border-b last:border-b-0">
+                    <div className="space-y-1">
+                      <div className="text-sm font-medium">
+                        Lotto {index + 1} {batch.batchId ? `(ID: ${batch.batchId.slice(-8)})` : '(Costo medio)'}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {batch.quantitaUsata} pz × {formatCurrency(batch.costoUnitario)}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-sm font-medium ${batch.marginePartial >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatCurrency(batch.marginePartial)}
+                      </div>
+                      <div className="text-xs text-muted-foreground">margine</div>
+                    </div>
+                  </div>
+                ))}
+                
+                <Separator />
+                
+                <div className="flex justify-between items-center font-medium">
+                  <span>Margine Totale:</span>
+                  <span className={`text-lg ${salePreview.margineTotal >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {formatCurrency(salePreview.margineTotal)}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {isCalculatingPreview && !editingSale && (
+            <div className="p-4 bg-muted rounded-lg">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Calculator className="h-4 w-4 animate-pulse" />
+                Calcolo margine in corso...
+              </div>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="incassatoDa">Incassato Da</Label>
