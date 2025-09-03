@@ -123,7 +123,6 @@ export default function FinancialManagement() {
   const calculateFinancialSummary = (): FinancialSummary => {
     const memberBalances: { [member: string]: MemberBalance } = {};
     const accountTotals: { [account: string]: number } = {};
-    let totalFunds = 0;
 
     // Process sales to calculate initial balances
     sales.forEach(sale => {
@@ -143,34 +142,56 @@ export default function FinancialManagement() {
       memberBalances[member].total += amount;
       
       accountTotals[account] = (accountTotals[account] || 0) + amount;
-      totalFunds += amount;
     });
 
-    // Apply fund transfers (deposits to cassa)
+    // Subtract fund transfers from member balances
     fundTransfers.forEach(transfer => {
       const fromMember = transfer.fromMember;
       const fromAccount = transfer.fromAccount;
-      const toAccount = transfer.toAccount;
       const amount = Number(transfer.importo);
 
-      if (memberBalances[fromMember] && memberBalances[fromMember].accounts[fromAccount]) {
-        memberBalances[fromMember].accounts[fromAccount] -= amount;
-        memberBalances[fromMember].total -= amount;
-        accountTotals[fromAccount] = (accountTotals[fromAccount] || 0) - amount;
+      // Initialize member and account if they don't exist
+      if (!memberBalances[fromMember]) {
+        memberBalances[fromMember] = {
+          member: fromMember,
+          accounts: {},
+          total: 0
+        };
       }
 
-      if (toAccount !== "Cassa Reinvestimento") {
-        accountTotals[toAccount] = (accountTotals[toAccount] || 0) + amount;
-      }
+      // Subtract from member's account balance
+      memberBalances[fromMember].accounts[fromAccount] = (memberBalances[fromMember].accounts[fromAccount] || 0) - amount;
+      memberBalances[fromMember].total -= amount;
+      
+      // Update account totals
+      accountTotals[fromAccount] = (accountTotals[fromAccount] || 0) - amount;
     });
 
-    // Use cassa reinvestimento balance from API instead of calculating locally
+    // Calculate total funds available in individual accounts (excluding cassa reinvestimento)
+    const totalFundsInAccounts = Object.values(accountTotals).reduce((sum, amount) => sum + Math.max(0, amount), 0);
+    
+    // Use cassa reinvestimento balance from API
     const cassaReinvestimento = cassaBalance?.balance || 0;
 
+    // Filter out members with negative or zero total balances and clean up zero accounts
+    const cleanedMemberBalances = Object.values(memberBalances)
+      .map(memberBalance => ({
+        ...memberBalance,
+        accounts: Object.fromEntries(
+          Object.entries(memberBalance.accounts).filter(([_, amount]) => amount > 0)
+        )
+      }))
+      .filter(mb => mb.total > 0 && Object.keys(mb.accounts).length > 0);
+
+    // Clean up account totals to only show positive balances
+    const cleanedAccountTotals = Object.fromEntries(
+      Object.entries(accountTotals).filter(([_, amount]) => amount > 0)
+    );
+
     return {
-      totalFunds: totalFunds - fundTransfers.reduce((sum, t) => sum + Number(t.importo), 0) + cassaReinvestimento,
-      memberBalances: Object.values(memberBalances).filter(mb => mb.total > 0),
-      accountTotals,
+      totalFunds: totalFundsInAccounts + cassaReinvestimento,
+      memberBalances: cleanedMemberBalances,
+      accountTotals: cleanedAccountTotals,
       cassaReinvestimento
     };
   };
