@@ -2335,21 +2335,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const expenseData = insertSpesaSchema.parse(formData);
       
-      // Verifica se ci sono fondi nella cassa reinvestimento
-      const cassaBalance = await storage.getCassaReinvestimentoBalance(req.session.activityId!);
-      const expenseAmount = Number(expenseData.importo);
-      
-      if (cassaBalance >= expenseAmount) {
-        // Utilizza la cassa reinvestimento per coprire la spesa
-        await storage.updateCassaReinvestimento(
-          req.session.activityId!,
-          -expenseAmount,
-          `Spesa coperta da cassa reinvestimento: ${expenseData.voce}`,
-          req.session.userId!
-        );
-      }
-      
-      // Crea comunque la spesa per registrare il movimento
+      // Crea la spesa - la logica di scala dalla cassa reinvestimento è ora gestita nel metodo createExpense
       const expense = await storage.createExpense({
         ...expenseData,
         userId: req.session.userId!,

@@ -1074,6 +1074,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createExpense(expenseData: InsertSpesa & { userId: string; activityId: string }): Promise<Spesa> {
+    // Verifica se ci sono fondi nella cassa reinvestimento per coprire la spesa
+    const cassaBalance = await this.getCassaReinvestimentoBalance(expenseData.activityId);
+    const expenseAmount = Number(expenseData.importo);
+    
+    // Se l'importo è positivo (uscita) e ci sono fondi sufficienti nella cassa reinvestimento
+    if (expenseAmount > 0 && cassaBalance >= expenseAmount) {
+      // Utilizza la cassa reinvestimento per coprire la spesa
+      await this.updateCassaReinvestimento(
+        expenseData.activityId,
+        -expenseAmount,
+        `Spesa coperta da cassa reinvestimento: ${expenseData.voce}`,
+        expenseData.userId
+      );
+    }
+    
+    // Crea la spesa per registrare il movimento
     const [newExpense] = await db
       .insert(spese)
       .values(expenseData)

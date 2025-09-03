@@ -31,10 +31,14 @@ import {
   ArrowRightLeft,
   History,
   Euro,
-  Plus
+  Plus,
+  ExternalLink,
+  Package,
+  Receipt
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import type { Vendita, Spesa } from "@shared/schema";
+import { useLocation } from "wouter";
 
 // Types for our financial data
 interface MemberBalance {
@@ -71,6 +75,7 @@ interface FinancialHistoryItem {
 export default function FinancialManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [selectedTransfers, setSelectedTransfers] = useState<{
     [member: string]: { [account: string]: number }
@@ -215,6 +220,49 @@ export default function FinancialManagement() {
     return Object.values(selectedTransfers).reduce((total, memberTransfers) => {
       return total + Object.values(memberTransfers).reduce((sum, amount) => sum + amount, 0);
     }, 0);
+  };
+
+  // Determine action type and navigation
+  const getActionInfo = (item: FinancialHistoryItem) => {
+    if (item.azione === "Riunisci fondi") {
+      return {
+        canDelete: true,
+        page: null,
+        pageLabel: null,
+        icon: null
+      };
+    }
+    
+    // Check if it's an inventory-related action
+    if (item.descrizione.includes("Inventario") || 
+        item.descrizione.includes("Rifornimento") || 
+        item.descrizione.includes("Acquisto:") ||
+        item.descrizione.includes("Riduzione inventario")) {
+      return {
+        canDelete: false,
+        page: "/inventory",
+        pageLabel: "Magazzino",
+        icon: Package
+      };
+    }
+    
+    // Check if it's a sale-related action
+    if (item.descrizione.includes("Vendita") || item.azione === "Vendita") {
+      return {
+        canDelete: false,
+        page: "/sales",
+        pageLabel: "Vendite",
+        icon: Receipt
+      };
+    }
+    
+    // Default to expenses page for generic expenses
+    return {
+      canDelete: false,
+      page: "/expenses",
+      pageLabel: "Spese",
+      icon: Receipt
+    };
   };
 
   // Delete financial action
@@ -538,36 +586,56 @@ export default function FinancialManagement() {
             </p>
           ) : (
             <div className="space-y-3">
-              {financialHistory.map((item) => (
-                <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary">{item.azione}</Badge>
-                      <span className="text-sm text-muted-foreground">
-                        {formatDate(item.data)}
-                      </span>
-                    </div>
-                    <p className="text-sm">{item.descrizione}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {item.importo && (
-                      <div className="text-right">
-                        <span className="font-medium">
-                          {formatCurrency(Number(item.importo))}
+              {financialHistory.map((item) => {
+                const actionInfo = getActionInfo(item);
+                const IconComponent = actionInfo.icon;
+                
+                return (
+                  <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">{item.azione}</Badge>
+                        <span className="text-sm text-muted-foreground">
+                          {formatDate(item.data)}
                         </span>
                       </div>
-                    )}
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => deleteFinancialAction.mutate(item.id)}
-                      disabled={deleteFinancialAction.isPending}
-                    >
-                      Elimina
-                    </Button>
+                      <p className="text-sm">{item.descrizione}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {item.importo && (
+                        <div className="text-right">
+                          <span className="font-medium">
+                            {formatCurrency(Number(item.importo))}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {actionInfo.canDelete ? (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => deleteFinancialAction.mutate(item.id)}
+                          disabled={deleteFinancialAction.isPending}
+                          data-testid={`button-delete-${item.id}`}
+                        >
+                          Elimina
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setLocation(actionInfo.page!)}
+                          data-testid={`button-goto-${actionInfo.pageLabel?.toLowerCase()}`}
+                        >
+                          {IconComponent && <IconComponent className="h-4 w-4 mr-1" />}
+                          <ExternalLink className="h-3 w-3 mr-1" />
+                          {actionInfo.pageLabel}
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
