@@ -1662,7 +1662,12 @@ export class DatabaseStorage implements IStorage {
 
   // Financial history methods
   async getFinancialHistoryByActivity(activityId: string): Promise<FinancialHistory[]> {
-    return await db.select().from(financialHistory).where(eq(financialHistory.activityId, activityId)).orderBy(desc(financialHistory.data));
+    return await db.select().from(financialHistory).where(
+      and(
+        eq(financialHistory.activityId, activityId),
+        eq(financialHistory.azione, "Riunisci fondi")
+      )
+    ).orderBy(desc(financialHistory.data));
   }
 
   async createFinancialHistoryEntry(entry: InsertFinancialHistory & { userId: string; activityId: string }): Promise<FinancialHistory> {

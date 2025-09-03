@@ -2126,18 +2126,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const newCost = costo || item.costo;
       const totalCost = Number(newCost) * parseInt(quantita);
 
-      // Verifica disponibilità cassa reinvestimento
-      const cassaBalance = await storage.getCassaReinvestimentoBalance(req.session.activityId!);
-      
-      if (cassaBalance >= totalCost) {
-        // Utilizza la cassa reinvestimento per coprire il riassortimento
-        await storage.updateCassaReinvestimento(
-          req.session.activityId!,
-          -totalCost,
-          `Riassortimento coperto da cassa reinvestimento: ${item.nomeArticolo} - ${item.taglia}`,
-          req.session.userId!
-        );
-      }
+      // La scala dalla cassa reinvestimento verrà gestita automaticamente da createExpense
 
       // Crea nuovo lotto di inventario
       await storage.createInventoryBatch({
@@ -2162,7 +2151,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Crea comunque la spesa per registrare il movimento
+      // Crea la spesa (con scala automatica dalla cassa reinvestimento se disponibile)
       await storage.createExpense({
         userId: req.session.userId!,
         activityId: req.session.activityId!,
