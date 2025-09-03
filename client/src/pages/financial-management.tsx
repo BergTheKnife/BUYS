@@ -240,7 +240,7 @@ export default function FinancialManagement() {
         item.descrizione.includes("Riduzione inventario")) {
       return {
         canDelete: false,
-        page: "/inventory",
+        page: "/inventario",
         pageLabel: "Magazzino",
         icon: Package
       };
@@ -250,7 +250,7 @@ export default function FinancialManagement() {
     if (item.descrizione.includes("Vendita") || item.azione === "Vendita") {
       return {
         canDelete: false,
-        page: "/sales",
+        page: "/vendite",
         pageLabel: "Vendite",
         icon: Receipt
       };
@@ -259,7 +259,7 @@ export default function FinancialManagement() {
     // Default to expenses page for generic expenses
     return {
       canDelete: false,
-      page: "/expenses",
+      page: "/spese",
       pageLabel: "Spese",
       icon: Receipt
     };

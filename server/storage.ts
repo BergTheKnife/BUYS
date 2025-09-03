@@ -768,75 +768,28 @@ export class DatabaseStorage implements IStorage {
     return updatedBatch;
   }
 
-  // Calcola margine FIFO per una vendita
-  async calculateFIFOMargin(inventarioId: string, quantitaVenduta: number, prezzoVendita: number) {
-    const { inventoryBatches } = await import('../migrations/schema');
-
-    // Get available batches ordered by date (FIFO)
-    const batches = await db
+  // Calcola margine basato sul costo medio dell'articolo
+  async calculateAverageMargin(inventarioId: string, quantitaVenduta: number, prezzoVendita: number) {
+    // Get the inventory item with its average cost
+    const [inventoryItem] = await db
       .select()
-      .from(inventoryBatches)
-      .where(
-        and(
-          eq(inventoryBatches.inventarioId, inventarioId),
-          sql`${inventoryBatches.quantitaRimanente} > 0`
-        )
-      )
-      .orderBy(inventoryBatches.dataAcquisto);
+      .from(inventario)
+      .where(eq(inventario.id, inventarioId));
 
-    // Calculate total available quantity from batches
-    const totalAvailableFromBatches = batches.reduce((sum, batch) => sum + batch.quantitaRimanente, 0);
-
-    // If no batches exist, fall back to current inventory item cost
-    if (batches.length === 0 || totalAvailableFromBatches === 0) {
-      const [inventoryItem] = await db
-        .select()
-        .from(inventario)
-        .where(eq(inventario.id, inventarioId));
-
-      if (!inventoryItem || inventoryItem.quantita < quantitaVenduta) {
-        throw new Error("Quantità insufficiente in magazzino per completare la vendita");
-      }
-
-      const costoTotale = quantitaVenduta * Number(inventoryItem.costo);
-      const ricavoTotale = quantitaVenduta * prezzoVendita;
-      const margine = ricavoTotale - costoTotale;
-
-      return {
-        margine,
-        batchesUsed: []
-      };
-    }
-
-    // Check if we have enough quantity in batches
-    if (totalAvailableFromBatches < quantitaVenduta) {
+    if (!inventoryItem || inventoryItem.quantita < quantitaVenduta) {
       throw new Error("Quantità insufficiente in magazzino per completare la vendita");
     }
 
-    let rimanenteVendita = quantitaVenduta;
-    let costoTotale = 0;
-    const batchesUsed: { id: string; quantitaUsata: number }[] = [];
-
-    for (const batch of batches) {
-      if (rimanenteVendita <= 0) break;
-
-      const quantitaUsata = Math.min(rimanenteVendita, batch.quantitaRimanente);
-      costoTotale += quantitaUsata * Number(batch.costo);
-
-      batchesUsed.push({
-        id: batch.id,
-        quantitaUsata
-      });
-
-      rimanenteVendita -= quantitaUsata;
-    }
-
+    // Calculate margin using the average cost
+    const costoMedio = Number(inventoryItem.costo);
+    const costoTotale = quantitaVenduta * costoMedio;
     const ricavoTotale = quantitaVenduta * prezzoVendita;
     const margine = ricavoTotale - costoTotale;
 
     return {
       margine,
-      batchesUsed
+      costoMedio,
+      costoTotale
     };
   }
 
@@ -935,9 +888,8 @@ export class DatabaseStorage implements IStorage {
       throw new Error("Quantità insufficiente in magazzino");
     }
 
-    // Calculate FIFO margin and update batches
-    const { margine, batchesUsed, costoMedio } = await this.calculateFIFOMargin(saleData.inventarioId, saleData.quantita, Number(saleData.prezzoVendita));
-    await this.updateBatchesAfterSale(batchesUsed);
+    // Calculate margin using average cost
+    const { margine, costoMedio, costoTotale } = await this.calculateAverageMargin(saleData.inventarioId, saleData.quantita!, Number(saleData.prezzoVendita));
 
     // Create the sale record with calculated margin
     const [newSale] = await db
@@ -945,12 +897,17 @@ export class DatabaseStorage implements IStorage {
       .values({
         ...saleData,
         margine: margine.toString(),
-        costo: (costoMedio * saleData.quantita).toString() // Store total cost
+        costo: costoTotale.toString() // Store total cost
       })
       .returning();
 
     // Update inventory quantity
-    await this.updateInventoryQuantity(saleData.inventarioId, Number(saleData.quantita) * -1); // Decrease quantity
+    await db
+      .update(inventario)
+      .set({ 
+        quantita: sql`${inventario.quantita} - ${saleData.quantita!}`
+      })
+      .where(eq(inventario.id, saleData.inventarioId));
 
     return newSale;
   }

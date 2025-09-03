@@ -2221,26 +2221,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Quantità insufficiente in magazzino" });
       }
 
-      // Calculate FIFO margin
-      const fifoResult = await storage.calculateFIFOMargin(
+      // Calculate margin using average cost
+      const marginResult = await storage.calculateAverageMargin(
         saleData.inventarioId, 
         quantitaVenduta, 
         Number(saleData.prezzoVendita)
       );
 
-      // Create sale with FIFO margin
+      // Create sale with calculated margin
       const sale = await storage.createSale({
         ...saleData,
         userId: req.session.userId!,
         activityId: req.session.activityId!,
         nomeArticolo: inventoryItem.nomeArticolo,
         taglia: inventoryItem.taglia,
-        margine: fifoResult.margine.toString(),
+        margine: marginResult.margine.toString(),
       });
 
-      // Update inventory quantity and batches
-      await storage.updateInventoryQuantity(saleData.inventarioId, inventoryItem.quantita - quantitaVenduta);
-      await storage.updateBatchesAfterSale(fifoResult.batchesUsed);
+      // Inventory quantity is automatically updated in createSale method
 
       res.json(sale);
     } catch (error: any) {
