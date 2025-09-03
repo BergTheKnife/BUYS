@@ -884,32 +884,36 @@ export class DatabaseStorage implements IStorage {
 
   // Ottenere saldo cassa reinvestimento
   async getCassaReinvestimentoBalance(activityId: string): Promise<number> {
-    // Somma tutti i fondi riuniti dalla cronologia finanziaria
-    const fundGathering = await db
+    // Calcola il saldo dalla cronologia finanziaria considerando tutti i movimenti della cassa reinvestimento
+    const movements = await db
       .select({
-        total: sql<number>`COALESCE(SUM(CAST(${financialHistory.importo} AS NUMERIC)), 0)`
+        azione: financialHistory.azione,
+        importo: financialHistory.importo
       })
       .from(financialHistory)
       .where(and(
         eq(financialHistory.activityId, activityId),
-        eq(financialHistory.azione, "Riunisci fondi")
+        or(
+          eq(financialHistory.azione, "Riunisci fondi"),
+          eq(financialHistory.azione, "DEPOSITO_CASSA"),
+          eq(financialHistory.azione, "PRELIEVO_CASSA")
+        )
       ));
 
-    // Sottrai solo le spese che utilizzano esplicitamente la cassa reinvestimento
-    const cassaExpenses = await db
-      .select({
-        total: sql<number>`COALESCE(SUM(CAST(${spese.importo} AS NUMERIC)), 0)`
-      })
-      .from(spese)
-      .where(and(
-        eq(spese.activityId, activityId),
-        sql`${spese.voce} LIKE 'CASSA_REINVESTIMENTO:%'`
-      ));
+    let balance = 0;
+    
+    for (const movement of movements) {
+      const amount = Number(movement.importo);
+      
+      if (movement.azione === "Riunisci fondi" || movement.azione === "DEPOSITO_CASSA") {
+        balance += amount; // Entrate nella cassa reinvestimento
+      } else if (movement.azione === "PRELIEVO_CASSA") {
+        balance -= amount; // Uscite dalla cassa reinvestimento
+      }
+    }
 
-    const gatheredTotal = Number(fundGathering[0]?.total || 0);
-    const expensesTotal = Number(cassaExpenses[0]?.total || 0);
-
-    return gatheredTotal - expensesTotal;
+    console.log(`DEBUG: Saldo cassa reinvestimento calcolato: ${balance}€ (${movements.length} movimenti)`);
+    return balance;
   }
 
   // Aggiorna saldo cassa reinvestimento
