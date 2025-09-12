@@ -241,6 +241,8 @@ export default function Welcome() {
   // Registration form hook
   const registerForm = useForm<InsertUser>({
     resolver: zodResolver(insertUserSchema),
+    mode: 'all',
+    reValidateMode: 'onChange',
     defaultValues: {
       nome: "",
       cognome: "",
@@ -248,7 +250,6 @@ export default function Welcome() {
       username: "",
       password: "",
     },
-    mode: "onChange",
   });
 
   return (
@@ -499,8 +500,9 @@ export default function Welcome() {
                             }
                           }}
                           onBlur={(e) => {
-                            field.onBlur();
                             const v = (e.target.value || '').trim().toLowerCase();
+                            e.target.value = v;
+                            field.onBlur();
                             if (v.length >= 3) {
                               checkUsernameAvailability(v);
                             }
