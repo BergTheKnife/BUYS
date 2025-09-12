@@ -44,11 +44,17 @@ export async function testEmailConnection(): Promise<boolean> {
 // Validate email format
 function isValidEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const testDomains = ['test.com', 'example.com', 'fake.com', 'dummy.com'];
+  const testDomains = ['test.com', 'example.com', 'fake.com', 'dummy.com', 'tempmail.com', '10minutemail.com'];
   
   if (!emailRegex.test(email)) return false;
   
   const domain = email.split('@')[1]?.toLowerCase();
+  
+  // Allow development testing with certain domains
+  if (process.env.NODE_ENV === 'development') {
+    return true; // In development, allow all email formats
+  }
+  
   return !testDomains.includes(domain);
 }
 
@@ -146,21 +152,42 @@ Sistema di gestione per negozi di abbigliamento
 
   try {
     console.log(`📧 Sending verification email to ${email}...`);
+    
+    // Test connection before sending
+    await transporter.verify();
+    
     const info = await transporter.sendMail(mailOptions);
     console.log(`✅ Verification email sent successfully to ${email}`, info.messageId);
   } catch (error) {
     console.error('❌ Error sending verification email:', error);
+    
     // Log the specific error details
     if (error instanceof Error) {
       console.error('Error details:', {
         message: error.message,
+        code: (error as any).code,
+        command: (error as any).command,
+        response: (error as any).response,
         stack: error.stack,
-        host: process.env.SMTP_HOST,
-        port: process.env.SMTP_PORT,
-        user: process.env.EMAIL_USER ? '***configured***' : 'NOT SET'
+        config: {
+          host: process.env.SMTP_HOST || 'NOT SET',
+          port: process.env.SMTP_PORT || 'NOT SET',
+          user: process.env.EMAIL_USER ? '***configured***' : 'NOT SET',
+          pass: process.env.EMAIL_PASS ? '***configured***' : 'NOT SET'
+        }
       });
     }
-    throw new Error('Failed to send verification email');
+    
+    // Throw more specific error based on error type
+    if ((error as any).code === 'EAUTH') {
+      throw new Error('Autenticazione email fallita - credenziali non valide');
+    } else if ((error as any).code === 'ENOTFOUND') {
+      throw new Error('Server email non trovato - verifica configurazione SMTP');
+    } else if ((error as any).code === 'ECONNECTION') {
+      throw new Error('Impossibile connettersi al server email');
+    } else {
+      throw new Error('Failed to send verification email: ' + ((error as any).message || 'Unknown error'));
+    }
   }
 }
 

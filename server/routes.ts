@@ -201,15 +201,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userData = insertUserSchema.parse(req.body);
       
+      // Enhanced validation
+      if (!userData.email || !userData.username || !userData.nome || !userData.cognome || !userData.password) {
+        return res.status(400).json({ message: "Tutti i campi sono obbligatori" });
+      }
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(userData.email)) {
+        return res.status(400).json({ message: "Formato email non valido" });
+      }
+
+      // Validate username format (alfanumerico, min 3 caratteri)
+      const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/;
+      if (!usernameRegex.test(userData.username)) {
+        return res.status(400).json({ message: "Username deve contenere solo lettere, numeri e underscore (3-20 caratteri)" });
+      }
+
       // Check if user already exists
       const existingUserByEmail = await storage.getUserByEmail(userData.email);
       if (existingUserByEmail) {
-        return res.status(400).json({ message: "Email già in uso" });
+        return res.status(409).json({ message: "Email già in uso" });
       }
 
       const existingUserByUsername = await storage.getUserByUsername(userData.username);
       if (existingUserByUsername) {
-        return res.status(400).json({ message: "Username già in uso" });
+        return res.status(409).json({ message: "Username già in uso" });
       }
 
       // Hash password
@@ -220,10 +237,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...userData,
         password: hashedPassword,
         isActive: 0, // Pending verification
+        emailVerified: false
       });
 
       // Generate verification token
-      const { generateVerificationToken, getTokenExpiration, sendVerificationEmail } = await import('./emailService');
+      const { generateVerificationToken, getTokenExpiration, sendVerificationEmail, testEmailConnection } = await import('./emailService');
       const verificationToken = generateVerificationToken();
       
       // Create verification token in database
@@ -233,11 +251,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         expiresAt: getTokenExpiration(),
       });
 
-      // Send verification email
+      // Test email configuration first
+      let emailSent = false;
+      let developmentUrl = null;
+
       try {
-        await sendVerificationEmail(user.email, user.nome, user.cognome, verificationToken);
+        const emailConnected = await testEmailConnection();
+        if (emailConnected) {
+          await sendVerificationEmail(user.email, user.nome, user.cognome, verificationToken);
+          emailSent = true;
+        } else {
+          throw new Error('Email service not configured');
+        }
+      } catch (emailError) {
+        console.error('Failed to send verification email:', emailError);
         
+        // For development: provide fallback verification option
+        if (process.env.NODE_ENV === 'development') {
+          const baseUrl = process.env.REPLIT_DOMAINS 
+            ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+            : 'http://localhost:5000';
+          developmentUrl = `${baseUrl}/api/auth/verify-email/${verificationToken}`;
+        }
+      }
+
+      if (emailSent) {
         res.json({ 
+          success: true,
           message: "Registrazione completata! Controlla la tua email per il link di verifica.",
           user: { 
             id: user.id, 
@@ -248,36 +288,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
             isActive: user.isActive,
             emailVerified: user.emailVerified,
             createdAt: user.createdAt
-          } 
+          },
+          emailSent: true
         });
-      } catch (emailError) {
-        console.error('Failed to send verification email:', emailError);
-        
-        // For development: provide fallback verification option
-        if (process.env.NODE_ENV === 'development') {
-          res.json({ 
-            message: "Registrazione completata! ERRORE EMAIL: verifica manualmente con questo link",
-            user: { 
-              id: user.id, 
-              nome: user.nome, 
-              cognome: user.cognome, 
-              email: user.email, 
-              username: user.username,
-              isActive: user.isActive,
-              emailVerified: user.emailVerified,
-              createdAt: user.createdAt
-            },
-            verificationUrl: `http://localhost:5000/api/auth/verify-email/${verificationToken}`,
-            error: "Email service not configured properly"
-          });
-        } else {
-          res.status(500).json({ 
-            message: "Registrazione completata ma invio email fallito. Contatta il supporto."
-          });
-        }
+      } else if (process.env.NODE_ENV === 'development' && developmentUrl) {
+        res.json({ 
+          success: true,
+          message: "Registrazione completata! ATTENZIONE: Email service non configurato.",
+          user: { 
+            id: user.id, 
+            nome: user.nome, 
+            cognome: user.cognome, 
+            email: user.email, 
+            username: user.username,
+            isActive: user.isActive,
+            emailVerified: user.emailVerified,
+            createdAt: user.createdAt
+          },
+          emailSent: false,
+          developmentUrl: developmentUrl,
+          warning: "Email service non configurato. Usa il link di verifica manuale per il testing."
+        });
+      } else {
+        res.status(500).json({ 
+          success: false,
+          message: "Registrazione completata ma invio email fallito. Contatta il supporto per attivare l'account."
+        });
       }
     } catch (error: any) {
-      res.status(400).json({ message: error.message || "Errore durante la registrazione" });
+      console.error('Registration error:', error);
+      res.status(400).json({ 
+        success: false,
+        message: error.message || "Errore durante la registrazione" 
+      });
     }
   });
 
@@ -285,6 +328,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { emailOrUsername, password, rememberMe } = req.body;
       
+      if (!emailOrUsername || !password) {
+        return res.status(400).json({ message: "Email/username e password sono richiesti" });
+      }
+
       const user = await storage.getUserByEmailOrUsername(emailOrUsername);
       if (!user) {
         return res.status(401).json({ message: "Credenziali non valide" });
@@ -296,11 +343,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Check if email is verified
-      if (user.isActive === 0) {
+      if (user.isActive === 0 || !user.emailVerified) {
         return res.status(403).json({ 
           message: "Account non verificato. Controlla la tua email per il link di verifica.",
           needsVerification: true,
-          userEmail: user.email
+          userEmail: user.email,
+          username: user.username
         });
       }
 
@@ -661,7 +709,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Check if user is already verified
-      if (user.emailVerified) {
+      if (user.emailVerified && user.isActive === 1) {
         return res.status(400).json({ message: "Account già verificato" });
       }
 
@@ -669,7 +717,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.deleteEmailVerificationTokensByUserId(user.id);
 
       // Generate new verification token
-      const { generateVerificationToken, getTokenExpiration } = await import('./emailService');
+      const { generateVerificationToken, getTokenExpiration, sendVerificationEmail, testEmailConnection } = await import('./emailService');
       const verificationToken = generateVerificationToken();
       
       // Store new token
@@ -679,14 +727,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         expiresAt: getTokenExpiration(),
       });
 
-      // Send verification email
-      const { sendVerificationEmail } = await import('./emailService');
-      await sendVerificationEmail(user.email, user.nome, user.cognome, verificationToken);
-      
-      res.json({ 
-        message: "Email di verifica inviata nuovamente. Controlla la tua casella di posta.",
-        success: true
-      });
+      // Test email and send
+      try {
+        const emailConnected = await testEmailConnection();
+        if (emailConnected) {
+          await sendVerificationEmail(user.email, user.nome, user.cognome, verificationToken);
+          res.json({ 
+            message: "Email di verifica inviata nuovamente. Controlla la tua casella di posta.",
+            success: true
+          });
+        } else {
+          throw new Error('Email service not configured');
+        }
+      } catch (emailError) {
+        console.error('Email send error:', emailError);
+        
+        if (process.env.NODE_ENV === 'development') {
+          const baseUrl = process.env.REPLIT_DOMAINS 
+            ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+            : 'http://localhost:5000';
+          const developmentUrl = `${baseUrl}/api/auth/verify-email/${verificationToken}`;
+          
+          res.json({ 
+            message: "DEVELOPMENT: Email service non configurato. Usa il link manuale.",
+            success: true,
+            developmentUrl: developmentUrl
+          });
+        } else {
+          res.status(500).json({ 
+            message: "Errore nell'invio dell'email di verifica. Contatta il supporto.",
+            success: false
+          });
+        }
+      }
       
     } catch (error: any) {
       console.error('Resend verification email error:', error);
@@ -712,7 +785,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ 
           success: false, 
           message: 'SMTP connection failed',
-          details: 'Check SMTP credentials and server settings'
+          details: 'Check SMTP credentials and server settings',
+          config: {
+            host: process.env.SMTP_HOST || 'NOT SET',
+            port: process.env.SMTP_PORT || 'NOT SET',
+            user: process.env.EMAIL_USER ? 'SET' : 'NOT SET',
+            pass: process.env.EMAIL_PASS ? 'SET' : 'NOT SET'
+          }
         });
       }
 
@@ -731,14 +810,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.json({ 
         success: true, 
         message: 'SMTP connection is working',
-        connectionTest: true
+        connectionTest: true,
+        config: {
+          host: process.env.SMTP_HOST || 'NOT SET',
+          port: process.env.SMTP_PORT || 'NOT SET',
+          configured: !!(process.env.SMTP_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS)
+        }
       });
     } catch (error: any) {
       console.error('Test email error:', error);
       return res.status(500).json({ 
         success: false, 
         message: 'Email test failed',
-        error: error.message 
+        error: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
+    }
+  });
+
+  // Email service status endpoint
+  app.get('/api/email-status', async (req, res) => {
+    try {
+      const { testEmailConnection } = await import('./emailService');
+      const isConnected = await testEmailConnection();
+      
+      res.json({
+        configured: !!(process.env.SMTP_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS),
+        connected: isConnected,
+        host: process.env.SMTP_HOST || null,
+        port: process.env.SMTP_PORT || null
+      });
+    } catch (error: any) {
+      res.json({
+        configured: false,
+        connected: false,
+        error: error.message
       });
     }
   });

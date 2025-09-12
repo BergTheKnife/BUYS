@@ -248,16 +248,27 @@ export const financialHistoryRelations = relations(financialHistory, ({ one }) =
   }),
 }));
 
-export const insertUserSchema = createInsertSchema(users, {
-  email: z.string().email("Email non valida"),
+export const insertUserSchema = z.object({
+  nome: z.string()
+    .min(1, "Nome richiesto")
+    .max(50, "Nome troppo lungo")
+    .regex(/^[a-zA-ZÀ-ÿ\s'-]+$/, "Nome può contenere solo lettere, spazi, apostrofi e trattini"),
+  cognome: z.string()
+    .min(1, "Cognome richiesto")
+    .max(50, "Cognome troppo lungo")
+    .regex(/^[a-zA-ZÀ-ÿ\s'-]+$/, "Cognome può contenere solo lettere, spazi, apostrofi e trattini"),
+  email: z.string()
+    .email("Email non valida")
+    .max(255, "Email troppo lunga")
+    .toLowerCase(),
+  username: z.string()
+    .min(3, "Username deve essere di almeno 3 caratteri")
+    .max(20, "Username troppo lungo")
+    .regex(/^[a-zA-Z0-9_]+$/, "Username può contenere solo lettere, numeri e underscore"),
   password: z.string()
-    .min(6, "La password deve essere di almeno 6 caratteri")
-    .regex(/(?=.*[A-Z])/, "La password deve contenere almeno una lettera maiuscola")
-    .regex(/(?=.*\d)/, "La password deve contenere almeno un numero"),
-  username: z.string().min(3, "Username deve essere di almeno 3 caratteri"),
-}).omit({
-  id: true,
-  createdAt: true,
+    .min(6, "Password deve essere di almeno 6 caratteri")
+    .max(128, "Password troppo lunga")
+    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, "Password deve contenere almeno una lettera minuscola, una maiuscola e un numero"),
 });
 
 export const loginUserSchema = z.object({

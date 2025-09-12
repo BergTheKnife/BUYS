@@ -144,15 +144,28 @@ export default function Welcome() {
 
       return response.json();
     },
-    onSuccess: () => {
-      toast({
-        title: "Email Inviata",
-        description: "Email di verifica inviata nuovamente. Controlla la tua casella di posta.",
-      });
-      setVerificationMessage('');
-      setResendEmail('');
+    onSuccess: (data) => {
+      if (data.success) {
+        if (data.developmentUrl) {
+          toast({
+            title: "Development Mode",
+            description: "Email service non configurato. Controlla console per link manuale.",
+          });
+          console.log("Manual verification URL:", data.developmentUrl);
+        } else {
+          toast({
+            title: "Email Inviata",
+            description: "Email di verifica inviata nuovamente. Controlla la tua casella di posta.",
+          });
+        }
+        setVerificationMessage('');
+        setResendEmail('');
+      } else {
+        throw new Error(data.message || "Errore nell'invio");
+      }
     },
     onError: (error: any) => {
+      console.error('Resend email error:', error);
       toast({
         title: "Errore",
         description: error.message || "Errore nell'invio dell'email",
@@ -176,24 +189,51 @@ export default function Welcome() {
       const response = await apiRequest("POST", "/api/auth/register", data);
       const result = await response.json();
 
-      if (result.message?.includes("Controlla la tua email")) {
-        setVerificationMessage(`Registrazione completata! Abbiamo inviato un'email di verifica a ${data.email}. Clicca sul link nella email per attivare il tuo account.`);
-        toast({
-          title: "Verifica Email Necessaria",
-          description: "Controlla la tua email per il link di verifica",
-        });
+      if (result.success) {
+        if (result.emailSent) {
+          setVerificationMessage(`Registrazione completata! Abbiamo inviato un'email di verifica a ${data.email}. Clicca sul link nella email per attivare il tuo account.`);
+          toast({
+            title: "Registrazione Completata",
+            description: "Controlla la tua email per il link di verifica",
+          });
+        } else if (result.developmentUrl) {
+          // Development mode - show manual verification option
+          setVerificationMessage(`Registrazione completata! DEVELOPMENT MODE: Email service non configurato.`);
+          toast({
+            title: "Registrazione Completata (DEV)",
+            description: "Verifica manuale necessaria - controlla console",
+          });
+          console.log("Manual verification URL:", result.developmentUrl);
+        } else {
+          setVerificationMessage(`Registrazione completata ma c'è stato un problema con l'invio dell'email. Contatta il supporto a ${data.email}.`);
+          toast({
+            title: "Registrazione Completata",
+            description: "Problema con email - contatta supporto",
+            variant: "destructive",
+          });
+        }
+        
+        // Reset form after successful registration
+        registerForm.reset();
+        setUsernameStatus({ checking: false, available: null, message: "" });
       } else {
-        toast({
-          title: "Registrazione completata",
-          description: "Account creato con successo!",
-        });
+        throw new Error(result.message || "Errore durante la registrazione");
       }
     } catch (error: any) {
+      console.error('Registration error:', error);
+      const errorMessage = error.message || "Errore durante la registrazione";
+      
       toast({
-        title: "Errore",
-        description: error.message || "Errore durante la registrazione",
+        title: "Errore Registrazione",
+        description: errorMessage,
         variant: "destructive",
       });
+
+      // If it's a validation error, don't reset form
+      if (!errorMessage.includes("già in uso") && !errorMessage.includes("non valido")) {
+        registerForm.reset();
+        setUsernameStatus({ checking: false, available: null, message: "" });
+      }
     }
   };
 
