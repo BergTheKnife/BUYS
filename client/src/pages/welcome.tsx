@@ -424,7 +424,7 @@ export default function Welcome() {
                           data-testid="input-email"
                           type="email"
                           className="pl-10"
-                          placeholder="email@esempio.com"
+                          placeholder="Inserisci la tua email"
                           {...field}
                         />
                       </div>
@@ -445,7 +445,7 @@ export default function Welcome() {
                           id="username"
                           data-testid="input-username"
                           className="pl-10 pr-10"
-                          placeholder="Username univoco"
+                          placeholder="Inserisci username"
                           value={typeof field.value === 'string' ? field.value : ''}
                           onChange={(e) => {
                             const value = e.target.value.trim();
