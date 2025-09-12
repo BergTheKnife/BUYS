@@ -264,7 +264,8 @@ export const insertUserSchema = z.object({
   username: z.string()
     .min(3, "Username deve essere di almeno 3 caratteri")
     .max(20, "Username troppo lungo")
-    .regex(/^[a-zA-Z0-9_]+$/, "Username può contenere solo lettere, numeri e underscore"),
+    .regex(/^[a-zA-Z0-9_]+$/, "Username può contenere solo lettere, numeri e underscore")
+    .transform(s => s.trim().toLowerCase()),
   password: z.string()
     .min(6, "Password deve essere di almeno 6 caratteri")
     .max(128, "Password troppo lunga")

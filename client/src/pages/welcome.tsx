@@ -483,27 +483,28 @@ export default function Welcome() {
                       <div className="relative">
                         <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                         <Input
+                          {...field}
                           id="username"
                           data-testid="input-username"
                           className="pl-10 pr-10"
                           placeholder="Inserisci username"
                           value={typeof field.value === 'string' ? field.value : ''}
                           onChange={(e) => {
-                            const value = e.target.value.trim();
-                            field.onChange(value);
-                            
-                            // Reset status first
-                            if (value.length === 0) {
-                              setUsernameStatus({ checking: false, available: null, message: "" });
-                            } else if (value.length < 3) {
-                              setUsernameStatus({ checking: false, available: false, message: "Username deve essere di almeno 3 caratteri" });
+                            const v = e.target.value.replace(/\s+/g, '').toLowerCase();
+                            field.onChange(v);
+                            if (v.length >= 3) {
+                              checkUsernameAvailability(v);
                             } else {
-                              // Only check availability if we have a valid length username
-                              checkUsernameAvailability(value);
+                              setUsernameStatus({ checking: false, available: false, message: "Username deve essere di almeno 3 caratteri" });
                             }
                           }}
-                          onBlur={field.onBlur}
-                          name={field.name}
+                          onBlur={(e) => {
+                            field.onBlur();
+                            const v = (e.target.value || '').trim().toLowerCase();
+                            if (v.length >= 3) {
+                              checkUsernameAvailability(v);
+                            }
+                          }}
                         />
                         <div className="absolute right-3 top-3 pointer-events-none">
                           {usernameStatus.checking && (
@@ -556,7 +557,7 @@ export default function Welcome() {
                   disabled={
                     registerForm.formState.isSubmitting || 
                     usernameStatus.checking ||
-                    (registerForm.watch('username')?.length >= 3 && usernameStatus.available !== true) ||
+                    (usernameStatus.available === false) ||
                     !registerForm.formState.isValid
                   }
                 >
