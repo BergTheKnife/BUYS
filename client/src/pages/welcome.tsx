@@ -112,10 +112,14 @@ export default function Welcome() {
 
     try {
       const result = await checkUsernameMutation.mutateAsync(username);
+      // Safely handle the API response to prevent any boolean assignment issues
+      const available = typeof result === 'object' && result !== null ? !!result.available : false;
+      const message = typeof result === 'object' && result !== null && result.message ? result.message : (available ? 'Username disponibile' : 'Username non disponibile');
+      
       setUsernameStatus({
         checking: false,
-        available: result.available,
-        message: result.message
+        available,
+        message
       });
     } catch (error) {
       setUsernameStatus({ checking: false, available: false, message: "Errore nel controllo" });
@@ -370,6 +374,7 @@ export default function Welcome() {
                         <FormControl>
                           <Input
                             id="nome"
+                            data-testid="input-nome"
                             placeholder="Il tuo nome"
                             {...field}
                             onChange={(e) => {
@@ -391,6 +396,7 @@ export default function Welcome() {
                         <FormControl>
                           <Input
                             id="cognome"
+                            data-testid="input-cognome"
                             placeholder="Il tuo cognome"
                             {...field}
                             onChange={(e) => {
@@ -412,9 +418,10 @@ export default function Welcome() {
                     <FormItem>
                       <Label htmlFor="email">Email</Label>
                       <div className="relative">
-                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground pointer-events-none" />
                         <Input
                           id="email"
+                          data-testid="input-email"
                           type="email"
                           className="pl-10"
                           placeholder="email@esempio.com"
@@ -436,32 +443,38 @@ export default function Welcome() {
                         <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                         <Input
                           id="username"
+                          data-testid="input-username"
                           className="pl-10 pr-10"
                           placeholder="Username univoco"
-                          {...field}
+                          value={typeof field.value === 'string' ? field.value : ''}
                           onChange={(e) => {
-                            const value = e.target.value;
-                            field.onChange(value); // Update form state first
-                            if (value.length >= 3) {
-                              checkUsernameAvailability(value);
-                            } else {
+                            const value = e.target.value.trim();
+                            field.onChange(value);
+                            
+                            // Reset status first
+                            if (value.length < 3) {
                               setUsernameStatus({ checking: false, available: false, message: "Username deve essere di almeno 3 caratteri" });
+                            } else {
+                              // Only check availability if we have a valid length username
+                              checkUsernameAvailability(value);
                             }
                           }}
+                          onBlur={field.onBlur}
+                          name={field.name}
                         />
-                        <div className="absolute right-3 top-3">
+                        <div className="absolute right-3 top-3 pointer-events-none">
                           {usernameStatus.checking && (
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
                           )}
-                          {!usernameStatus.checking && usernameStatus.available === true && (
+                          {!usernameStatus.checking && usernameStatus.available === true && field.value && field.value.length >= 3 && (
                             <Check className="h-4 w-4 text-green-600" />
                           )}
-                          {!usernameStatus.checking && usernameStatus.available === false && usernameStatus.message && (
+                          {!usernameStatus.checking && usernameStatus.available === false && usernameStatus.message && field.value && field.value.length >= 3 && (
                             <X className="h-4 w-4 text-red-600" />
                           )}
                         </div>
                       </div>
-                      {usernameStatus.message && (
+                      {usernameStatus.message && field.value && field.value.length > 0 && (
                         <p className={`text-sm ${usernameStatus.available ? 'text-green-600' : 'text-destructive'}`}>
                           {usernameStatus.message}
                         </p>
@@ -481,6 +494,7 @@ export default function Welcome() {
                         <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground z-10" />
                         <PasswordInput
                           id="regPassword"
+                          data-testid="input-password"
                           className="pl-10"
                           placeholder="Password sicura"
                           showPasswordHint={true}
@@ -494,8 +508,14 @@ export default function Welcome() {
 
                 <Button
                   type="submit"
+                  data-testid="button-registrati"
                   className="w-full bg-green-600 hover:bg-green-700"
-                  disabled={registerForm.formState.isSubmitting || !usernameStatus.available}
+                  disabled={
+                    registerForm.formState.isSubmitting || 
+                    !registerForm.formState.isValid ||
+                    (usernameStatus.checking) ||
+                    (registerForm.watch('username')?.length >= 3 && usernameStatus.available !== true)
+                  }
                 >
                   <UserPlus className="mr-2 h-4 w-4" />
                   Registrati
