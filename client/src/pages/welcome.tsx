@@ -122,6 +122,7 @@ export default function Welcome() {
         message
       });
     } catch (error) {
+      console.error('Username check error:', error);
       setUsernameStatus({ checking: false, available: false, message: "Errore nel controllo" });
     }
   };
@@ -492,7 +493,9 @@ export default function Welcome() {
                             field.onChange(value);
                             
                             // Reset status first
-                            if (value.length < 3) {
+                            if (value.length === 0) {
+                              setUsernameStatus({ checking: false, available: null, message: "" });
+                            } else if (value.length < 3) {
                               setUsernameStatus({ checking: false, available: false, message: "Username deve essere di almeno 3 caratteri" });
                             } else {
                               // Only check availability if we have a valid length username
@@ -514,7 +517,7 @@ export default function Welcome() {
                           )}
                         </div>
                       </div>
-                      {usernameStatus.message && field.value && field.value.length > 0 && (
+                      {usernameStatus.message && field.value && field.value.length >= 3 && (
                         <p className={`text-sm ${usernameStatus.available ? 'text-green-600' : 'text-destructive'}`}>
                           {usernameStatus.message}
                         </p>
@@ -552,9 +555,9 @@ export default function Welcome() {
                   className="w-full bg-green-600 hover:bg-green-700"
                   disabled={
                     registerForm.formState.isSubmitting || 
-                    !registerForm.formState.isValid ||
-                    (usernameStatus.checking) ||
-                    (registerForm.watch('username')?.length >= 3 && usernameStatus.available !== true)
+                    usernameStatus.checking ||
+                    (registerForm.watch('username')?.length >= 3 && usernameStatus.available !== true) ||
+                    !registerForm.formState.isValid
                   }
                 >
                   <UserPlus className="mr-2 h-4 w-4" />
