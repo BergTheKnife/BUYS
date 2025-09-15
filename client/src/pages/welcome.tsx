@@ -112,17 +112,12 @@ export default function Welcome() {
 
     try {
       const result = await checkUsernameMutation.mutateAsync(username);
-      // Safely handle the API response to prevent any boolean assignment issues
-      const available = typeof result === 'object' && result !== null ? !!result.available : false;
-      const message = typeof result === 'object' && result !== null && result.message ? result.message : (available ? 'Username disponibile' : 'Username non disponibile');
-      
       setUsernameStatus({
         checking: false,
-        available,
-        message
+        available: result.available,
+        message: result.message
       });
     } catch (error) {
-      console.error('Username check error:', error);
       setUsernameStatus({ checking: false, available: false, message: "Errore nel controllo" });
     }
   };
@@ -145,28 +140,15 @@ export default function Welcome() {
 
       return response.json();
     },
-    onSuccess: (data) => {
-      if (data.success) {
-        if (data.developmentUrl) {
-          toast({
-            title: "Development Mode",
-            description: "Email service non configurato. Controlla console per link manuale.",
-          });
-          console.log("Manual verification URL:", data.developmentUrl);
-        } else {
-          toast({
-            title: "Email Inviata",
-            description: "Email di verifica inviata nuovamente. Controlla la tua casella di posta.",
-          });
-        }
-        setVerificationMessage('');
-        setResendEmail('');
-      } else {
-        throw new Error(data.message || "Errore nell'invio");
-      }
+    onSuccess: () => {
+      toast({
+        title: "Email Inviata",
+        description: "Email di verifica inviata nuovamente. Controlla la tua casella di posta.",
+      });
+      setVerificationMessage('');
+      setResendEmail('');
     },
     onError: (error: any) => {
-      console.error('Resend email error:', error);
       toast({
         title: "Errore",
         description: error.message || "Errore nell'invio dell'email",
@@ -190,59 +172,30 @@ export default function Welcome() {
       const response = await apiRequest("POST", "/api/auth/register", data);
       const result = await response.json();
 
-      if (result.success) {
-        if (result.emailSent) {
-          setVerificationMessage(`Registrazione completata! Abbiamo inviato un'email di verifica a ${data.email}. Clicca sul link nella email per attivare il tuo account.`);
-          toast({
-            title: "Registrazione Completata",
-            description: "Controlla la tua email per il link di verifica",
-          });
-        } else if (result.developmentUrl) {
-          // Development mode - show manual verification option
-          setVerificationMessage(`Registrazione completata! DEVELOPMENT MODE: Email service non configurato.`);
-          toast({
-            title: "Registrazione Completata (DEV)",
-            description: "Verifica manuale necessaria - controlla console",
-          });
-          console.log("Manual verification URL:", result.developmentUrl);
-        } else {
-          setVerificationMessage(`Registrazione completata ma c'è stato un problema con l'invio dell'email. Contatta il supporto a ${data.email}.`);
-          toast({
-            title: "Registrazione Completata",
-            description: "Problema con email - contatta supporto",
-            variant: "destructive",
-          });
-        }
-        
-        // Reset form after successful registration
-        registerForm.reset();
-        setUsernameStatus({ checking: false, available: null, message: "" });
+      if (result.message?.includes("Controlla la tua email")) {
+        setVerificationMessage(`Registrazione completata! Abbiamo inviato un'email di verifica a ${data.email}. Clicca sul link nella email per attivare il tuo account.`);
+        toast({
+          title: "Verifica Email Necessaria",
+          description: "Controlla la tua email per il link di verifica",
+        });
       } else {
-        throw new Error(result.message || "Errore durante la registrazione");
+        toast({
+          title: "Registrazione completata",
+          description: "Account creato con successo!",
+        });
       }
     } catch (error: any) {
-      console.error('Registration error:', error);
-      const errorMessage = error.message || "Errore durante la registrazione";
-      
       toast({
-        title: "Errore Registrazione",
-        description: errorMessage,
+        title: "Errore",
+        description: error.message || "Errore durante la registrazione",
         variant: "destructive",
       });
-
-      // If it's a validation error, don't reset form
-      if (!errorMessage.includes("già in uso") && !errorMessage.includes("non valido")) {
-        registerForm.reset();
-        setUsernameStatus({ checking: false, available: null, message: "" });
-      }
     }
   };
 
   // Registration form hook
   const registerForm = useForm<InsertUser>({
     resolver: zodResolver(insertUserSchema),
-    mode: 'all',
-    reValidateMode: 'onChange',
     defaultValues: {
       nome: "",
       cognome: "",
@@ -250,6 +203,7 @@ export default function Welcome() {
       username: "",
       password: "",
     },
+    mode: "onChange",
   });
 
   return (
@@ -416,7 +370,6 @@ export default function Welcome() {
                         <FormControl>
                           <Input
                             id="nome"
-                            data-testid="input-nome"
                             placeholder="Il tuo nome"
                             {...field}
                             onChange={(e) => {
@@ -438,7 +391,6 @@ export default function Welcome() {
                         <FormControl>
                           <Input
                             id="cognome"
-                            data-testid="input-cognome"
                             placeholder="Il tuo cognome"
                             {...field}
                             onChange={(e) => {
@@ -460,13 +412,12 @@ export default function Welcome() {
                     <FormItem>
                       <Label htmlFor="email">Email</Label>
                       <div className="relative">
-                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground pointer-events-none" />
+                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                         <Input
                           id="email"
-                          data-testid="input-email"
                           type="email"
                           className="pl-10"
-                          placeholder="Inserisci la tua email"
+                          placeholder="email@esempio.com"
                           {...field}
                         />
                       </div>
@@ -484,43 +435,33 @@ export default function Welcome() {
                       <div className="relative">
                         <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                         <Input
-                          {...field}
                           id="username"
-                          data-testid="input-username"
                           className="pl-10 pr-10"
-                          placeholder="Inserisci username"
-                          value={typeof field.value === 'string' ? field.value : ''}
+                          placeholder="Username univoco"
+                          {...field}
                           onChange={(e) => {
-                            const v = e.target.value.replace(/\s+/g, '').toLowerCase();
-                            field.onChange(v);
-                            if (v.length >= 3) {
-                              checkUsernameAvailability(v);
+                            const value = e.target.value;
+                            field.onChange(value); // Update form state first
+                            if (value.length >= 3) {
+                              checkUsernameAvailability(value);
                             } else {
                               setUsernameStatus({ checking: false, available: false, message: "Username deve essere di almeno 3 caratteri" });
                             }
                           }}
-                          onBlur={(e) => {
-                            const v = (e.target.value || '').trim().toLowerCase();
-                            e.target.value = v;
-                            field.onBlur();
-                            if (v.length >= 3) {
-                              checkUsernameAvailability(v);
-                            }
-                          }}
                         />
-                        <div className="absolute right-3 top-3 pointer-events-none">
+                        <div className="absolute right-3 top-3">
                           {usernameStatus.checking && (
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
                           )}
-                          {!usernameStatus.checking && usernameStatus.available === true && field.value && field.value.length >= 3 && (
+                          {!usernameStatus.checking && usernameStatus.available === true && (
                             <Check className="h-4 w-4 text-green-600" />
                           )}
-                          {!usernameStatus.checking && usernameStatus.available === false && usernameStatus.message && field.value && field.value.length >= 3 && (
+                          {!usernameStatus.checking && usernameStatus.available === false && usernameStatus.message && (
                             <X className="h-4 w-4 text-red-600" />
                           )}
                         </div>
                       </div>
-                      {usernameStatus.message && field.value && field.value.length >= 3 && (
+                      {usernameStatus.message && (
                         <p className={`text-sm ${usernameStatus.available ? 'text-green-600' : 'text-destructive'}`}>
                           {usernameStatus.message}
                         </p>
@@ -540,7 +481,6 @@ export default function Welcome() {
                         <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground z-10" />
                         <PasswordInput
                           id="regPassword"
-                          data-testid="input-password"
                           className="pl-10"
                           placeholder="Password sicura"
                           showPasswordHint={true}
@@ -554,14 +494,8 @@ export default function Welcome() {
 
                 <Button
                   type="submit"
-                  data-testid="button-registrati"
                   className="w-full bg-green-600 hover:bg-green-700"
-                  disabled={
-                    registerForm.formState.isSubmitting || 
-                    usernameStatus.checking ||
-                    (usernameStatus.available === false) ||
-                    !registerForm.formState.isValid
-                  }
+                  disabled={registerForm.formState.isSubmitting || !usernameStatus.available}
                 >
                   <UserPlus className="mr-2 h-4 w-4" />
                   Registrati
