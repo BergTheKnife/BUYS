@@ -169,10 +169,17 @@ export default function Welcome() {
         return;
       }
 
+      // Send registration data - server will handle password hashing
       const response = await apiRequest("POST", "/api/auth/register", data);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Errore durante la registrazione");
+      }
+      
       const result = await response.json();
 
-      if (result.message?.includes("Controlla la tua email")) {
+      if (result.message?.includes("Controlla la tua email") || result.message?.includes("verifica")) {
         setVerificationMessage(`Registrazione completata! Abbiamo inviato un'email di verifica a ${data.email}. Clicca sul link nella email per attivare il tuo account.`);
         toast({
           title: "Verifica Email Necessaria",
@@ -185,6 +192,7 @@ export default function Welcome() {
         });
       }
     } catch (error: any) {
+      console.error('Registration error:', error);
       toast({
         title: "Errore",
         description: error.message || "Errore durante la registrazione",
@@ -203,7 +211,7 @@ export default function Welcome() {
       username: "",
       password: "",
     },
-    mode: "onChange",
+    mode: "onBlur", // Change to onBlur for better UX
   });
 
   return (
@@ -495,10 +503,24 @@ export default function Welcome() {
                 <Button
                   type="submit"
                   className="w-full bg-green-600 hover:bg-green-700"
-                  disabled={registerForm.formState.isSubmitting || !usernameStatus.available}
+                  disabled={
+                    registerForm.formState.isSubmitting || 
+                    !usernameStatus.available ||
+                    usernameStatus.checking ||
+                    !registerForm.formState.isValid
+                  }
                 >
-                  <UserPlus className="mr-2 h-4 w-4" />
-                  Registrati
+                  {registerForm.formState.isSubmitting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Registrazione...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="mr-2 h-4 w-4" />
+                      Registrati
+                    </>
+                  )}
                 </Button>
 
 

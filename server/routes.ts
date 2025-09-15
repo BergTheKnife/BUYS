@@ -199,16 +199,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
   app.post('/api/auth/register', async (req, res) => {
     try {
+      console.log('Registration attempt:', { ...req.body, password: '[HIDDEN]' });
+      
       const userData = insertUserSchema.parse(req.body);
       
       // Check if user already exists
       const existingUserByEmail = await storage.getUserByEmail(userData.email);
       if (existingUserByEmail) {
+        console.log('Email already exists:', userData.email);
         return res.status(400).json({ message: "Email già in uso" });
       }
 
       const existingUserByUsername = await storage.getUserByUsername(userData.username);
       if (existingUserByUsername) {
+        console.log('Username already exists:', userData.username);
         return res.status(400).json({ message: "Username già in uso" });
       }
 
@@ -277,6 +281,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
     } catch (error: any) {
+      console.error('Registration error:', error);
+      
+      // Handle Zod validation errors
+      if (error.name === 'ZodError') {
+        const validationErrors = error.errors.map((err: any) => `${err.path.join('.')}: ${err.message}`).join(', ');
+        return res.status(400).json({ message: `Errori di validazione: ${validationErrors}` });
+      }
+      
+      // Handle database errors
+      if (error.code === '23505') { // Unique constraint violation
+        if (error.constraint?.includes('email')) {
+          return res.status(400).json({ message: "Email già in uso" });
+        }
+        if (error.constraint?.includes('username')) {
+          return res.status(400).json({ message: "Username già in uso" });
+        }
+      }
+      
       res.status(400).json({ message: error.message || "Errore durante la registrazione" });
     }
   });
@@ -699,6 +721,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Debug endpoint to test email configuration
   app.post('/api/debug/test-email', async (req, res) => {
+    // Allow in development for debugging
     if (process.env.NODE_ENV === 'production') {
       return res.status(404).json({ message: 'Not found' });
     }
