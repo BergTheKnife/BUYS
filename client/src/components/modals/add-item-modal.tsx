@@ -25,7 +25,6 @@ import { insertInventarioSchema } from "@shared/schema";
 import type { InsertInventario, Inventario } from "@shared/schema";
 import { useEffect } from "react";
 import { capitalizeWords } from "@/lib/utils";
-import { useActionHistory } from "@/hooks/use-action-history";
 
 interface AddItemModalProps {
   isOpen: boolean;
@@ -36,7 +35,6 @@ interface AddItemModalProps {
 export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { addAction } = useActionHistory('inventory');
 
   const form = useForm<InsertInventario & { immagine?: FileList }>({
     resolver: zodResolver(insertInventarioSchema.extend({
@@ -88,25 +86,7 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
       return response.json();
     },
     onSuccess: (result: Inventario, variables: FormData) => {
-      // Registra l'azione per undo/redo
-      if (editingItem) {
-        // Update operation - salva i dati precedenti
-        addAction({
-          description: `Modificato: ${editingItem.nomeArticolo} - ${editingItem.taglia}`,
-          data: result, // nuovi dati
-          previousData: editingItem, // dati precedenti per l'undo
-          action: 'update',
-          entityType: 'inventory'
-        });
-      } else {
-        // Create operation
-        addAction({
-          description: `Creato: ${result.nomeArticolo} - ${result.taglia}`,
-          data: result,
-          action: 'create',
-          entityType: 'inventory'
-        });
-      }
+      // Action history functionality removed
 
       queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });

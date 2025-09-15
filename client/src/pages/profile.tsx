@@ -194,7 +194,7 @@ export default function Profile() {
             </CardHeader>
             <CardContent className="flex justify-center">
               <ProfileUploader
-                currentImageUrl={user.profileImageUrl}
+                currentImageUrl={user?.profileImageUrl || undefined}
                 onImageUpdate={handleImageUpdate}
               />
             </CardContent>

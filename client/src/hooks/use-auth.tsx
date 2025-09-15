@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Attempt auto-login on app start if no session exists
   useEffect(() => {
-    if (!autoLoginAttempted && !isLoading && !authData?.user) {
+    if (!autoLoginAttempted && !isLoading && !(authData as { user?: User })?.user) {
       setAutoLoginAttempted(true);
       autoLoginMutation.mutate();
     }

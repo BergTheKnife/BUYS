@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -20,7 +20,7 @@ export function ProfileUploader({ currentImageUrl, onImageUpdate }: ProfileUploa
   const queryClient = useQueryClient();
 
   // Update preview URL when currentImageUrl changes
-  useState(() => {
+  useEffect(() => {
     setPreviewUrl(currentImageUrl);
   }, [currentImageUrl]);
 

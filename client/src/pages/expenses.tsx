@@ -181,8 +181,8 @@ export default function Expenses() {
   .sort((a, b) => {
     if (!sortConfig.key) return 0;
 
-    let aValue = a[sortConfig.key];
-    let bValue = b[sortConfig.key];
+    let aValue: any = a[sortConfig.key];
+    let bValue: any = b[sortConfig.key];
 
     // Convert dates to comparable format
     if (sortConfig.key === 'data') {

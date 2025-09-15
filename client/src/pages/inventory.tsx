@@ -93,7 +93,7 @@ export default function Inventory() {
   });
 
   // Query per ottenere le vendite per calcolare le quantità vendute
-  const { data: sales = [] } = useQuery({
+  const { data: sales = [] } = useQuery<any[]>({
     queryKey: ["/api/vendite"],
     enabled: !!currentActivity?.id,
   });
