@@ -2,10 +2,11 @@ import nodemailer from 'nodemailer';
 import { randomBytes } from 'crypto';
 
 // Create email transporter
+const smtpPort = Number(process.env.SMTP_PORT || 587);
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST!,
-  port: parseInt(process.env.SMTP_PORT!),
-  secure: false, // true for 465, false for other ports
+  port: smtpPort,
+  secure: process.env.SMTP_SECURE === 'true' || smtpPort === 465,
   auth: {
     user: process.env.EMAIL_USER!,
     pass: process.env.EMAIL_PASS!,
@@ -57,17 +58,21 @@ export async function sendVerificationEmail(
   email: string,
   nome: string,
   cognome: string,
-  token: string
+  token: string,
+  baseUrlParam?: string
 ): Promise<void> {
   // Validate email before sending
   if (!isValidEmail(email)) {
     console.log(`⚠️ Skipping email send to invalid/test address: ${email}`);
     throw new Error(`Indirizzo email non valido o di test: ${email}`);
   }
-  // Use the correct URL - always use public Replit URL if available
-  const baseUrl = process.env.REPLIT_DOMAINS 
-    ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-    : 'http://localhost:5000';
+  // Use the baseUrl parameter or fallback to environment variables
+  const baseUrl =
+    baseUrlParam
+    ?? process.env.PUBLIC_BASE_URL
+    ?? (process.env.REPLIT_DOMAINS
+          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+          : 'http://localhost:5000');
   const verificationUrl = `${baseUrl}/api/auth/verify-email/${token}`;
 
   const mailOptions = {
@@ -168,15 +173,20 @@ Sistema di gestione per negozi di abbigliamento
 export async function sendWelcomeEmail(
   email: string,
   nome: string,
-  cognome: string
+  cognome: string,
+  baseUrlParam?: string
 ): Promise<void> {
   if (!isValidEmail(email)) {
     console.log(`⚠️ Skipping welcome email to invalid/test address: ${email}`);
     return;
   }
-  const loginUrl = `${process.env.NODE_ENV === 'production' 
-    ? `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}` 
-    : 'http://localhost:5000'}/`;
+  const baseUrl =
+    baseUrlParam
+    ?? process.env.PUBLIC_BASE_URL
+    ?? (process.env.REPLIT_DOMAINS
+          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+          : 'http://localhost:5000');
+  const loginUrl = `${baseUrl}/`;
 
   const mailOptions = {
     from: {
@@ -250,15 +260,19 @@ export async function sendPasswordResetEmail(
   email: string,
   nome: string,
   cognome: string,
-  token: string
+  token: string,
+  baseUrlParam?: string
 ): Promise<void> {
   if (!isValidEmail(email)) {
     console.log(`⚠️ Skipping password reset email to invalid/test address: ${email}`);
     throw new Error(`Indirizzo email non valido o di test: ${email}`);
   }
-  const baseUrl = process.env.REPLIT_DOMAINS 
-    ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-    : 'http://localhost:5000';
+  const baseUrl =
+    baseUrlParam
+    ?? process.env.PUBLIC_BASE_URL
+    ?? (process.env.REPLIT_DOMAINS
+          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+          : 'http://localhost:5000');
   const resetUrl = `${baseUrl}/reset-password/${token}`;
 
   const mailOptions = {

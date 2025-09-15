@@ -1,0 +1,120 @@
+Sei un agente DevOps/Full-stack con accesso in scrittura al progetto BUYS (Node/Express + TS, Drizzle, Vite).
+Obiettivo: riparare il flusso di registrazione e verifica email, configurando SMTP Gmail (App Password), passando l’URL corretto nei link email e testando end-to-end.
+
+⚙️ Variabili da usare (inseriscile in .env):
+- PUBLIC_BASE_URL=https://DOMINIO-PRODUZIONE.TLD
+- DATABASE_URL=postgres://USER:PASS@HOST:PORT/DBNAME
+- SESSION_SECRET=STRINGA_LUNGA_CASUALE
+- SMTP_HOST=smtp.gmail.com
+- SMTP_PORT=465
+- SMTP_SECURE=true
+- EMAIL_USER=LA_TUA_GMAIL@gmail.com
+- EMAIL_PASS=APP_PASSWORD_16_CARATTERI
+- TEST_RECIPIENT=LA_TUA_GMAIL@gmail.com   # per test invio
+
+🔒 Regole:
+- Non committare file con segreti. Assicurati che `.env` sia ignorato da git.
+- Applica modifiche minime e mirate. Non cambiare logiche di business, schema DB o regole password.
+- Se una fase fallisce, fermati e stampa chiaramente l’errore e la soluzione tentata.
+
+PLAN
+1) Crea branch: `fix/verify-email-gmail`.
+2) Verifica che `.gitignore` escluda `.env`; se manca, aggiungi una riga `.env`.
+3) Crea `.env` a partire da `.env.example` (se esiste) e valorizza le chiavi sopra con i valori forniti.
+4) PATCH a `server/emailService.ts`:
+   4.1) Sostituisci il transporter hardcoded con porta/SSL robusti:
+        ─────────────────────────────────────────────────────────
+        TROVA (blocco esistente):
+          const transporter = nodemailer.createTransport({
+            host: process.env.SMTP_HOST!,
+            port: parseInt(process.env.SMTP_PORT!),
+            secure: false, // true for 465, false for other ports
+            auth: {
+              user: process.env.EMAIL_USER!,
+              pass: process.env.EMAIL_PASS!,
+            },
+          });
+
+        SOSTITUISCI con:
+          const smtpPort = Number(process.env.SMTP_PORT || 587);
+          const transporter = nodemailer.createTransport({
+            host: process.env.SMTP_HOST!,
+            port: smtpPort,
+            secure: process.env.SMTP_SECURE === 'true' || smtpPort === 465,
+            auth: {
+              user: process.env.EMAIL_USER!,
+              pass: process.env.EMAIL_PASS!,
+            },
+          });
+        ─────────────────────────────────────────────────────────
+
+   4.2) Aggiorna le firme funzioni per accettare un `baseUrlParam?: string`:
+        - sendVerificationEmail(email, nome, cognome, token, baseUrlParam?)
+        - sendPasswordResetEmail(email, nome, cognome, token, baseUrlParam?)
+        - sendWelcomeEmail(email, nome, cognome, baseUrlParam?)
+
+   4.3) Dentro **ognuna** delle tre funzioni, costruisci `baseUrl` così (e poi usa quel baseUrl per i link):
+        const baseUrl =
+          baseUrlParam
+          ?? process.env.PUBLIC_BASE_URL
+          ?? (process.env.REPLIT_DOMAINS
+                ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+                : 'http://localhost:5000');
+
+        E poi:
+        - sendVerificationEmail: const verificationUrl = `${baseUrl}/api/auth/verify-email/${token}`;
+        - sendPasswordResetEmail: const resetUrl = `${baseUrl}/reset-password/${token}`;
+        - sendWelcomeEmail:      const loginUrl = `${baseUrl}/`;
+
+5) PATCH a `server/routes.ts`: prima di ciascuna chiamata di invio email, crea e passa `baseUrl`.
+   - Regola generale nel punto immediatamente precedente la chiamata:
+       const baseUrl = `${req.protocol}://${req.get('host')}`;
+     …e poi passa `, baseUrl` come ultimo argomento.
+
+   Applica a:
+   - POST `/api/auth/register` → `sendVerificationEmail(...)`
+   - POST `/api/auth/resend-verification` → `sendVerificationEmail(...)`
+   - POST `/api/auth/forgot-password` → `sendPasswordResetEmail(...)`
+   - GET  `/api/auth/verify-email/:token` (dopo verifica) → `sendWelcomeEmail(...)`
+
+   (Se nel debug `/api/debug/test-email` invii davvero una mail di prova, puoi passare `baseUrl` anche lì.)
+
+6) Esegui `npm run check` e correggi eventuali errori di tipo/import. Poi `npm run build` per validare il bundle.
+7) Esegui migrazioni DB per i token (Drizzle): `npm run db:push`. Se non ci sono cambiamenti, continua.
+8) Avvia in sviluppo: `npm run dev`. Conferma che ascolta su http://localhost:5000.
+9) Test SMTP (dev ha endpoint di test attivo):
+   - Connessione:
+     curl -X POST http://localhost:5000/api/debug/test-email
+   - Invio reale:
+     curl -X POST http://localhost:5000/api/debug/test-email \
+       -H "Content-Type: application/json" \
+       -d "{\"email\":\"${process.env.TEST_RECIPIENT || 'LA_TUA_GMAIL@gmail.com'}\"}"
+
+   Stampa in console l’esito (connection ok / test email sent). Se fallisce:
+   - `EAUTH` ⇒ credenziali/APP password sbagliate.
+   - `ECONNECTION/ETIMEDOUT` ⇒ controlla `SMTP_PORT` e `SMTP_SECURE` (465/true, 587/false).
+
+10) Test end-to-end registrazione:
+    - Effettua una richiesta POST alla rotta di registrazione dell’app con un’email reale (usa TEST_RECIPIENT con alias +tag per non sporcare la casella, es: LA_TUA_GMAIL+buysagent@gmail.com).
+    - Verifica che arrivi la mail con link `…/api/auth/verify-email/<token>` che punti al dominio/host corretto.
+    - Simula il click (GET sul link) e verifica 200 OK e messaggio di account verificato.
+    - Esegui login con quelle credenziali e verifica successo.
+
+11) Produci REPORT finale in output con:
+    - diff/patch applicate (file e righe principali)
+    - variabili .env configurate (oscura le password)
+    - output di `npm run check`, `npm run build`
+    - esito `db:push`
+    - esito test SMTP e invio di prova
+    - esito registrazione e verifica (incluso URL cliccato)
+    - istruzioni per produzione: `npm run build && npm start`
+12) Crea commit e PR:
+    - Messaggio commit: "fix(auth): verifica email con baseUrl corretto + SMTP robusto (Gmail)"
+    - Descrivi le modifiche nel body della PR e allega il report.
+
+ACCETTANCE CRITERIA
+- `npm run check` senza errori, `npm run build` ok.
+- `/api/debug/test-email` → connection OK + test email inviata a TEST_RECIPIENT.
+- Registrazione produce email con link che usa PUBLIC_BASE_URL o host corrente.
+- Click verifica → 200 OK; login successivo funziona.
+- Nessun segreto committato; `.env` ignorato.
