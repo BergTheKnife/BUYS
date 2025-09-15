@@ -211,7 +211,7 @@ export default function Welcome() {
       username: "",
       password: "",
     },
-    mode: "onBlur", // Change to onBlur for better UX
+    mode: "onChange", // Change back to onChange for real-time validation
   });
 
   return (
@@ -426,7 +426,10 @@ export default function Welcome() {
                           type="email"
                           className="pl-10"
                           placeholder="email@esempio.com"
-                          {...field}
+                          value={field.value}
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          name={field.name}
                         />
                       </div>
                       <FormMessage />
@@ -446,16 +449,20 @@ export default function Welcome() {
                           id="username"
                           className="pl-10 pr-10"
                           placeholder="Username univoco"
-                          {...field}
+                          value={field.value}
                           onChange={(e) => {
                             const value = e.target.value;
                             field.onChange(value); // Update form state first
                             if (value.length >= 3) {
                               checkUsernameAvailability(value);
-                            } else {
+                            } else if (value.length > 0) {
                               setUsernameStatus({ checking: false, available: false, message: "Username deve essere di almeno 3 caratteri" });
+                            } else {
+                              setUsernameStatus({ checking: false, available: null, message: "" });
                             }
                           }}
+                          onBlur={field.onBlur}
+                          name={field.name}
                         />
                         <div className="absolute right-3 top-3">
                           {usernameStatus.checking && (
