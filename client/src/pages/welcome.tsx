@@ -214,6 +214,10 @@ export default function Welcome() {
     mode: "onChange", // Change back to onChange for real-time validation
   });
 
+  // Debug: Watch the username field value
+  const usernameValue = registerForm.watch("username");
+  console.log("Username field value:", usernameValue, "type:", typeof usernameValue);
+
   return (
     <div className="min-h-screen bg-primary flex items-center justify-center p-4 overflow-x-hidden">
       <div className="w-full max-w-md min-w-0">
@@ -426,10 +430,8 @@ export default function Welcome() {
                           type="email"
                           className="pl-10"
                           placeholder="email@esempio.com"
-                          value={field.value}
-                          onChange={field.onChange}
-                          onBlur={field.onBlur}
-                          name={field.name}
+                          data-testid="input-email"
+                          {...field}
                         />
                       </div>
                       <FormMessage />
@@ -440,7 +442,9 @@ export default function Welcome() {
                 <FormField
                   control={registerForm.control}
                   name="username"
-                  render={({ field }) => (
+                  render={({ field }) => {
+                    console.log("Username field render - field.value:", field.value, "type:", typeof field.value);
+                    return (
                     <FormItem>
                       <Label htmlFor="username">Username</Label>
                       <div className="relative">
@@ -449,9 +453,11 @@ export default function Welcome() {
                           id="username"
                           className="pl-10 pr-10"
                           placeholder="Username univoco"
-                          value={field.value}
+                          data-testid="input-username"
+                          {...field}
                           onChange={(e) => {
                             const value = e.target.value;
+                            console.log("Username onChange - new value:", value, "current field.value:", field.value);
                             field.onChange(value); // Update form state first
                             if (value.length >= 3) {
                               checkUsernameAvailability(value);
@@ -461,8 +467,6 @@ export default function Welcome() {
                               setUsernameStatus({ checking: false, available: null, message: "" });
                             }
                           }}
-                          onBlur={field.onBlur}
-                          name={field.name}
                         />
                         <div className="absolute right-3 top-3">
                           {usernameStatus.checking && (
@@ -483,7 +487,8 @@ export default function Welcome() {
                       )}
                       <FormMessage />
                     </FormItem>
-                  )}
+                    );
+                  }}
                 />
 
                 <FormField
