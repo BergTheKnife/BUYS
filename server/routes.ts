@@ -239,7 +239,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Send verification email
       try {
-        await sendVerificationEmail(user.email, user.nome, user.cognome, verificationToken);
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        await sendVerificationEmail(user.email, user.nome, user.cognome, verificationToken, baseUrl);
         
         res.json({ 
           message: "Registrazione completata! Controlla la tua email per il link di verifica.",
@@ -492,7 +493,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Send welcome email
       try {
         const { sendWelcomeEmail } = await import('./emailService');
-        await sendWelcomeEmail(verifiedUser.email, verifiedUser.nome, verifiedUser.cognome);
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        await sendWelcomeEmail(verifiedUser.email, verifiedUser.nome, verifiedUser.cognome, baseUrl);
       } catch (emailError) {
         console.error('Failed to send welcome email:', emailError);
       }
@@ -572,7 +574,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Send password reset email
       try {
-        await sendPasswordResetEmail(user.email, user.nome, user.cognome, resetToken);
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        await sendPasswordResetEmail(user.email, user.nome, user.cognome, resetToken, baseUrl);
         
         return res.json({ 
           message: "Se l'account esiste, riceverai un'email con le istruzioni per il reset della password.",
@@ -703,7 +706,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Send verification email
       const { sendVerificationEmail } = await import('./emailService');
-      await sendVerificationEmail(user.email, user.nome, user.cognome, verificationToken);
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      await sendVerificationEmail(user.email, user.nome, user.cognome, verificationToken, baseUrl);
       
       res.json({ 
         message: "Email di verifica inviata nuovamente. Controlla la tua casella di posta.",
@@ -743,7 +747,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { email } = req.body;
       if (email) {
         const token = generateVerificationToken();
-        await sendVerificationEmail(email, 'Test', 'User', token);
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        await sendVerificationEmail(email, 'Test', 'User', token, baseUrl);
         return res.json({ 
           success: true, 
           message: `Test email sent to ${email}`,
