@@ -399,33 +399,63 @@
 
   .toggle-button-inactive {
     background-color: transparent !important;
-    color: #374151 !important;
+    color: #6b7280 !important;
     box-shadow: none !important;
     border: none !important;
   }
 
-  /* Force override all hover states for toggle buttons */
+  /* Force override all states for toggle buttons with maximum specificity */
+  .toggle-button-active,
   .toggle-button-active:hover,
   .toggle-button-active:focus,
-  .toggle-button-active:active {
+  .toggle-button-active:active,
+  .toggle-button-active:visited {
+    background-color: #2563eb !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+    border-color: #2563eb !important;
+  }
+
+  .toggle-button-inactive,
+  .toggle-button-inactive:hover,
+  .toggle-button-inactive:focus,
+  .toggle-button-inactive:active,
+  .toggle-button-inactive:visited {
+    background-color: transparent !important;
+    color: #6b7280 !important;
+    box-shadow: none !important;
+    border-color: transparent !important;
+  }
+
+  /* Override ANY possible conflicting styles */
+  button.toggle-button-active,
+  button.toggle-button-active:hover,
+  button.toggle-button-active:focus,
+  button.toggle-button-active:active {
     background-color: #2563eb !important;
     color: #ffffff !important;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
   }
 
-  .toggle-button-inactive:hover,
-  .toggle-button-inactive:focus,
-  .toggle-button-inactive:active {
-    background-color: rgba(37, 99, 235, 0.1) !important;
-    color: #2563eb !important;
+  button.toggle-button-inactive,
+  button.toggle-button-inactive:hover,
+  button.toggle-button-inactive:focus,
+  button.toggle-button-inactive:active {
+    background-color: transparent !important;
+    color: #6b7280 !important;
+    box-shadow: none !important;
   }
 
-  /* Touch-specific overrides */
+  /* Touch-specific overrides with even higher specificity */
   @media (hover: none) {
     .toggle-button-active,
     .toggle-button-active:hover,
     .toggle-button-active:focus,
-    .toggle-button-active:active {
+    .toggle-button-active:active,
+    button.toggle-button-active,
+    button.toggle-button-active:hover,
+    button.toggle-button-active:focus,
+    button.toggle-button-active:active {
       background-color: #2563eb !important;
       color: #ffffff !important;
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
@@ -434,9 +464,13 @@
     .toggle-button-inactive,
     .toggle-button-inactive:hover,
     .toggle-button-inactive:focus,
-    .toggle-button-inactive:active {
+    .toggle-button-inactive:active,
+    button.toggle-button-inactive,
+    button.toggle-button-inactive:hover,
+    button.toggle-button-inactive:focus,
+    button.toggle-button-inactive:active {
       background-color: transparent !important;
-      color: #374151 !important;
+      color: #6b7280 !important;
       box-shadow: none !important;
     }
   }
