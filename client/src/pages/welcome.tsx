@@ -192,9 +192,27 @@ export default function Welcome() {
 
   return (
     <div className="min-h-screen bg-primary flex items-center justify-center p-4 overflow-x-hidden">
-      {/* boost per l’input email */}
+      {/* boost per l'input email */}
       <style>{`
-        #email { position: relative; z-index: 2147483647 !important; pointer-events: auto !important; }
+        #email { 
+          position: relative !important; 
+          z-index: 2147483647 !important; 
+          pointer-events: auto !important; 
+          background-color: white !important;
+          border: 1px solid #d1d5db !important;
+        }
+        input#email {
+          position: relative !important; 
+          z-index: 2147483647 !important; 
+          pointer-events: auto !important; 
+          background-color: white !important;
+        }
+        input[name="email"] {
+          position: relative !important; 
+          z-index: 2147483647 !important; 
+          pointer-events: auto !important; 
+          background-color: white !important;
+        }
       `}</style>
 
       <div className="w-full max-w-md min-w-0">
@@ -409,7 +427,7 @@ export default function Welcome() {
                     />
                   </div>
 
-                  {/* EMAIL – campo “protetto” */}
+                  {/* EMAIL – campo "protetto" */}
                   <FormField
                     control={registerForm.control}
                     name="email"
@@ -421,12 +439,22 @@ export default function Welcome() {
                             id="email"
                             type="email"
                             autoComplete="email"
-                            className="relative z-[2147483647]"
+                            className="relative z-[2147483647] !important"
                             placeholder="email@esempio.com"
-                            value={field.value}
-                            onChange={field.onChange}
+                            value={field.value || ""}
+                            onChange={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              field.onChange(e.target.value);
+                            }}
                             onBlur={field.onBlur}
                             name={field.name}
+                            style={{ 
+                              position: "relative", 
+                              zIndex: 2147483647, 
+                              pointerEvents: "auto",
+                              backgroundColor: "white"
+                            }}
                           />
                         </FormControl>
                         <FormMessage />
