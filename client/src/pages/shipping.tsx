@@ -201,9 +201,9 @@ export default function Shipping() {
 
   // Update shipping status mutation
   const updateStatusMutation = useMutation({
-    mutationFn: async ({ saleId, status }: { saleId: string, status: string }) => {
+    mutationFn: async ({ spedizioneId, status }: { spedizioneId: string, status: string }) => {
       const speditoConsegnato = status === "spedito" ? 1 : 0;
-      const response = await apiRequest("PUT", `/api/spedizioni/${saleId}`, {
+      const response = await apiRequest("PUT", `/api/spedizioni/${spedizioneId}`, {
         speditoConsegnato,
       });
       return response.json();
@@ -227,9 +227,9 @@ export default function Shipping() {
   });
 
   const handleStatusUpdate = () => {
-    if (selectedSale) {
+    if (selectedSale && (selectedSale as ShippingItem).spedizione) {
       updateStatusMutation.mutate({
-        saleId: selectedSale.id,
+        spedizioneId: (selectedSale as ShippingItem).spedizione!.id,
         status: newStatus,
       });
     }
