@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Truck, Plus, Filter, Edit, Trash2, Package, CheckCircle, Clock, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Truck, Plus, Filter, Edit, Trash2, Package, CheckCircle, Clock, ArrowUpDown, ArrowUp, ArrowDown, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,7 @@ import {
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Vendita } from "@shared/schema";
+import { ImagePreview } from "@/components/ui/image-preview";
 
 // Type for shipping data combining vendite and spedizioni
 type ShippingItem = Vendita & {
@@ -57,6 +58,7 @@ export default function Shipping() {
   const [selectedSale, setSelectedSale] = useState<Vendita | null>(null);
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [newStatus, setNewStatus] = useState<"da_spedire" | "spedito">("da_spedire");
+  const [previewImage, setPreviewImage] = useState<{ src: string; alt: string } | null>(null);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -64,6 +66,11 @@ export default function Shipping() {
   // Fetch sales with shipping data
   const { data: sales = [], isLoading } = useQuery<ShippingItem[]>({
     queryKey: ["/api/vendite-con-spedizioni"],
+  });
+
+  // Query per recuperare l'inventario per mostrare le immagini
+  const { data: inventory = [] } = useQuery<any[]>({
+    queryKey: ["/api/inventario"],
   });
 
   const formatCurrency = (amount: string | number) => {
@@ -381,6 +388,7 @@ export default function Shipping() {
                           {getSortIcon('data')}
                         </button>
                       </TableHead>
+                      <TableHead>Immagine</TableHead>
                       <TableHead>
                         <button
                           onClick={() => handleSort('nomeArticolo')}
@@ -434,9 +442,30 @@ export default function Shipping() {
                     {filteredAndSortedSales.map((sale: ShippingItem) => {
                       const speditoConsegnato = sale.spedizione?.speditoConsegnato || 0;
                       const status = speditoConsegnato === 1 ? "spedito" : "da_spedire";
+                      
+                      // Trova l'articolo corrispondente nell'inventario per mostrare l'immagine
+                      const correspondingItem = inventory.find((item: any) => 
+                        item.id === sale.inventarioId || 
+                        (item.nomeArticolo === sale.nomeArticolo && item.taglia === sale.taglia)
+                      );
+                      
                       return (
                         <TableRow key={sale.id}>
                           <TableCell>{formatDate(sale.data.toString())}</TableCell>
+                          <TableCell>
+                            {correspondingItem?.immagineUrl ? (
+                              <img
+                                src={correspondingItem.immagineUrl}
+                                alt={sale.nomeArticolo}
+                                className="w-12 h-12 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+                                onClick={() => setPreviewImage({ src: correspondingItem.immagineUrl || "", alt: sale.nomeArticolo })}
+                              />
+                            ) : (
+                              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                                <ImageIcon className="h-4 w-4 text-gray-400" />
+                              </div>
+                            )}
+                          </TableCell>
                           <TableCell className="font-semibold">{sale.nomeArticolo}</TableCell>
                           <TableCell>
                             <Badge variant="secondary">{sale.taglia || "N/A"}</Badge>
@@ -528,6 +557,14 @@ export default function Shipping() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Image Preview */}
+        <ImagePreview
+          src={previewImage?.src || ""}
+          alt={previewImage?.alt || ""}
+          isOpen={!!previewImage}
+          onClose={() => setPreviewImage(null)}
+        />
       </div>
     </div>
   );
