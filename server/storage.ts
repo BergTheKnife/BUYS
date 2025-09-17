@@ -10,6 +10,7 @@ import {
   emailVerificationTokens,
   passwordResetTokens,
   rememberTokens, // Import remember tokens table
+  spedizioni, // Import spedizioni table
   type User, 
   type InsertUser,
   type Inventario,
@@ -30,7 +31,10 @@ import {
   type EmailVerificationToken,
   type InsertEmailVerificationToken,
   type PasswordResetToken,
-  type InsertPasswordResetToken
+  type InsertPasswordResetToken,
+  type Spedizione,
+  type InsertSpedizione,
+  type UpdateSpedizione
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sum, sql, gte, lt, lte, or, like, ilike } from "drizzle-orm";
@@ -86,9 +90,9 @@ export interface IStorage {
 
   // Sales methods (now with activity context)
   getSalesByActivity(activityId: string): Promise<Vendita[]>;
-  createSale(sale: InsertVendita & { userId: string; activityId: string; nomeArticolo: string; taglia: string; margine: string }): Promise<Vendita>;
+  createSale(sale: InsertVendita & { userId: string; activityId: string; nomeArticolo: string; taglia: string | null; margine: string; vendutoA?: string; incassato?: number; incassatoDa?: string; incassatoSu?: string }): Promise<Vendita>;
   getSaleById(id: string, activityId: string): Promise<Vendita | null>;
-  updateSale(id: string, activityId: string, updates: Partial<InsertVendita> & { nomeArticolo?: string; taglia?: string; margine?: string }): Promise<Vendita | null>;
+  updateSale(id: string, activityId: string, updates: Partial<InsertVendita> & { nomeArticolo?: string; taglia?: string | null; margine?: string }): Promise<Vendita | null>;
   deleteSale(id: string, activityId: string): Promise<boolean>;
 
   // Expenses methods (now with activity context)
@@ -106,7 +110,7 @@ export interface IStorage {
   }>;
   getTopSellingItemsByActivity(activityId: string): Promise<Array<{
     nomeArticolo: string;
-    taglia: string;
+    taglia: string | null;
     totalQuantity: number;
     totalRevenue: number;
   }>>;
@@ -177,6 +181,12 @@ export interface IStorage {
   getFinancialHistoryByActivity(activityId: string): Promise<FinancialHistory[]>;
   createFinancialHistoryEntry(entry: InsertFinancialHistory & { userId: string; activityId: string }): Promise<FinancialHistory>;
   deleteFinancialHistoryEntry(entryId: string, activityId: string): Promise<boolean>;
+
+  // Spedizioni methods
+  getSpedizioniByActivity(activityId: string): Promise<Spedizione[]>;
+  createSpedizione(spedizione: InsertSpedizione & { userId: string; activityId: string }): Promise<Spedizione>;
+  updateSpedizioneStatus(id: string, activityId: string, updates: UpdateSpedizione): Promise<Spedizione | null>;
+  deleteSpedizione(id: string, activityId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -963,7 +973,7 @@ export class DatabaseStorage implements IStorage {
     // Calculate weighted average cost for storage
     const costoTotale = batchDetails.reduce((sum, detail) => sum + (detail.quantitaUsata * detail.costoUnitario), 0);
 
-    // Create the sale record with calculated margin
+    // Create the sale record with calculated margin and new fields
     const [newSale] = await db
       .insert(vendite)
       .values({
@@ -975,8 +985,10 @@ export class DatabaseStorage implements IStorage {
         taglia: saleData.taglia,
         quantita: saleData.quantita,
         prezzoVendita: saleData.prezzoVendita,
-        incassatoDa: saleData.incassatoDa,
-        incassatoSu: saleData.incassatoSu,
+        vendutoA: saleData.vendutoA || null,
+        incassato: saleData.incassato || 0,
+        incassatoDa: (saleData.incassato === 1) ? saleData.incassatoDa : null,
+        incassatoSu: (saleData.incassato === 1) ? saleData.incassatoSu : null,
         margine: margine.toString()
       })
       .returning();
@@ -988,6 +1000,19 @@ export class DatabaseStorage implements IStorage {
         quantita: sql`${inventario.quantita} - ${saleData.quantita!}`
       })
       .where(eq(inventario.id, saleData.inventarioId));
+
+    // Automatically create a spedizione record
+    await this.createSpedizione({
+      userId: saleData.userId,
+      activityId: saleData.activityId,
+      venditaId: newSale.id,
+      nomeArticolo: saleData.nomeArticolo,
+      taglia: saleData.taglia,
+      quantita: saleData.quantita || 1,
+      vendutoA: saleData.vendutoA || null,
+      speditoConsegnato: 0, // Default to not yet shipped
+      dataSpedizione: null
+    });
 
     return newSale;
   }
@@ -1001,7 +1026,7 @@ export class DatabaseStorage implements IStorage {
     return sale || null;
   }
 
-  async updateSale(id: string, activityId: string, updates: Partial<InsertVendita> & { nomeArticolo?: string; taglia?: string; margine?: string }): Promise<Vendita | null> {
+  async updateSale(id: string, activityId: string, updates: Partial<InsertVendita> & { nomeArticolo?: string; taglia?: string | null; margine?: string }): Promise<Vendita | null> {
     // Get the existing sale to compare changes
     const [existingSale] = await db
       .select()
@@ -1086,12 +1111,43 @@ export class DatabaseStorage implements IStorage {
       updates.margine = margine.toString();
     }
 
+    // Handle incassato field consistency logic
+    if (updates.incassato !== undefined) {
+      if (updates.incassato === 0) {
+        // If setting incassato to NO, clear related fields  
+        (updates as any).incassatoDa = null;
+        (updates as any).incassatoSu = null;
+      } else if (updates.incassato === 1) {
+        // If setting incassato to YES, keep existing values if not provided
+        // Business rule validation should happen at the API level
+        if (updates.incassatoDa === undefined) {
+          (updates as any).incassatoDa = existingSale.incassatoDa;
+        }
+        if (updates.incassatoSu === undefined) {
+          (updates as any).incassatoSu = existingSale.incassatoSu;
+        }
+      }
+    }
+
     // Update the sale
     const [updatedSale] = await db
       .update(vendite)
       .set(updates)
       .where(and(eq(vendite.id, id), eq(vendite.activityId, activityId)))
       .returning();
+
+    // Synchronize corresponding spedizione record with updated sale data
+    if (updatedSale && (updates.nomeArticolo || updates.taglia !== undefined || updates.quantita || updates.vendutoA !== undefined)) {
+      await db
+        .update(spedizioni)
+        .set({
+          nomeArticolo: updatedSale.nomeArticolo,
+          taglia: updatedSale.taglia,
+          quantita: updatedSale.quantita,
+          vendutoA: updatedSale.vendutoA
+        })
+        .where(and(eq(spedizioni.venditaId, id), eq(spedizioni.activityId, activityId)));
+    }
 
     return updatedSale || null;
   }
@@ -1462,7 +1518,7 @@ export class DatabaseStorage implements IStorage {
 
   async getTopSellingItemsByActivity(activityId: string): Promise<Array<{
     nomeArticolo: string;
-    taglia: string;
+    taglia: string | null;
     totalQuantity: number;
     totalRevenue: number;
   }>> {
@@ -1842,6 +1898,40 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .delete(financialHistory)
       .where(and(eq(financialHistory.id, entryId), eq(financialHistory.activityId, activityId)));
+
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // Spedizioni methods
+  async getSpedizioniByActivity(activityId: string): Promise<Spedizione[]> {
+    return await db.select().from(spedizioni).where(eq(spedizioni.activityId, activityId)).orderBy(desc(spedizioni.createdAt));
+  }
+
+  async createSpedizione(spedizioneData: InsertSpedizione & { userId: string; activityId: string }): Promise<Spedizione> {
+    const [newSpedizione] = await db
+      .insert(spedizioni)
+      .values(spedizioneData)
+      .returning();
+    return newSpedizione;
+  }
+
+  async updateSpedizioneStatus(id: string, activityId: string, updates: UpdateSpedizione): Promise<Spedizione | null> {
+    const [updatedSpedizione] = await db
+      .update(spedizioni)
+      .set({
+        ...updates,
+        dataSpedizione: updates.speditoConsegnato === 1 ? new Date() : null
+      })
+      .where(and(eq(spedizioni.id, id), eq(spedizioni.activityId, activityId)))
+      .returning();
+
+    return updatedSpedizione || null;
+  }
+
+  async deleteSpedizione(id: string, activityId: string): Promise<boolean> {
+    const result = await db
+      .delete(spedizioni)
+      .where(and(eq(spedizioni.id, id), eq(spedizioni.activityId, activityId)));
 
     return (result.rowCount ?? 0) > 0;
   }
