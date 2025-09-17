@@ -82,18 +82,18 @@ export function Navbar() {
   const [location, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
+
   // State for modals
   const [showCreateActivity, setShowCreateActivity] = useState(false);
   const [showJoinActivity, setShowJoinActivity] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  
+
   // Fetch user's activities
   const { data: userActivities = [] } = useQuery<Activity[]>({
     queryKey: ["/api/activities"],
     enabled: !!user,
   });
-  
+
   // Forms for modals
   const createForm = useForm<CreateActivityForm>({
     resolver: zodResolver(createActivitySchema),
@@ -110,7 +110,7 @@ export function Navbar() {
       password: "",
     },
   });
-  
+
   // Mutations
   const createActivityMutation = useMutation({
     mutationFn: async (data: CreateActivityForm) => {
@@ -155,11 +155,11 @@ export function Navbar() {
       });
     },
   });
-  
+
   const onCreateSubmit = (data: CreateActivityForm) => {
     createActivityMutation.mutate(data);
   };
-  
+
   const onJoinSubmit = (data: JoinActivityForm) => {
     joinActivityMutation.mutate(data);
   };
@@ -185,12 +185,12 @@ export function Navbar() {
             key={item.name}
             variant={isActive ? "secondary" : "ghost"}
             className={`${mobile ? "w-full justify-start py-4" : "py-3 px-4 text-base"} ${
-              mobile 
-                ? isActive 
-                  ? "bg-blue-100 text-blue-900 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-100 dark:hover:bg-blue-800" 
+              mobile
+                ? isActive
+                  ? "bg-blue-100 text-blue-900 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-100 dark:hover:bg-blue-800"
                   : "text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800"
-                : isActive 
-                  ? "bg-white/20 text-white" 
+                : isActive
+                  ? "bg-white/20 text-white"
                   : "text-white/90 hover:text-white hover:bg-white/10"
             }`}
             onClick={() => {
@@ -216,9 +216,9 @@ export function Navbar() {
             className="text-white hover:bg-white/10 p-1 sm:p-2 min-h-[52px] flex items-center"
             onClick={() => setLocation("/dashboard")}
           >
-            <img 
-              src={buysLogoWhitePath} 
-              alt="BUYS" 
+            <img
+              src={buysLogoWhitePath}
+              alt="BUYS"
               className="h-12 sm:h-16 w-auto"
             />
           </Button>
@@ -257,7 +257,7 @@ export function Navbar() {
                       {userActivities
                         .filter(activity => activity.id !== currentActivity.id)
                         .map((activity) => (
-                          <DropdownMenuItem 
+                          <DropdownMenuItem
                             key={activity.id}
                             onClick={() => switchActivity(activity.id)}
                           >
@@ -269,19 +269,19 @@ export function Navbar() {
                       <DropdownMenuSeparator />
                     </>
                   )}
-                  
+
                   {/* Create New Activity */}
                   <DropdownMenuItem onClick={() => setShowCreateActivity(true)}>
                     <Plus className="h-4 w-4 mr-2" />
                     Crea nuova attività
                   </DropdownMenuItem>
-                  
+
                   {/* Join Activity */}
                   <DropdownMenuItem onClick={() => setShowJoinActivity(true)}>
                     <UserPlus className="h-4 w-4 mr-2" />
                     Unisciti ad un'attività
                   </DropdownMenuItem>
-                  
+
                   <DropdownMenuSeparator />
                   <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
                     Gestione Attività
@@ -331,20 +331,20 @@ export function Navbar() {
                 <div className="flex flex-col h-full">
                   {/* Header */}
                   <div className="flex items-center justify-center mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
-                    <img 
-                      src={buysLogoColorPath} 
-                      alt="BUYS - Build Up Your Store" 
+                    <img
+                      src={buysLogoColorPath}
+                      alt="BUYS - Build Up Your Store"
                       className="h-20 w-auto"
                     />
                   </div>
-                  
+
                   {/* Navigation - only show if user has activity */}
                   {showNavigation && (
                     <div className="flex flex-col space-y-1 flex-1">
                       <NavigationItems mobile onItemClick={() => setMobileMenuOpen(false)} />
                     </div>
                   )}
-                  
+
                   {/* Activity info and user info section */}
                   <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
 
@@ -389,7 +389,7 @@ export function Navbar() {
               Crea una nuova attività per la tua azienda
             </DialogDescription>
           </DialogHeader>
-          
+
           <Form {...createForm}>
             <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4">
               <FormField
@@ -399,7 +399,7 @@ export function Navbar() {
                   <FormItem>
                     <FormLabel>Nome Attività</FormLabel>
                     <FormControl>
-                      <Input 
+                      <Input
                         placeholder="Es. Negozio di Abbigliamento"
                         {...field}
                       />
@@ -408,7 +408,7 @@ export function Navbar() {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={createForm.control}
                 name="password"
@@ -416,7 +416,7 @@ export function Navbar() {
                   <FormItem>
                     <FormLabel>Password</FormLabel>
                     <FormControl>
-                      <PasswordInput 
+                      <PasswordInput
                         placeholder="Password per l'attività"
                         showPasswordHint={true}
                         {...field}
@@ -426,18 +426,18 @@ export function Navbar() {
                   </FormItem>
                 )}
               />
-              
+
               <div className="flex gap-2 pt-4">
-                <Button 
-                  type="button" 
-                  variant="outline" 
+                <Button
+                  type="button"
+                  variant="outline"
                   onClick={() => setShowCreateActivity(false)}
                   className="flex-1"
                 >
                   Annulla
                 </Button>
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   disabled={createActivityMutation.isPending}
                   className="flex-1"
                 >
@@ -448,7 +448,7 @@ export function Navbar() {
           </Form>
         </DialogContent>
       </Dialog>
-      
+
       {/* Join Activity Modal */}
       <Dialog open={showJoinActivity} onOpenChange={setShowJoinActivity}>
         <DialogContent className="sm:max-w-[400px]">
@@ -458,7 +458,7 @@ export function Navbar() {
               Accedi ad un'attività esistente
             </DialogDescription>
           </DialogHeader>
-          
+
           <Form {...joinForm}>
             <form onSubmit={joinForm.handleSubmit(onJoinSubmit)} className="space-y-4">
               <FormField
@@ -468,7 +468,7 @@ export function Navbar() {
                   <FormItem>
                     <FormLabel>Nome Attività</FormLabel>
                     <FormControl>
-                      <Input 
+                      <Input
                         placeholder="Nome dell'attività esistente"
                         {...field}
                       />
@@ -477,7 +477,7 @@ export function Navbar() {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={joinForm.control}
                 name="password"
@@ -485,7 +485,7 @@ export function Navbar() {
                   <FormItem>
                     <FormLabel>Password</FormLabel>
                     <FormControl>
-                      <PasswordInput 
+                      <PasswordInput
                         placeholder="Password dell'attività"
                         {...field}
                       />
@@ -494,18 +494,18 @@ export function Navbar() {
                   </FormItem>
                 )}
               />
-              
+
               <div className="flex gap-2 pt-4">
-                <Button 
-                  type="button" 
-                  variant="outline" 
+                <Button
+                  type="button"
+                  variant="outline"
                   onClick={() => setShowJoinActivity(false)}
                   className="flex-1"
                 >
                   Annulla
                 </Button>
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   disabled={joinActivityMutation.isPending}
                   className="flex-1"
                 >
