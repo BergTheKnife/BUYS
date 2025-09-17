@@ -18,7 +18,13 @@ import { apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { capitalizeWords } from "@/lib/utils";
 import { z } from "zod";
-import { Form, FormField, FormItem, FormControl, FormMessage } from "@/components/ui/form";
+import {
+  Form,
+  FormField,
+  FormItem,
+  FormControl,
+  FormMessage,
+} from "@/components/ui/form";
 
 export default function Welcome() {
   const [isLogin, setIsLogin] = useState(true);
@@ -44,7 +50,11 @@ export default function Welcome() {
           description: decodeURIComponent(message),
           variant: "default",
         });
-        window.history.replaceState({}, document.title, window.location.pathname);
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname,
+        );
       }
     }
   }, [toast]);
@@ -84,7 +94,10 @@ export default function Welcome() {
   // ===== USERNAME CHECK =====
   const checkUsernameMutation = useMutation({
     mutationFn: async (username: string) => {
-      const response = await apiRequest("GET", `/api/auth/check-username/${username}`);
+      const response = await apiRequest(
+        "GET",
+        `/api/auth/check-username/${username}`,
+      );
       return response.json();
     },
   });
@@ -98,7 +111,11 @@ export default function Welcome() {
       });
       return;
     }
-    setUsernameStatus({ checking: true, available: null, message: "Controllo disponibilità..." });
+    setUsernameStatus({
+      checking: true,
+      available: null,
+      message: "Controllo disponibilità...",
+    });
     try {
       const result = await checkUsernameMutation.mutateAsync(username);
       setUsernameStatus({
@@ -135,14 +152,24 @@ export default function Welcome() {
 
   const registerForm = useForm<InsertUser>({
     resolver: zodResolver(insertUserSchema),
-    defaultValues: { nome: "", cognome: "", email: "", username: "", password: "" },
+    defaultValues: {
+      nome: "",
+      cognome: "",
+      email: "",
+      username: "",
+      password: "",
+    },
     mode: "onChange",
   });
 
   // Reinvia verifica
   const resendVerificationMutation = useMutation({
     mutationFn: async (email: string) => {
-      const response = await apiRequest("POST", "/api/auth/resend-verification", { email });
+      const response = await apiRequest(
+        "POST",
+        "/api/auth/resend-verification",
+        { email },
+      );
       return response.json();
     },
     onSuccess: () => {
@@ -156,7 +183,8 @@ export default function Welcome() {
     onError: (error: any) => {
       toast({
         title: "Errore",
-        description: error.message || "Non è stato possibile reinviare la mail.",
+        description:
+          error.message || "Non è stato possibile reinviare la mail.",
         variant: "destructive",
       });
     },
@@ -174,7 +202,12 @@ export default function Welcome() {
           <CardContent className="p-6">
             {/* Header: SOLO logo (niente titoli testuali) */}
             <div className="flex justify-center mb-4">
-              <img src={buysLogoColorPath} alt="BUYS Logo" className="h-20 w-auto" draggable={false} />
+              <img
+                src={buysLogoColorPath}
+                alt="BUYS Logo"
+                className="h-20 w-auto"
+                draggable={false}
+              />
             </div>
 
             {/* Toggle Accedi/Registrati con icone evidenziate quando attive */}
@@ -210,13 +243,18 @@ export default function Welcome() {
             {/* Form */}
             {isLogin ? (
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onLogin)} className="space-y-4">
+                <form
+                  onSubmit={form.handleSubmit(onLogin)}
+                  className="space-y-4"
+                >
                   <FormField
                     control={form.control}
                     name="emailOrUsername"
                     render={({ field }) => (
                       <FormItem>
-                        <Label htmlFor="emailOrUsername">Email o Username</Label>
+                        <Label htmlFor="emailOrUsername">
+                          Email o Username
+                        </Label>
                         <FormControl>
                           <Input
                             id="emailOrUsername"
@@ -241,7 +279,11 @@ export default function Welcome() {
                       <FormItem>
                         <Label htmlFor="password">Password</Label>
                         <FormControl>
-                          <PasswordInput id="password" placeholder="La tua password" {...field} />
+                          <PasswordInput
+                            id="password"
+                            placeholder="La tua password"
+                            {...field}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -254,7 +296,11 @@ export default function Welcome() {
                       name="rememberMe"
                       render={({ field }) => (
                         <div className="flex items-center space-x-2">
-                          <Checkbox id="rememberMe" checked={field.value} onCheckedChange={field.onChange} />
+                          <Checkbox
+                            id="rememberMe"
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
                           <label
                             htmlFor="rememberMe"
                             className="text-sm text-gray-600 leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
@@ -277,17 +323,23 @@ export default function Welcome() {
                       <div className="flex items-start">
                         <AlertCircle className="h-4 w-4 text-orange-600 mt-0.5 mr-2 flex-shrink-0" />
                         <div className="flex-1">
-                          <p className="text-sm text-orange-800 mb-3">{verificationMessage}</p>
+                          <p className="text-sm text-orange-800 mb-3">
+                            {verificationMessage}
+                          </p>
                           {resendEmail && (
                             <Button
                               type="button"
                               variant="outline"
                               size="sm"
                               className="w-full border-orange-300 text-orange-700 hover:bg-orange-100"
-                              onClick={() => resendVerificationMutation.mutate(resendEmail)}
+                              onClick={() =>
+                                resendVerificationMutation.mutate(resendEmail)
+                              }
                               disabled={resendVerificationMutation.isPending}
                             >
-                              {resendVerificationMutation.isPending ? "Invio in corso..." : "Reinvia Email di Verifica"}
+                              {resendVerificationMutation.isPending
+                                ? "Invio in corso..."
+                                : "Reinvia Email di Verifica"}
                             </Button>
                           )}
                         </div>
@@ -295,7 +347,11 @@ export default function Welcome() {
                     </div>
                   )}
 
-                  <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={form.formState.isSubmitting}
+                  >
                     <LogIn className="mr-2 h-4 w-4" />
                     Accedi
                   </Button>
@@ -304,7 +360,10 @@ export default function Welcome() {
             ) : (
               <Form {...registerForm}>
                 {/* Registrazione “no frills” + z-index alto */}
-                <form onSubmit={registerForm.handleSubmit(onRegister)} className="space-y-4 relative z-[99999]">
+                <form
+                  onSubmit={registerForm.handleSubmit(onRegister)}
+                  className="space-y-4 relative z-[99999]"
+                >
                   <div className="grid grid-cols-2 gap-4">
                     <FormField
                       control={registerForm.control}
@@ -396,14 +455,17 @@ export default function Welcome() {
                                 setUsernameStatus({
                                   checking: false,
                                   available: false,
-                                  message: "Username deve essere di almeno 3 caratteri",
+                                  message:
+                                    "Username deve essere di almeno 3 caratteri",
                                 });
                               }
                             }}
                           />
                         </FormControl>
                         {usernameStatus.message && (
-                          <p className={`text-sm ${usernameStatus.available ? "text-green-600" : "text-red-600"}`}>
+                          <p
+                            className={`text-sm ${usernameStatus.available ? "text-green-600" : "text-red-600"}`}
+                          >
                             {usernameStatus.message}
                           </p>
                         )}
@@ -434,7 +496,10 @@ export default function Welcome() {
                   <Button
                     type="submit"
                     className="w-full bg-green-600 hover:bg-green-700"
-                    disabled={registerForm.formState.isSubmitting || !usernameStatus.available}
+                    disabled={
+                      registerForm.formState.isSubmitting ||
+                      !usernameStatus.available
+                    }
                   >
                     <UserPlus className="mr-2 h-4 w-4" />
                     Registrati
@@ -442,7 +507,11 @@ export default function Welcome() {
 
                   <div className="text-center">
                     <p className="text-sm text-gray-600">Hai già un account?</p>
-                    <Button variant="link" className="p-0" onClick={() => setIsLogin(true)}>
+                    <Button
+                      variant="link"
+                      className="p-0"
+                      onClick={() => setIsLogin(true)}
+                    >
                       Accedi
                     </Button>
                   </div>
