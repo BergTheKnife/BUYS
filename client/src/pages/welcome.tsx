@@ -212,7 +212,10 @@ export default function Welcome() {
               <div className="inline-flex rounded-xl bg-gray-100 p-1 shadow-inner">
                 <Button
                   aria-pressed={isLogin}
-                  onClick={() => setIsLogin(true)}
+                  onClick={() => {
+                    setIsLogin(true);
+                    registerForm.reset(); // Reset registration form when switching to login
+                  }}
                   variant="ghost"
                   className={`text-sm px-4 py-2 rounded-lg transition-all
                     ${isLogin ? "bg-primary text-white shadow-md" : "text-gray-700 hover:bg-white"}
@@ -225,7 +228,10 @@ export default function Welcome() {
 
                 <Button
                   aria-pressed={!isLogin}
-                  onClick={() => setIsLogin(false)}
+                  onClick={() => {
+                    setIsLogin(false);
+                    form.reset(); // Reset login form when switching to registration
+                  }}
                   variant="ghost"
                   className={`text-sm px-4 py-2 rounded-lg transition-all
                     ${!isLogin ? "bg-primary text-white shadow-md" : "text-gray-700 hover:bg-white"}
@@ -418,6 +424,7 @@ export default function Welcome() {
                             id="userEmail"
                             type="email"
                             placeholder="email@esempio.com"
+                            data-testid="input-email"
                             {...field}
                           />
                         </FormControl>
