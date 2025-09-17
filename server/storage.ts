@@ -855,7 +855,7 @@ export class DatabaseStorage implements IStorage {
       const costoPartial = quantitaUsata * costoUnitario;
       const ricavoPartial = quantitaUsata * prezzoVendita;
       const marginePartial = ricavoPartial - costoPartial;
-      
+
       costoTotale += costoPartial;
 
       batchesUsed.push({
@@ -924,10 +924,10 @@ export class DatabaseStorage implements IStorage {
       ));
 
     let balance = 0;
-    
+
     for (const movement of movements) {
       const amount = Number(movement.importo);
-      
+
       if (movement.azione === "Riunisci fondi" || movement.azione === "DEPOSITO_CASSA") {
         balance += amount; // Entrate nella cassa reinvestimento
       } else if (movement.azione === "PRELIEVO_CASSA") {
@@ -1114,15 +1114,15 @@ export class DatabaseStorage implements IStorage {
     if ((updates.quantita && updates.quantita !== oldQuantity) || 
         (updates.inventarioId && updates.inventarioId !== oldInventarioId) ||
         (updates.prezzoVendita && updates.prezzoVendita !== existingSale.prezzoVendita)) {
-      
+
       const finalInventarioId = updates.inventarioId || oldInventarioId;
       const finalQuantity = updates.quantita || oldQuantity;
       const finalPrice = Number(updates.prezzoVendita || existingSale.prezzoVendita);
-      
+
       // Calculate FIFO margin and update batches for the new sale parameters
       const { margine, batchesUsed } = await this.calculateFIFOMargin(finalInventarioId, finalQuantity, finalPrice);
       await this.updateBatchesAfterSale(batchesUsed);
-      
+
       updates.margine = margine.toString();
     }
 
@@ -1199,7 +1199,7 @@ export class DatabaseStorage implements IStorage {
   // Helper method to restore batches when a sale is deleted
   async restoreBatchesAfterSaleDelete(inventarioId: string, quantitaToRestore: number, costoTotale: number) {
     const { inventoryBatches } = await import('../migrations/schema');
-    
+
     // Get all batches for this inventory item, ordered by date (FIFO)
     const batches = await db
       .select()
@@ -1209,18 +1209,18 @@ export class DatabaseStorage implements IStorage {
 
     // Calculate average cost of the deleted sale
     const costoMedio = costoTotale / quantitaToRestore;
-    
+
     let rimanenteRestore = quantitaToRestore;
-    
+
     // Try to restore to batches with similar cost (FIFO order)
     for (const batch of batches) {
       if (rimanenteRestore <= 0) break;
-      
+
       const batchCost = Number(batch.costo);
       // Only restore to batches with similar cost (within 10% tolerance)
       if (Math.abs(batchCost - costoMedio) / costoMedio <= 0.1) {
         const quantitaToRestoreToBatch = Math.min(rimanenteRestore, batch.quantitaIniziale - batch.quantitaRimanente);
-        
+
         if (quantitaToRestoreToBatch > 0) {
           await db
             .update(inventoryBatches)
@@ -1228,12 +1228,12 @@ export class DatabaseStorage implements IStorage {
               quantitaRimanente: sql`${inventoryBatches.quantitaRimanente} + ${quantitaToRestoreToBatch}`
             })
             .where(eq(inventoryBatches.id, batch.id));
-          
+
           rimanenteRestore -= quantitaToRestoreToBatch;
         }
       }
     }
-    
+
   }
 
   // Updated expenses methods with activity context
@@ -1245,7 +1245,7 @@ export class DatabaseStorage implements IStorage {
     // Verifica se ci sono fondi nella cassa reinvestimento per coprire la spesa
     const cassaBalance = await this.getCassaReinvestimentoBalance(expenseData.activityId);
     const expenseAmount = Number(expenseData.importo);
-    
+
     // Se l'importo è positivo (uscita) e ci sono fondi sufficienti nella cassa reinvestimento
     if (expenseAmount > 0 && cassaBalance >= expenseAmount) {
       // Utilizza la cassa reinvestimento per coprire la spesa
@@ -1256,7 +1256,7 @@ export class DatabaseStorage implements IStorage {
         expenseData.userId
       );
     }
-    
+
     // Crea la spesa per registrare il movimento
     const [newExpense] = await db
       .insert(spese)
@@ -1307,7 +1307,7 @@ export class DatabaseStorage implements IStorage {
     if (updates.importo && updates.importo !== originalExpense.importo) {
       const newAmount = Number(updates.importo);
       const cassaBalance = await this.getCassaReinvestimentoBalance(activityId);
-      
+
       if (newAmount > 0 && cassaBalance >= newAmount) {
         await this.updateCassaReinvestimento(
           activityId,

@@ -56,7 +56,7 @@ export default function Shipping() {
   }>({ key: null, direction: 'asc' });
   const [selectedSale, setSelectedSale] = useState<Vendita | null>(null);
   const [showStatusDialog, setShowStatusDialog] = useState(false);
-  const [newStatus, setNewStatus] = useState<"da_spedire" | "consegnato">("da_spedire");
+  const [newStatus, setNewStatus] = useState<"da_spedire" | "spedito">("da_spedire");
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -80,7 +80,7 @@ export default function Shipping() {
   const getStatusVariant = (status: string) => {
     switch (status) {
       case "da_spedire": return "secondary";
-      case "consegnato": return "default";
+      case "spedito": return "default";
       default: return "secondary";
     }
   };
@@ -88,7 +88,7 @@ export default function Shipping() {
   const getStatusLabel = (status: string) => {
     switch (status) {
       case "da_spedire": return "Da Spedire";
-      case "consegnato": return "Consegnato";
+      case "spedito": return "Spedito";
       default: return "Da Spedire";
     }
   };
@@ -96,7 +96,7 @@ export default function Shipping() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "da_spedire": return <Clock className="h-4 w-4" />;
-      case "consegnato": return <CheckCircle className="h-4 w-4" />;
+      case "spedito": return <CheckCircle className="h-4 w-4" />;
       default: return <Clock className="h-4 w-4" />;
     }
   };
@@ -142,7 +142,7 @@ export default function Shipping() {
       // Filtro stato spedizione
       if (filters.stato && filters.stato !== "tutti") {
         const speditoConsegnato = (sale as ShippingItem).spedizione?.speditoConsegnato || 0;
-        const saleStatus = speditoConsegnato === 1 ? "consegnato" : "da_spedire";
+        const saleStatus = speditoConsegnato === 1 ? "spedito" : "da_spedire";
         if (saleStatus !== filters.stato) {
           return false;
         }
@@ -202,10 +202,9 @@ export default function Shipping() {
   // Update shipping status mutation
   const updateStatusMutation = useMutation({
     mutationFn: async ({ saleId, status }: { saleId: string, status: string }) => {
-      const speditoConsegnato = status === "consegnato" ? 1 : 0;
+      const speditoConsegnato = status === "spedito" ? 1 : 0;
       const response = await apiRequest("PUT", `/api/spedizioni/${saleId}`, {
         speditoConsegnato,
-        dataSpedizione: speditoConsegnato === 1 ? new Date().toISOString() : null,
       });
       return response.json();
     },
@@ -238,7 +237,7 @@ export default function Shipping() {
 
   // Calculate stats
   const daSpedire = filteredAndSortedSales.filter(sale => !sale.spedizione || sale.spedizione.speditoConsegnato === 0).length;
-  const consegnati = filteredAndSortedSales.filter(sale => sale.spedizione && sale.spedizione.speditoConsegnato === 1).length;
+  const spediti = filteredAndSortedSales.filter(sale => sale.spedizione && sale.spedizione.speditoConsegnato === 1).length;
 
   if (isLoading) {
     return (
@@ -284,8 +283,8 @@ export default function Shipping() {
           <Card>
             <CardContent className="p-6">
               <div className="text-center">
-                <p className="text-sm font-medium text-muted-foreground">Consegnati</p>
-                <p className="text-2xl font-bold text-green-600">{consegnati}</p>
+                <p className="text-sm font-medium text-muted-foreground">Spediti</p>
+                <p className="text-2xl font-bold text-green-600">{spediti}</p>
               </div>
             </CardContent>
           </Card>
@@ -328,7 +327,7 @@ export default function Shipping() {
                   <SelectContent>
                     <SelectItem value="tutti">Tutti</SelectItem>
                     <SelectItem value="da_spedire">Da Spedire</SelectItem>
-                    <SelectItem value="consegnato">Consegnato</SelectItem>
+                    <SelectItem value="spedito">Spedito</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -434,7 +433,7 @@ export default function Shipping() {
                   <TableBody>
                     {filteredAndSortedSales.map((sale: ShippingItem) => {
                       const speditoConsegnato = sale.spedizione?.speditoConsegnato || 0;
-                      const status = speditoConsegnato === 1 ? "consegnato" : "da_spedire";
+                      const status = speditoConsegnato === 1 ? "spedito" : "da_spedire";
                       return (
                         <TableRow key={sale.id}>
                           <TableCell>{formatDate(sale.data.toString())}</TableCell>
@@ -463,7 +462,7 @@ export default function Shipping() {
                               variant="outline"
                               onClick={() => {
                                 setSelectedSale(sale);
-                                setNewStatus(status === "da_spedire" ? "consegnato" : "da_spedire");
+                                setNewStatus(status === "da_spedire" ? "spedito" : "da_spedire");
                                 setShowStatusDialog(true);
                               }}
                               data-testid={`button-update-status-${sale.id}`}
@@ -502,13 +501,13 @@ export default function Shipping() {
                 
                 <div className="space-y-2">
                   <Label>Nuovo Stato</Label>
-                  <Select value={newStatus} onValueChange={(value) => setNewStatus(value as "da_spedire" | "consegnato")}>
+                  <Select value={newStatus} onValueChange={(value) => setNewStatus(value as "da_spedire" | "spedito")}>
                     <SelectTrigger data-testid="select-new-status">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="da_spedire">Da Spedire</SelectItem>
-                      <SelectItem value="consegnato">Consegnato</SelectItem>
+                      <SelectItem value="spedito">Spedito</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

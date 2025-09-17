@@ -2367,9 +2367,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put('/api/spedizioni/:id', requireActivity, async (req, res) => {
+  app.put('/api/spedizioni/:venditaId', requireActivity, async (req, res) => {
     try {
-      const { id } = req.params;
+      const { venditaId } = req.params;
       const { speditoConsegnato } = req.body;
       
       // Validate input
@@ -2377,7 +2377,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "speditoConsegnato deve essere 0 o 1" });
       }
       
-      const updatedSpedizione = await storage.updateSpedizioneStatus(id, req.session.activityId!, {
+      const updatedSpedizione = await storage.updateSpedizioneStatus(venditaId, req.session.activityId!, {
         speditoConsegnato
       });
       

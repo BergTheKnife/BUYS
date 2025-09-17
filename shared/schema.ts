@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, decimal, integer, timestamp, uuid, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, decimal, integer, timestamp, uuid, index, numeric } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -144,7 +144,7 @@ export const financialHistory = pgTable("financial_history", {
   descrizione: text("descrizione").notNull(), // Descrizione dell'azione
   importo: decimal("importo", { precision: 10, scale: 2 }), // Importo coinvolto (opzionale)
   dettagli: text("dettagli"), // JSON stringificato con dettagli aggiuntivi
-  data: timestamp("data").notNull().defaultNow(),
+  data: timestamp("data").defaultNow(),
 });
 
 // Spedizioni e Consegne table - ogni vendita genera automaticamente una spedizione
@@ -159,7 +159,7 @@ export const spedizioni = pgTable("spedizioni", {
   quantita: integer("quantita").notNull().default(1),
   vendutoA: text("venduto_a"),
   // Stato spedizione
-  speditoConsegnato: integer("spedito_consegnato").default(0), // 0 = in attesa, 1 = completato
+  speditoConsegnato: integer("spedito_consegnato").default(0), // 0 = da spedire, 1 = spedito
   dataSpedizione: timestamp("data_spedizione"), // Solo se spedito/consegnato
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
