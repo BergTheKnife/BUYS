@@ -122,7 +122,8 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
 
     const formData = new FormData();
     formData.append("nomeArticolo", data.nomeArticolo);
-    if (data.taglia) formData.append("taglia", data.taglia);
+    const taglia = data.taglia === "none" ? "" : (data.taglia || "");
+    formData.append("taglia", taglia);
     formData.append("costo", data.costo);
     formData.append("quantita", data.quantita.toString());
     if (data.lunghezza) formData.append("lunghezza", data.lunghezza.toString());
@@ -180,7 +181,7 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
                   <SelectValue placeholder="Seleziona taglia (opzionale)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nessuna taglia</SelectItem>
+                  <SelectItem value="none">Nessuna taglia</SelectItem>
                   <SelectItem value="XS">XS</SelectItem>
                   <SelectItem value="S">S</SelectItem>
                   <SelectItem value="M">M</SelectItem>
