@@ -192,7 +192,7 @@ export default function Welcome() {
 
   return (
     <div className="min-h-screen bg-primary flex items-center justify-center p-4 overflow-x-hidden">
-      
+
 
       <div className="w-full max-w-md min-w-0">
         <Card className="backdrop-blur-lg bg-white/95 shadow-2xl border-0 overflow-hidden">
@@ -214,11 +214,14 @@ export default function Welcome() {
                   aria-pressed={isLogin}
                   onClick={() => setIsLogin(true)}
                   variant="ghost"
-                  className={`text-sm px-4 py-2 rounded-lg transition-all
-                    ${isLogin ? "bg-primary text-white shadow-md" : "text-gray-700 hover:bg-white"}
+                  className={`text-sm px-4 py-2 rounded-lg transition-all font-medium
+                    ${isLogin 
+                      ? "!bg-blue-600 !text-white shadow-lg border-0" 
+                      : "text-gray-700 hover:bg-gray-50 active:bg-gray-100"
+                    }
                   `}
+                  style={isLogin ? { backgroundColor: '#2563eb', color: '#ffffff' } : {}}
                 >
-                  {/* l’icona eredita il colore del testo, quindi resta evidenziata quando attivo */}
                   <LogIn className="mr-2 h-4 w-4 transition-colors" />
                   Accedi
                 </Button>
@@ -227,9 +230,13 @@ export default function Welcome() {
                   aria-pressed={!isLogin}
                   onClick={() => setIsLogin(false)}
                   variant="ghost"
-                  className={`text-sm px-4 py-2 rounded-lg transition-all
-                    ${!isLogin ? "bg-primary text-white shadow-md" : "text-gray-700 hover:bg-white"}
+                  className={`text-sm px-4 py-2 rounded-lg transition-all font-medium
+                    ${!isLogin 
+                      ? "!bg-blue-600 !text-white shadow-lg border-0" 
+                      : "text-gray-700 hover:bg-gray-50 active:bg-gray-100"
+                    }
                   `}
+                  style={!isLogin ? { backgroundColor: '#2563eb', color: '#ffffff' } : {}}
                 >
                   <UserPlus className="mr-2 h-4 w-4 transition-colors" />
                   Registrati
