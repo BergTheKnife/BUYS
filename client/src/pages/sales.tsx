@@ -46,6 +46,8 @@ export default function Sales() {
     incassatoDa: "",
     incassatoSu: "",
     taglia: "",
+    vendutoA: "",
+    incassato: "tutti",
   });
   const [repeatSale, setRepeatSale] = useState<Vendita | null>(null);
   const [editingSale, setEditingSale] = useState<Vendita | null>(null);
@@ -142,7 +144,7 @@ export default function Sales() {
 
       // Filtro taglia
       if (filters.taglia && filters.taglia.trim() !== "") {
-        if (!sale.taglia.toLowerCase().includes(filters.taglia.toLowerCase().trim())) {
+        if (!sale.taglia || !sale.taglia.toLowerCase().includes(filters.taglia.toLowerCase().trim())) {
           return false;
         }
       }
@@ -169,6 +171,24 @@ export default function Sales() {
         }
       }
 
+      // Filtro venduto a
+      if (filters.vendutoA && filters.vendutoA.trim() !== "") {
+        if (!sale.vendutoA || !sale.vendutoA.toLowerCase().includes(filters.vendutoA.toLowerCase().trim())) {
+          return false;
+        }
+      }
+
+      // Filtro incassato
+      if (filters.incassato && filters.incassato !== "tutti") {
+        const isIncassato = sale.incassato === 1;
+        if (filters.incassato === "1" && !isIncassato) {
+          return false;
+        }
+        if (filters.incassato === "0" && isIncassato) {
+          return false;
+        }
+      }
+
       return true;
     })
     .sort((a, b) => {
@@ -184,7 +204,7 @@ export default function Sales() {
       }
 
       // Convert numbers for proper comparison
-      if (sortConfig.key === 'prezzoVendita' || sortConfig.key === 'margine' || sortConfig.key === 'quantita') {
+      if (sortConfig.key === 'prezzoVendita' || sortConfig.key === 'margine' || sortConfig.key === 'quantita' || sortConfig.key === 'incassato') {
         aValue = Number(aValue);
         bValue = Number(bValue);
       }
@@ -258,6 +278,8 @@ export default function Sales() {
         taglia: repeatSale.taglia,
         prezzoVendita: repeatSale.prezzoVendita,
         quantita: repeatSale.quantita,
+        vendutoA: repeatSale.vendutoA,
+        incassato: repeatSale.incassato,
         incassatoDa: repeatSale.incassatoDa,
         incassatoSu: repeatSale.incassatoSu,
         data: new Date().toISOString()
@@ -343,7 +365,7 @@ export default function Sales() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-8 gap-4">
               <div className="space-y-2">
                 <Label>Articolo</Label>
                 <Input
@@ -405,6 +427,28 @@ export default function Sales() {
                     <SelectItem value="Carta">Carta</SelectItem>
                     <SelectItem value="PayPal">PayPal</SelectItem>
                     <SelectItem value="Vinted">Vinted</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Venduto A</Label>
+                <Input
+                  placeholder="Cerca cliente..."
+                  value={filters.vendutoA}
+                  onChange={(e) => setFilters(prev => ({ ...prev, vendutoA: e.target.value }))}
+                  data-testid="input-filter-venduto-a"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Incassato</Label>
+                <Select value={filters.incassato} onValueChange={(value) => setFilters(prev => ({ ...prev, incassato: value }))}>
+                  <SelectTrigger data-testid="select-filter-incassato">
+                    <SelectValue placeholder="Tutti" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="tutti">Tutti</SelectItem>
+                    <SelectItem value="1">SI</SelectItem>
+                    <SelectItem value="0">NO</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -485,6 +529,24 @@ export default function Sales() {
                       </TableHead>
                       <TableHead>
                         <button
+                          onClick={() => handleSort('vendutoA')}
+                          className="flex items-center gap-1 hover:text-foreground"
+                        >
+                          Venduto A
+                          {getSortIcon('vendutoA')}
+                        </button>
+                      </TableHead>
+                      <TableHead>
+                        <button
+                          onClick={() => handleSort('incassato')}
+                          className="flex items-center gap-1 hover:text-foreground"
+                        >
+                          Incassato
+                          {getSortIcon('incassato')}
+                        </button>
+                      </TableHead>
+                      <TableHead>
+                        <button
                           onClick={() => handleSort('incassatoDa')}
                           className="flex items-center gap-1 hover:text-foreground"
                         >
@@ -551,11 +613,24 @@ export default function Sales() {
                           {formatCurrency(sale.prezzoVendita)}
                         </TableCell>
                         <TableCell>
+                          <Badge variant="outline" data-testid={`text-venduto-a-${sale.id}`}>
+                            {sale.vendutoA || "N/A"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={sale.incassato === 1 ? "default" : "secondary"}
+                            data-testid={`text-incassato-${sale.id}`}
+                          >
+                            {sale.incassato === 1 ? "SI" : "NO"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
                           <Badge variant="default">{sale.incassatoDa}</Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={getPaymentMethodVariant(sale.incassatoSu)}>
-                            {sale.incassatoSu}
+                          <Badge variant={getPaymentMethodVariant(sale.incassatoSu || "")}>
+                            {sale.incassatoSu || "N/A"}
                           </Badge>
                         </TableCell>
                         <TableCell className="font-semibold text-blue-600">
