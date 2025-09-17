@@ -155,7 +155,6 @@ export default function Welcome() {
     defaultValues: {
       nome: "",
       cognome: "",
-      email: "",
       username: "",
       password: "",
     },
@@ -411,27 +410,6 @@ export default function Welcome() {
                       )}
                     />
                   </div>
-
-                  {/* EMAIL – campo semplice */}
-                  <FormField
-                    control={registerForm.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <Label htmlFor="userEmail">Email</Label>
-                        <FormControl>
-                          <Input
-                            id="userEmail"
-                            type="email"
-                            placeholder="email@esempio.com"
-                            data-testid="input-email"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
 
                   <FormField
                     control={registerForm.control}
