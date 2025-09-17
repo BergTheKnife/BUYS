@@ -42,9 +42,12 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
     })),
     defaultValues: {
       nomeArticolo: "",
-      taglia: "",
+      taglia: undefined,
       costo: "0",
       quantita: 1,
+      lunghezza: undefined,
+      larghezza: undefined,
+      altezza: undefined,
     },
 
   });
@@ -53,16 +56,22 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
     if (editingItem) {
       form.reset({
         nomeArticolo: editingItem.nomeArticolo,
-        taglia: editingItem.taglia,
+        taglia: editingItem.taglia ?? undefined,
         costo: editingItem.costo.toString(),
         quantita: editingItem.quantita,
+        lunghezza: editingItem.lunghezza ?? undefined,
+        larghezza: editingItem.larghezza ?? undefined,
+        altezza: editingItem.altezza ?? undefined,
       });
     } else {
       form.reset({
         nomeArticolo: "",
-        taglia: "",
+        taglia: undefined,
         costo: "0",
         quantita: 1,
+        lunghezza: undefined,
+        larghezza: undefined,
+        altezza: undefined,
       });
     }
   }, [editingItem, form]);
@@ -114,9 +123,12 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
 
     const formData = new FormData();
     formData.append("nomeArticolo", data.nomeArticolo);
-    formData.append("taglia", data.taglia);
+    if (data.taglia) formData.append("taglia", data.taglia);
     formData.append("costo", data.costo);
     formData.append("quantita", data.quantita.toString());
+    if (data.lunghezza) formData.append("lunghezza", data.lunghezza.toString());
+    if (data.larghezza) formData.append("larghezza", data.larghezza.toString());
+    if (data.altezza) formData.append("altezza", data.altezza.toString());
 
     if (data.immagine && data.immagine.length > 0) {
       formData.append("immagine", data.immagine[0]);
@@ -144,6 +156,7 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
               <Label htmlFor="nomeArticolo">Nome Articolo</Label>
               <Input
                 id="nomeArticolo"
+                data-testid="input-nome-articolo"
                 placeholder="Es. T-shirt Blu"
                 {...form.register("nomeArticolo")}
                 onChange={(e) => {
@@ -159,15 +172,16 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="taglia">Taglia</Label>
+              <Label htmlFor="taglia">Taglia (Facoltativo)</Label>
               <Select
-                value={form.watch("taglia")}
-                onValueChange={(value) => form.setValue("taglia", value)}
+                value={form.watch("taglia") || ""}
+                onValueChange={(value) => form.setValue("taglia", value === "" ? undefined : value)}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleziona taglia" />
+                <SelectTrigger data-testid="select-taglia">
+                  <SelectValue placeholder="Seleziona taglia (opzionale)" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="">Nessuna taglia</SelectItem>
                   <SelectItem value="XS">XS</SelectItem>
                   <SelectItem value="S">S</SelectItem>
                   <SelectItem value="M">M</SelectItem>
@@ -198,6 +212,7 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
               <Label htmlFor="costo">Costo (€)</Label>
               <Input
                 id="costo"
+                data-testid="input-costo"
                 type="number"
                 step="0.01"
                 placeholder="15.00"
@@ -214,6 +229,7 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
               <Label htmlFor="quantita">Quantità</Label>
               <Input
                 id="quantita"
+                data-testid="input-quantita"
                 type="number"
                 min="0"
                 placeholder="10"
@@ -222,6 +238,72 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
               {form.formState.errors.quantita && (
                 <p className="text-sm text-destructive">
                   {form.formState.errors.quantita.message}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Dimensioni fisiche */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="lunghezza">Lunghezza (cm)</Label>
+              <Input
+                id="lunghezza"
+                data-testid="input-lunghezza"
+                type="number"
+                step="0.1"
+                min="0"
+                placeholder="Es. 30.5"
+                {...form.register("lunghezza", { 
+                  valueAsNumber: true,
+                  setValueAs: (v) => v === "" || v === null || v === undefined ? undefined : Number(v)
+                })}
+              />
+              {form.formState.errors.lunghezza && (
+                <p className="text-sm text-destructive">
+                  {form.formState.errors.lunghezza.message}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="larghezza">Larghezza (cm)</Label>
+              <Input
+                id="larghezza"
+                data-testid="input-larghezza"
+                type="number"
+                step="0.1"
+                min="0"
+                placeholder="Es. 20.0"
+                {...form.register("larghezza", { 
+                  valueAsNumber: true,
+                  setValueAs: (v) => v === "" || v === null || v === undefined ? undefined : Number(v)
+                })}
+              />
+              {form.formState.errors.larghezza && (
+                <p className="text-sm text-destructive">
+                  {form.formState.errors.larghezza.message}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="altezza">Altezza (cm)</Label>
+              <Input
+                id="altezza"
+                data-testid="input-altezza"
+                type="number"
+                step="0.1"
+                min="0"
+                placeholder="Es. 1.5"
+                {...form.register("altezza", { 
+                  valueAsNumber: true,
+                  setValueAs: (v) => v === "" || v === null || v === undefined ? undefined : Number(v)
+                })}
+              />
+              {form.formState.errors.altezza && (
+                <p className="text-sm text-destructive">
+                  {form.formState.errors.altezza.message}
                 </p>
               )}
             </div>
@@ -245,6 +327,7 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
               id="immagine"
               type="file"
               accept="image/*"
+              data-testid="input-immagine"
               {...form.register("immagine")}
             />
             {form.formState.errors.immagine && (
