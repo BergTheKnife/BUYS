@@ -155,6 +155,7 @@ export default function Welcome() {
     defaultValues: {
       nome: "",
       cognome: "",
+      email: "",
       username: "",
       password: "",
     },
@@ -191,7 +192,7 @@ export default function Welcome() {
 
   return (
     <div className="min-h-screen bg-primary flex items-center justify-center p-4 overflow-x-hidden">
-
+      
 
       <div className="w-full max-w-md min-w-0">
         <Card className="backdrop-blur-lg bg-white/95 shadow-2xl border-0 overflow-hidden">
@@ -410,6 +411,27 @@ export default function Welcome() {
                       )}
                     />
                   </div>
+
+                  {/* EMAIL – campo semplice */}
+                  <FormField
+                    control={registerForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <Label htmlFor="userEmail">Email</Label>
+                        <FormControl>
+                          <Input
+                            id="userEmail"
+                            type="email"
+                            placeholder="email@esempio.com"
+                            data-testid="input-email"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
                   <FormField
                     control={registerForm.control}
