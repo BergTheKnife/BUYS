@@ -2259,6 +2259,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         inventarioId: req.body.inventarioId,
         quantita: parseInt(req.body.quantita) || 1,
         prezzoVendita: req.body.prezzoVendita,
+        vendutoA: req.body.vendutoA,
+        incassato: Number(req.body.incassato) || 0,
         incassatoDa: req.body.incassatoDa,
         incassatoSu: req.body.incassatoSu,
         data: new Date(req.body.data)
@@ -2304,6 +2306,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         inventarioId: req.body.inventarioId,
         quantita: parseInt(req.body.quantita) || 1,
         prezzoVendita: req.body.prezzoVendita,
+        vendutoA: req.body.vendutoA,
+        incassato: Number(req.body.incassato) || 0,
         incassatoDa: req.body.incassatoDa,
         incassatoSu: req.body.incassatoSu,
         data: new Date(req.body.data)
@@ -2374,8 +2378,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const updatedSpedizione = await storage.updateSpedizioneStatus(id, req.session.activityId!, {
-        speditoConsegnato,
-        dataSpedizione: speditoConsegnato === 1 ? new Date() : null
+        speditoConsegnato
       });
       
       if (!updatedSpedizione) {
