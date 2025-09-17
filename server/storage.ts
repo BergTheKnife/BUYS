@@ -187,6 +187,21 @@ export interface IStorage {
   createSpedizione(spedizione: InsertSpedizione & { userId: string; activityId: string }): Promise<Spedizione>;
   updateSpedizioneStatus(id: string, activityId: string, updates: UpdateSpedizione): Promise<Spedizione | null>;
   deleteSpedizione(id: string, activityId: string): Promise<boolean>;
+  getVenditeConSpedizioni(activityId: string): Promise<Array<{
+    id: string;
+    nomeArticolo: string;
+    taglia: string | null;
+    quantita: number;
+    prezzoVendita: string;
+    vendutoA: string | null;
+    data: Date;
+    margine: string;
+    spedizione: {
+      id: string;
+      speditoConsegnato: number;
+      dataSpedizione: Date | null;
+    };
+  }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1934,6 +1949,57 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(spedizioni.id, id), eq(spedizioni.activityId, activityId)));
 
     return (result.rowCount ?? 0) > 0;
+  }
+
+  async getVenditeConSpedizioni(activityId: string): Promise<Array<{
+    id: string;
+    nomeArticolo: string;
+    taglia: string | null;
+    quantita: number;
+    prezzoVendita: string;
+    vendutoA: string | null;
+    data: Date;
+    margine: string;
+    spedizione: {
+      id: string;
+      speditoConsegnato: number;
+      dataSpedizione: Date | null;
+    };
+  }>> {
+    const result = await db
+      .select({
+        id: vendite.id,
+        nomeArticolo: vendite.nomeArticolo,
+        taglia: vendite.taglia,
+        quantita: vendite.quantita,
+        prezzoVendita: vendite.prezzoVendita,
+        vendutoA: vendite.vendutoA,
+        data: vendite.data,
+        margine: vendite.margine,
+        spedizioneId: spedizioni.id,
+        speditoConsegnato: spedizioni.speditoConsegnato,
+        dataSpedizione: spedizioni.dataSpedizione,
+      })
+      .from(vendite)
+      .innerJoin(spedizioni, eq(vendite.id, spedizioni.venditaId))
+      .where(eq(vendite.activityId, activityId))
+      .orderBy(desc(vendite.data));
+
+    return result.map(row => ({
+      id: row.id,
+      nomeArticolo: row.nomeArticolo,
+      taglia: row.taglia,
+      quantita: row.quantita,
+      prezzoVendita: row.prezzoVendita,
+      vendutoA: row.vendutoA,
+      data: row.data,
+      margine: row.margine,
+      spedizione: {
+        id: row.spedizioneId,
+        speditoConsegnato: row.speditoConsegnato,
+        dataSpedizione: row.dataSpedizione,
+      },
+    }));
   }
 }
 

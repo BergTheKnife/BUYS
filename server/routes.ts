@@ -2352,6 +2352,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Spedizioni routes
+  app.get('/api/vendite-con-spedizioni', requireActivity, async (req, res) => {
+    try {
+      const venditeConSpedizioni = await storage.getVenditeConSpedizioni(req.session.activityId!);
+      res.json(venditeConSpedizioni);
+    } catch (error: any) {
+      console.error('Error fetching sales with shipping:', error);
+      res.status(500).json({ message: error.message || "Errore nel recupero delle vendite con spedizioni" });
+    }
+  });
+
+  app.put('/api/spedizioni/:id', requireActivity, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { speditoConsegnato } = req.body;
+      
+      // Validate input
+      if (typeof speditoConsegnato !== 'number' || (speditoConsegnato !== 0 && speditoConsegnato !== 1)) {
+        return res.status(400).json({ message: "speditoConsegnato deve essere 0 o 1" });
+      }
+      
+      const updatedSpedizione = await storage.updateSpedizioneStatus(id, req.session.activityId!, {
+        speditoConsegnato,
+        dataSpedizione: speditoConsegnato === 1 ? new Date() : null
+      });
+      
+      if (!updatedSpedizione) {
+        return res.status(404).json({ message: "Spedizione non trovata" });
+      }
+      
+      res.json(updatedSpedizione);
+    } catch (error: any) {
+      console.error('Error updating shipping status:', error);
+      res.status(400).json({ message: error.message || "Errore nell'aggiornamento dello stato spedizione" });
+    }
+  });
+
   // Expenses routes
   app.get('/api/spese', requireActivity, async (req, res) => {
     try {
