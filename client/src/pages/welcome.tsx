@@ -214,13 +214,14 @@ export default function Welcome() {
                   aria-pressed={isLogin}
                   onClick={() => setIsLogin(true)}
                   variant="ghost"
-                  className={`text-sm px-4 py-2 rounded-lg transition-all font-medium
+                  className={`text-sm px-4 py-2 rounded-lg transition-all duration-200 font-medium
                     ${isLogin 
-                      ? "!bg-blue-600 !text-white shadow-lg border-0" 
-                      : "text-gray-700 hover:bg-gray-50 active:bg-gray-100"
+                      ? "!bg-blue-600 !text-white shadow-lg border-0 transform scale-[0.98]" 
+                      : "text-gray-700 hover:bg-blue-50 hover:text-blue-700 active:bg-blue-600 active:text-white active:scale-[0.95] active:shadow-lg"
                     }
                   `}
                   style={isLogin ? { backgroundColor: '#2563eb', color: '#ffffff' } : {}}
+                  data-testid="button-accedi"
                 >
                   <LogIn className="mr-2 h-4 w-4 transition-colors" />
                   Accedi
@@ -230,13 +231,14 @@ export default function Welcome() {
                   aria-pressed={!isLogin}
                   onClick={() => setIsLogin(false)}
                   variant="ghost"
-                  className={`text-sm px-4 py-2 rounded-lg transition-all font-medium
+                  className={`text-sm px-4 py-2 rounded-lg transition-all duration-200 font-medium
                     ${!isLogin 
-                      ? "!bg-blue-600 !text-white shadow-lg border-0" 
-                      : "text-gray-700 hover:bg-gray-50 active:bg-gray-100"
+                      ? "!bg-blue-600 !text-white shadow-lg border-0 transform scale-[0.98]" 
+                      : "text-gray-700 hover:bg-blue-50 hover:text-blue-700 active:bg-blue-600 active:text-white active:scale-[0.95] active:shadow-lg"
                     }
                   `}
                   style={!isLogin ? { backgroundColor: '#2563eb', color: '#ffffff' } : {}}
+                  data-testid="button-registrati"
                 >
                   <UserPlus className="mr-2 h-4 w-4 transition-colors" />
                   Registrati
