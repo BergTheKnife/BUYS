@@ -312,6 +312,7 @@ export const insertUserSchema = createInsertSchema(users, {
 export const loginUserSchema = z.object({
   emailOrUsername: z.string().min(1, "Email o username richiesto"),
   password: z.string().min(1, "Password richiesta"),
+  rememberMe: z.boolean().optional(),
 });
 
 export const updateProfileSchema = z.object({

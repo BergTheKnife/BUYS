@@ -28,6 +28,7 @@ import {
 
 export default function Welcome() {
   const [isLogin, setIsLogin] = useState(true);
+  const [pressedButton, setPressedButton] = useState<"login" | "register" | null>(null);
   const [usernameStatus, setUsernameStatus] = useState<{
     checking: boolean;
     available: boolean | null;
@@ -213,14 +214,20 @@ export default function Welcome() {
                 <Button
                   aria-pressed={isLogin}
                   onClick={() => setIsLogin(true)}
+                  onPointerDown={() => setPressedButton("login")}
+                  onPointerUp={() => setPressedButton(null)}
+                  onPointerLeave={() => setPressedButton(null)}
                   variant="ghost"
-                  className={`text-sm px-4 py-2 rounded-lg transition-all duration-200 font-medium
+                  className={`text-sm px-4 py-2 rounded-lg transition-all duration-150 font-medium
                     ${isLogin 
-                      ? "!bg-blue-600 !text-white shadow-lg border-0 transform scale-[0.98]" 
-                      : "text-gray-700 hover:bg-blue-50 hover:text-blue-700 active:bg-blue-600 active:text-white active:scale-[0.95] active:shadow-lg"
+                      ? "bg-blue-600 text-white shadow-lg" 
+                      : "text-gray-700 hover:bg-blue-50 hover:text-blue-700"
+                    }
+                    ${pressedButton === "login" 
+                      ? "!bg-blue-600 !text-white scale-95 shadow-lg" 
+                      : ""
                     }
                   `}
-                  style={isLogin ? { backgroundColor: '#2563eb', color: '#ffffff' } : {}}
                   data-testid="button-accedi"
                 >
                   <LogIn className="mr-2 h-4 w-4 transition-colors" />
@@ -230,14 +237,20 @@ export default function Welcome() {
                 <Button
                   aria-pressed={!isLogin}
                   onClick={() => setIsLogin(false)}
+                  onPointerDown={() => setPressedButton("register")}
+                  onPointerUp={() => setPressedButton(null)}
+                  onPointerLeave={() => setPressedButton(null)}
                   variant="ghost"
-                  className={`text-sm px-4 py-2 rounded-lg transition-all duration-200 font-medium
+                  className={`text-sm px-4 py-2 rounded-lg transition-all duration-150 font-medium
                     ${!isLogin 
-                      ? "!bg-blue-600 !text-white shadow-lg border-0 transform scale-[0.98]" 
-                      : "text-gray-700 hover:bg-blue-50 hover:text-blue-700 active:bg-blue-600 active:text-white active:scale-[0.95] active:shadow-lg"
+                      ? "bg-blue-600 text-white shadow-lg" 
+                      : "text-gray-700 hover:bg-blue-50 hover:text-blue-700"
+                    }
+                    ${pressedButton === "register" 
+                      ? "!bg-blue-600 !text-white scale-95 shadow-lg" 
+                      : ""
                     }
                   `}
-                  style={!isLogin ? { backgroundColor: '#2563eb', color: '#ffffff' } : {}}
                   data-testid="button-registrati"
                 >
                   <UserPlus className="mr-2 h-4 w-4 transition-colors" />
