@@ -83,6 +83,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
       quantita: 1,
       prezzoVendita: "0",
       vendutoA: undefined,
+      incassato: 0,
       incassatoDa: "",
       incassatoSu: "",
       data: new Date().toISOString().split('T')[0],
@@ -97,6 +98,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
         quantita: editingSale.quantita,
         prezzoVendita: editingSale.prezzoVendita.toString(),
         vendutoA: editingSale.vendutoA ?? undefined,
+        incassato: editingSale.incassato ?? 0,
         incassatoDa: editingSale.incassatoDa ?? undefined,
         incassatoSu: editingSale.incassatoSu ?? undefined,
         data: new Date(editingSale.data).toISOString().split('T')[0],
@@ -107,6 +109,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
         quantita: 1,
         prezzoVendita: "0",
         vendutoA: undefined,
+        incassato: 0,
         incassatoDa: "",
         incassatoSu: "",
         data: new Date().toISOString().split('T')[0],
@@ -167,6 +170,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
         quantita: data.quantita,
         prezzoVendita: data.prezzoVendita,
         vendutoA: data.vendutoA,
+        incassato: data.incassato,
         incassatoDa: data.incassatoDa,
         incassatoSu: data.incassatoSu,
         data: data.data,
@@ -189,6 +193,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
         quantita: 1,
         prezzoVendita: "0",
         vendutoA: undefined,
+        incassato: 0,
         incassatoDa: "",
         incassatoSu: "",
         data: new Date().toISOString().split('T')[0],
@@ -369,52 +374,86 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="incassatoDa">Incassato Da</Label>
+            <Label htmlFor="incassato">Incassato</Label>
             <Select 
-              value={form.watch("incassatoDa")} 
-              onValueChange={(value) => form.setValue("incassatoDa", value)}
+              value={form.watch("incassato")?.toString() || "0"} 
+              onValueChange={(value) => {
+                const numValue = parseInt(value);
+                form.setValue("incassato", numValue);
+                // Clear conditional fields when setting to NO
+                if (numValue === 0) {
+                  form.setValue("incassatoDa", "");
+                  form.setValue("incassatoSu", "");
+                }
+              }}
             >
-              <SelectTrigger data-testid="select-incassato-da">
-                <SelectValue placeholder="Seleziona persona" />
+              <SelectTrigger data-testid="select-incassato">
+                <SelectValue placeholder="Seleziona stato" />
               </SelectTrigger>
               <SelectContent>
-                {activityMembers.map((member) => (
-                  <SelectItem key={member.id} value={member.displayName}>
-                    {member.displayName}
-                  </SelectItem>
-                ))}
+                <SelectItem value="0">NO</SelectItem>
+                <SelectItem value="1">SI</SelectItem>
               </SelectContent>
             </Select>
-            {form.formState.errors.incassatoDa && (
+            {form.formState.errors.incassato && (
               <p className="text-sm text-destructive">
-                {form.formState.errors.incassatoDa.message}
+                {form.formState.errors.incassato.message}
               </p>
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="incassatoSu">Incassato Su</Label>
-            <Select 
-              value={form.watch("incassatoSu")} 
-              onValueChange={(value) => form.setValue("incassatoSu", value)}
-            >
-              <SelectTrigger data-testid="select-incassato-su">
-                <SelectValue placeholder="Seleziona metodo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Contanti">Contanti</SelectItem>
-                <SelectItem value="Carta">Carta</SelectItem>
-                <SelectItem value="Bonifico">Bonifico</SelectItem>
-                <SelectItem value="PayPal">PayPal</SelectItem>
-                <SelectItem value="Vinted">Vinted</SelectItem>
-              </SelectContent>
-            </Select>
-            {form.formState.errors.incassatoSu && (
-              <p className="text-sm text-destructive">
-                {form.formState.errors.incassatoSu.message}
-              </p>
-            )}
-          </div>
+          {/* Conditional fields - only show when incassato = 1 (SI) */}
+          {form.watch("incassato") === 1 && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="incassatoDa">Incassato Da</Label>
+                <Select 
+                  value={form.watch("incassatoDa")} 
+                  onValueChange={(value) => form.setValue("incassatoDa", value)}
+                >
+                  <SelectTrigger data-testid="select-incassato-da">
+                    <SelectValue placeholder="Seleziona persona" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activityMembers.map((member) => (
+                      <SelectItem key={member.id} value={member.displayName}>
+                        {member.displayName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {form.formState.errors.incassatoDa && (
+                  <p className="text-sm text-destructive">
+                    {form.formState.errors.incassatoDa.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="incassatoSu">Incassato Su</Label>
+                <Select 
+                  value={form.watch("incassatoSu")} 
+                  onValueChange={(value) => form.setValue("incassatoSu", value)}
+                >
+                  <SelectTrigger data-testid="select-incassato-su">
+                    <SelectValue placeholder="Seleziona metodo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Contanti">Contanti</SelectItem>
+                    <SelectItem value="Carta">Carta</SelectItem>
+                    <SelectItem value="Bonifico">Bonifico</SelectItem>
+                    <SelectItem value="PayPal">PayPal</SelectItem>
+                    <SelectItem value="Vinted">Vinted</SelectItem>
+                  </SelectContent>
+                </Select>
+                {form.formState.errors.incassatoSu && (
+                  <p className="text-sm text-destructive">
+                    {form.formState.errors.incassatoSu.message}
+                  </p>
+                )}
+              </div>
+            </>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="data">Data</Label>
