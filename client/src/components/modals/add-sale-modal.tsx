@@ -82,6 +82,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
       inventarioId: "",
       quantita: 1,
       prezzoVendita: "0",
+      vendutoA: undefined,
       incassatoDa: "",
       incassatoSu: "",
       data: new Date().toISOString().split('T')[0],
@@ -95,8 +96,9 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
         inventarioId: editingSale.inventarioId,
         quantita: editingSale.quantita,
         prezzoVendita: editingSale.prezzoVendita.toString(),
-        incassatoDa: editingSale.incassatoDa,
-        incassatoSu: editingSale.incassatoSu,
+        vendutoA: editingSale.vendutoA ?? undefined,
+        incassatoDa: editingSale.incassatoDa ?? undefined,
+        incassatoSu: editingSale.incassatoSu ?? undefined,
         data: new Date(editingSale.data).toISOString().split('T')[0],
       });
     } else {
@@ -104,6 +106,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
         inventarioId: "",
         quantita: 1,
         prezzoVendita: "0",
+        vendutoA: undefined,
         incassatoDa: "",
         incassatoSu: "",
         data: new Date().toISOString().split('T')[0],
@@ -163,6 +166,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
         inventarioId: data.inventarioId,
         quantita: data.quantita,
         prezzoVendita: data.prezzoVendita,
+        vendutoA: data.vendutoA,
         incassatoDa: data.incassatoDa,
         incassatoSu: data.incassatoSu,
         data: data.data,
@@ -184,6 +188,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
         inventarioId: "",
         quantita: 1,
         prezzoVendita: "0",
+        vendutoA: undefined,
         incassatoDa: "",
         incassatoSu: "",
         data: new Date().toISOString().split('T')[0],
@@ -224,7 +229,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
               value={form.watch("inventarioId")} 
               onValueChange={(value) => form.setValue("inventarioId", value)}
             >
-              <SelectTrigger>
+              <SelectTrigger data-testid="select-articolo">
                 <SelectValue placeholder="Seleziona articolo" />
               </SelectTrigger>
               <SelectContent>
@@ -259,6 +264,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
             <Label htmlFor="quantita">Quantità Venduta</Label>
             <Input
               id="quantita"
+              data-testid="input-quantita-venduta"
               type="number"
               min="1"
               max={selectedItem?.quantita || 1}
@@ -275,6 +281,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
             <Label htmlFor="prezzoVendita">Prezzo Vendita (€)</Label>
             <Input
               id="prezzoVendita"
+              data-testid="input-prezzo-vendita"
               type="number"
               step="0.01"
               placeholder="25.00"
@@ -283,6 +290,26 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
             {form.formState.errors.prezzoVendita && (
               <p className="text-sm text-destructive">
                 {form.formState.errors.prezzoVendita.message}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="vendutoA">Venduto A (Cliente)</Label>
+            <Input
+              id="vendutoA"
+              data-testid="input-venduto-a"
+              type="text"
+              placeholder="Es. Mario Rossi, Cliente online, etc."
+              {...form.register("vendutoA")}
+              onChange={(e) => {
+                const capitalizedValue = capitalizeWords(e.target.value);
+                form.setValue("vendutoA", capitalizedValue);
+              }}
+            />
+            {form.formState.errors.vendutoA && (
+              <p className="text-sm text-destructive">
+                {form.formState.errors.vendutoA.message}
               </p>
             )}
           </div>
@@ -347,7 +374,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
               value={form.watch("incassatoDa")} 
               onValueChange={(value) => form.setValue("incassatoDa", value)}
             >
-              <SelectTrigger>
+              <SelectTrigger data-testid="select-incassato-da">
                 <SelectValue placeholder="Seleziona persona" />
               </SelectTrigger>
               <SelectContent>
@@ -371,7 +398,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
               value={form.watch("incassatoSu")} 
               onValueChange={(value) => form.setValue("incassatoSu", value)}
             >
-              <SelectTrigger>
+              <SelectTrigger data-testid="select-incassato-su">
                 <SelectValue placeholder="Seleziona metodo" />
               </SelectTrigger>
               <SelectContent>
@@ -393,6 +420,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
             <Label htmlFor="data">Data</Label>
             <Input
               id="data"
+              data-testid="input-data"
               type="date"
               {...form.register("data")}
             />
