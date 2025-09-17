@@ -37,7 +37,8 @@ import {
   Edit,
   Lock,
   Shield,
-  Wallet
+  Wallet,
+  Truck
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -56,6 +57,7 @@ const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
   { name: "Magazzino", href: "/inventario", icon: Package },
   { name: "Vendite", href: "/vendite", icon: ShoppingCart },
+  { name: "Spedizioni", href: "/spedizioni", icon: Truck },
   { name: "Spese", href: "/spese", icon: Receipt },
   { name: "Bilancio", href: "/bilancio", icon: TrendingUp },
   { name: "Gestione Finanziaria", href: "/gestione-finanziaria", icon: Wallet },
