@@ -192,7 +192,7 @@ export default function Welcome() {
 
   return (
     <div className="min-h-screen bg-primary flex items-center justify-center p-4 overflow-x-hidden">
-      
+
 
       <div className="w-full max-w-md min-w-0">
         <Card className="backdrop-blur-lg bg-white/95 shadow-2xl border-0 overflow-hidden">
