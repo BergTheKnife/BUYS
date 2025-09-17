@@ -54,13 +54,24 @@ function isValidEmail(email: string): boolean {
 }
 
 // Send verification email
-export async function sendVerificationEmail(
-  email: string,
-  nome: string,
-  cognome: string,
-  token: string,
-  baseUrlParam?: string
-): Promise<void> {
+  export async function sendVerificationEmail(
+    email: string,
+    nome: string,
+    cognome: string,
+    token: string,
+    baseUrlParam?: string
+  ): Promise<void> {
+    // ... (resto uguale)
+    const baseUrl =
+      baseUrlParam
+      ?? process.env.PUBLIC_BASE_URL
+      ?? (process.env.REPLIT_DOMAINS
+            ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+            : 'http://localhost:5000');
+
+    const verificationUrl = `${baseUrl}/api/auth/verify-email/${token}`;
+    // ... (resto uguale)
+  }
   // Validate email before sending
   if (!isValidEmail(email)) {
     console.log(`⚠️ Skipping email send to invalid/test address: ${email}`);
@@ -263,17 +274,17 @@ export async function sendPasswordResetEmail(
   token: string,
   baseUrlParam?: string
 ): Promise<void> {
-  if (!isValidEmail(email)) {
-    console.log(`⚠️ Skipping password reset email to invalid/test address: ${email}`);
-    throw new Error(`Indirizzo email non valido o di test: ${email}`);
-  }
+  // ...
   const baseUrl =
     baseUrlParam
     ?? process.env.PUBLIC_BASE_URL
     ?? (process.env.REPLIT_DOMAINS
           ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
           : 'http://localhost:5000');
+
   const resetUrl = `${baseUrl}/reset-password/${token}`;
+  // ...
+}`;
 
   const mailOptions = {
     from: {

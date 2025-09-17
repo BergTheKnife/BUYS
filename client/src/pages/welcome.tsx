@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation, Link } from "wouter";
-import { Store, User, Lock, Mail, UserPlus, LogIn, Check, X, AlertCircle } from "lucide-react";
+import { LogIn, UserPlus, AlertCircle } from "lucide-react";
 import buysLogoColorPath from "@assets/Buys colore_1754472538088.png";
 import { insertUserSchema, loginUserSchema } from "@shared/schema";
 import type { InsertUser, LoginUser } from "@shared/schema";
@@ -18,8 +18,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { capitalizeWords } from "@/lib/utils";
 import { z } from "zod";
-import { Form, FormField, FormItem, FormControl, FormLabel, FormMessage } from "@/components/ui/form";
-
+import { Form, FormField, FormItem, FormControl, FormMessage } from "@/components/ui/form";
 
 export default function Welcome() {
   const [isLogin, setIsLogin] = useState(true);
@@ -28,63 +27,50 @@ export default function Welcome() {
     available: boolean | null;
     message: string;
   }>({ checking: false, available: null, message: "" });
-  const [verificationMessage, setVerificationMessage] = useState<string>('');
-  const [resendEmail, setResendEmail] = useState<string>(''); // Store email for resend
+  const [verificationMessage, setVerificationMessage] = useState<string>("");
+  const [resendEmail, setResendEmail] = useState<string>("");
   const { user, hasActivity, login, register } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
-  // Check for verification success message from URL params
+  // Messaggio “registrazione completata”
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('verified') === 'success') {
-      const message = urlParams.get('message');
+    if (urlParams.get("verified") === "success") {
+      const message = urlParams.get("message");
       if (message) {
         toast({
           title: "Registrazione Completata",
           description: decodeURIComponent(message),
           variant: "default",
         });
-        // Clean up URL params
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     }
   }, [toast]);
 
-  // Welcome page now only handles form submission, not redirects
-  // Redirects are handled by HomeRedirect component in App.tsx
+  // Se loggato → vai avanti
+  useEffect(() => {
+    if (user) {
+      if (hasActivity) setLocation("/dashboard");
+      else setLocation("/activity-selection");
+    }
+  }, [user, hasActivity, setLocation]);
 
-  const loginSchema = z.object({
-    emailOrUsername: z.string().min(1, "Email o username richiesto"),
-    password: z.string().min(1, "Password richiesta"),
-    rememberMe: z.boolean().optional(),
-  });
-
-  const form = useForm<z.infer<typeof loginSchema>>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      emailOrUsername: "",
-      password: "",
-      rememberMe: false,
-    },
+  // ===== LOGIN =====
+  const form = useForm<z.infer<typeof loginUserSchema>>({
+    resolver: zodResolver(loginUserSchema),
+    defaultValues: { emailOrUsername: "", password: "", rememberMe: false },
     mode: "onChange",
   });
 
-  const onLogin = async (data: LoginUser & { rememberMe?: boolean }) => {
+  const onLogin = async (values: LoginUser) => {
     try {
-      await login(data);
-      toast({
-        title: "Accesso effettuato",
-        description: "Benvenuto in BUYS!",
-      });
+      await login(values);
     } catch (error: any) {
-      // Check if it's a verification error
-      if (error.message?.includes("Account non verificato")) {
-        setVerificationMessage("Il tuo account necessita di verifica email. Controlla la tua casella di posta e clicca sul link ricevuto.");
-        // Use userEmail from server response if available, fallback to emailOrUsername
-        const emailForResend = error.userEmail || data.emailOrUsername;
-        setResendEmail(emailForResend);
-        // Don't show toast for verification error - handled in UI instead
+      if (error?.code === "EMAIL_NOT_VERIFIED" && error?.email) {
+        setVerificationMessage(error.message);
+        setResendEmail(error.email);
       } else {
         toast({
           title: "Errore",
@@ -95,6 +81,7 @@ export default function Welcome() {
     }
   };
 
+  // ===== USERNAME CHECK =====
   const checkUsernameMutation = useMutation({
     mutationFn: async (username: string) => {
       const response = await apiRequest("GET", `/api/auth/check-username/${username}`);
@@ -104,95 +91,40 @@ export default function Welcome() {
 
   const checkUsernameAvailability = async (username: string) => {
     if (!username || username.length < 3) {
-      setUsernameStatus({ checking: false, available: false, message: "Username deve essere di almeno 3 caratteri" });
+      setUsernameStatus({
+        checking: false,
+        available: false,
+        message: "Username deve essere di almeno 3 caratteri",
+      });
       return;
     }
-
     setUsernameStatus({ checking: true, available: null, message: "Controllo disponibilità..." });
-
     try {
       const result = await checkUsernameMutation.mutateAsync(username);
       setUsernameStatus({
         checking: false,
-        available: result.available,
-        message: result.message
+        available: result?.available,
+        message: result?.available ? "Disponibile ✅" : "Non disponibile ❌",
       });
-    } catch (error) {
-      setUsernameStatus({ checking: false, available: false, message: "Errore nel controllo" });
+    } catch {
+      setUsernameStatus({
+        checking: false,
+        available: null,
+        message: "Errore nel controllo disponibilità",
+      });
     }
   };
 
-  const resendVerificationMutation = useMutation({
-    mutationKey: ['resend-verification'],
-    mutationFn: async (email: string) => {
-      const response = await fetch('/api/auth/resend-verification', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email })
-      });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ message: 'Errore di rete' }));
-        throw new Error(error.message);
-      }
-
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Email Inviata",
-        description: "Email di verifica inviata nuovamente. Controlla la tua casella di posta.",
-      });
-      setVerificationMessage('');
-      setResendEmail('');
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Errore",
-        description: error.message || "Errore nell'invio dell'email",
-        variant: "destructive",
-      });
-    }
-  });
-
-  const onRegister = async (data: InsertUser) => {
+  // ===== REGISTRAZIONE =====
+  const onRegister = async (values: InsertUser) => {
     try {
-      // Final username check before registration
-      if (!usernameStatus.available) {
-        toast({
-          title: "Errore",
-          description: "Username non disponibile",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Send registration data - server will handle password hashing
-      const response = await apiRequest("POST", "/api/auth/register", data);
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Errore durante la registrazione");
-      }
-      
-      const result = await response.json();
-
-      if (result.message?.includes("Controlla la tua email") || result.message?.includes("verifica")) {
-        setVerificationMessage(`Registrazione completata! Abbiamo inviato un'email di verifica a ${data.email}. Clicca sul link nella email per attivare il tuo account.`);
-        toast({
-          title: "Verifica Email Necessaria",
-          description: "Controlla la tua email per il link di verifica",
-        });
-      } else {
-        toast({
-          title: "Registrazione completata",
-          description: "Account creato con successo!",
-        });
-      }
+      await register(values);
+      setIsLogin(true);
+      toast({
+        title: "Verifica email inviata",
+        description: "Controlla la tua casella e clicca sul link di conferma.",
+      });
     } catch (error: any) {
-      console.error('Registration error:', error);
       toast({
         title: "Errore",
         description: error.message || "Errore durante la registrazione",
@@ -201,348 +133,316 @@ export default function Welcome() {
     }
   };
 
-  // Registration form hook
   const registerForm = useForm<InsertUser>({
     resolver: zodResolver(insertUserSchema),
-    defaultValues: {
-      nome: "",
-      cognome: "",
-      email: "",
-      username: "",
-      password: "",
-    },
-    mode: "onChange", // Change back to onChange for real-time validation
+    defaultValues: { nome: "", cognome: "", email: "", username: "", password: "" },
+    mode: "onChange",
   });
 
+  // Reinvia verifica
+  const resendVerificationMutation = useMutation({
+    mutationFn: async (email: string) => {
+      const response = await apiRequest("POST", "/api/auth/resend-verification", { email });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Email inviata",
+        description: "Se l’email esiste, è stata inviata una nuova verifica.",
+      });
+      setVerificationMessage("");
+      setResendEmail("");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Non è stato possibile reinviare la mail.",
+        variant: "destructive",
+      });
+    },
+  });
 
   return (
     <div className="min-h-screen bg-primary flex items-center justify-center p-4 overflow-x-hidden">
+      {/* boost per l’input email */}
+      <style>{`
+        #email { position: relative; z-index: 2147483647 !important; pointer-events: auto !important; }
+      `}</style>
+
       <div className="w-full max-w-md min-w-0">
         <Card className="backdrop-blur-lg bg-white/95 shadow-2xl border-0 overflow-hidden">
-          <CardContent className="p-6 sm:p-8">
-            <div className="text-center mb-4">
-              <div className="mb-2 flex justify-center">
-                <img
-                  src={buysLogoColorPath}
-                  alt="BUYS - Build Up Your Store"
-                  className="w-72 sm:w-80 h-auto max-w-full object-contain"
-                  style={{ maxWidth: 'calc(100vw - 6rem)' }}
-                />
-              </div>
+          <CardContent className="p-6">
+            {/* Header: SOLO logo (niente titoli testuali) */}
+            <div className="flex justify-center mb-4">
+              <img src={buysLogoColorPath} alt="BUYS Logo" className="h-20 w-auto" draggable={false} />
             </div>
 
-
-
-            {isLogin ? (
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onLogin)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="emailOrUsername"
-                  render={({ field }) => (
-                    <FormItem>
-                      <Label htmlFor="emailOrUsername">Email o Username</Label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="emailOrUsername"
-                          className="pl-10"
-                          placeholder="Inserisci email o username"
-                          {...field}
-                        />
-                      </div>
-                      {form.formState.errors.emailOrUsername && (
-                        <p className="text-sm text-destructive">
-                          {form.formState.errors.emailOrUsername.message}
-                        </p>
-                      )}
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <Label htmlFor="password">Password</Label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground z-10" />
-                        <PasswordInput
-                          id="password"
-                          className="pl-10"
-                          placeholder="Inserisci password"
-                          {...field}
-                        />
-                      </div>
-                      {form.formState.errors.password && (
-                        <p className="text-sm text-destructive">
-                          {form.formState.errors.password.message}
-                        </p>
-                      )}
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="rememberMe"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                      <FormControl>
-                        <Checkbox
-                          checked={field.value || false}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                      <div className="space-y-1 leading-none">
-                        <FormLabel className="text-sm font-normal">
-                          Ricorda le mie credenziali
-                        </FormLabel>
-                      </div>
-                    </FormItem>
-                  )}
-                />
-
-                <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-                  <LogIn className="mr-2 h-4 w-4" />
+            {/* Toggle Accedi/Registrati con icone evidenziate quando attive */}
+            <div className="flex justify-center mb-6">
+              <div className="inline-flex rounded-xl bg-gray-100 p-1 shadow-inner">
+                <Button
+                  aria-pressed={isLogin}
+                  onClick={() => setIsLogin(true)}
+                  variant="ghost"
+                  className={`text-sm px-4 py-2 rounded-lg transition-all
+                    ${isLogin ? "bg-primary text-white shadow-md" : "text-gray-700 hover:bg-white"}
+                  `}
+                >
+                  {/* l’icona eredita il colore del testo, quindi resta evidenziata quando attivo */}
+                  <LogIn className="mr-2 h-4 w-4 transition-colors" />
                   Accedi
                 </Button>
 
-                {/* Forgot password link */}
-                <div className="text-center">
-                  <Link href="/forgot-password">
-                    <Button variant="link" className="text-sm text-blue-600 hover:text-blue-800">
-                      Password dimenticata?
-                    </Button>
-                  </Link>
-                </div>
+                <Button
+                  aria-pressed={!isLogin}
+                  onClick={() => setIsLogin(false)}
+                  variant="ghost"
+                  className={`text-sm px-4 py-2 rounded-lg transition-all
+                    ${!isLogin ? "bg-primary text-white shadow-md" : "text-gray-700 hover:bg-white"}
+                  `}
+                >
+                  <UserPlus className="mr-2 h-4 w-4 transition-colors" />
+                  Registrati
+                </Button>
+              </div>
+            </div>
 
-
-                {/* Show verification message and resend button */}
-                {verificationMessage && (
-                  <div className="p-4 border border-orange-200 bg-orange-50 rounded-md">
-                    <div className="flex items-start">
-                      <AlertCircle className="h-4 w-4 text-orange-600 mt-0.5 mr-2 flex-shrink-0" />
-                      <div className="flex-1">
-                        <p className="text-sm text-orange-800 mb-3">{verificationMessage}</p>
-                        {resendEmail && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="w-full border-orange-300 text-orange-700 hover:bg-orange-100"
-                            onClick={() => resendVerificationMutation.mutate(resendEmail)}
-                            disabled={resendVerificationMutation.isPending}
-                          >
-                            {resendVerificationMutation.isPending ? (
-                              <>
-                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-orange-600 mr-2"></div>
-                                Invio in corso...
-                              </>
-                            ) : (
-                              <>
-                                <Mail className="mr-2 h-3 w-3" />
-                                Reinvia Email di Verifica
-                              </>
-                            )}
-                          </Button>
+            {/* Form */}
+            {isLogin ? (
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onLogin)} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="emailOrUsername"
+                    render={({ field }) => (
+                      <FormItem>
+                        <Label htmlFor="emailOrUsername">Email o Username</Label>
+                        <FormControl>
+                          <Input
+                            id="emailOrUsername"
+                            placeholder="Inserisci email o username"
+                            autoComplete="username"
+                            {...field}
+                          />
+                        </FormControl>
+                        {form.formState.errors.emailOrUsername && (
+                          <p className="text-sm text-destructive">
+                            {form.formState.errors.emailOrUsername.message}
+                          </p>
                         )}
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <Label htmlFor="password">Password</Label>
+                        <FormControl>
+                          <PasswordInput id="password" placeholder="La tua password" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="flex items-center justify-between">
+                    <FormField
+                      control={form.control}
+                      name="rememberMe"
+                      render={({ field }) => (
+                        <div className="flex items-center space-x-2">
+                          <Checkbox id="rememberMe" checked={field.value} onCheckedChange={field.onChange} />
+                          <label
+                            htmlFor="rememberMe"
+                            className="text-sm text-gray-600 leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                          >
+                            Ricordami
+                          </label>
+                        </div>
+                      )}
+                    />
+                    <Link href="/forgot-password">
+                      <Button type="button" variant="link" className="text-sm">
+                        Password dimenticata?
+                      </Button>
+                    </Link>
+                  </div>
+
+                  {/* Avviso verifica + reinvio */}
+                  {verificationMessage && (
+                    <div className="p-4 border border-orange-200 bg-orange-50 rounded-md">
+                      <div className="flex items-start">
+                        <AlertCircle className="h-4 w-4 text-orange-600 mt-0.5 mr-2 flex-shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-sm text-orange-800 mb-3">{verificationMessage}</p>
+                          {resendEmail && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="w-full border-orange-300 text-orange-700 hover:bg-orange-100"
+                              onClick={() => resendVerificationMutation.mutate(resendEmail)}
+                              disabled={resendVerificationMutation.isPending}
+                            >
+                              {resendVerificationMutation.isPending ? "Invio in corso..." : "Reinvia Email di Verifica"}
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                <div className="text-center">
-                  <span className="text-muted-foreground">Non hai un account? </span>
-                  <Button
-                    type="button"
-                    variant="link"
-                    className="p-0"
-                    onClick={() => setIsLogin(false)}
-                  >
-                    Registrati
+                  <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+                    <LogIn className="mr-2 h-4 w-4" />
+                    Accedi
                   </Button>
-                </div>
                 </form>
               </Form>
             ) : (
               <Form {...registerForm}>
-                <form onSubmit={registerForm.handleSubmit(onRegister)} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={registerForm.control}
-                    name="nome"
-                    render={({ field }) => (
-                      <FormItem>
-                        <Label htmlFor="nome">Nome</Label>
-                        <FormControl>
-                          <Input
-                            id="nome"
-                            placeholder="Il tuo nome"
-                            {...field}
-                            onChange={(e) => {
-                              const capitalizedValue = capitalizeWords(e.target.value);
-                              field.onChange(capitalizedValue);
-                            }}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={registerForm.control}
-                    name="cognome"
-                    render={({ field }) => (
-                      <FormItem>
-                        <Label htmlFor="cognome">Cognome</Label>
-                        <FormControl>
-                          <Input
-                            id="cognome"
-                            placeholder="Il tuo cognome"
-                            {...field}
-                            onChange={(e) => {
-                              const capitalizedValue = capitalizeWords(e.target.value);
-                              field.onChange(capitalizedValue);
-                            }}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={registerForm.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <Label htmlFor="email">Email</Label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="email"
-                          type="email"
-                          className="pl-10"
-                          placeholder="email@esempio.com"
-                          data-testid="input-email"
-                          {...field}
-                        />
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={registerForm.control}
-                  name="username"
-                  render={({ field }) => (
-                    <FormItem>
-                      <Label htmlFor="username">Username</Label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="username"
-                          className="pl-10 pr-10"
-                          placeholder="Username univoco"
-                          data-testid="input-username"
-                          value={field.value || ""}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            field.onChange(value); // Update form state first
-                            if (value.length >= 3) {
-                              checkUsernameAvailability(value);
-                            } else if (value.length > 0) {
-                              setUsernameStatus({ checking: false, available: false, message: "Username deve essere di almeno 3 caratteri" });
-                            } else {
-                              setUsernameStatus({ checking: false, available: null, message: "" });
-                            }
-                          }}
-                          onBlur={field.onBlur}
-                          name={field.name}
-                        />
-                        <div className="absolute right-3 top-3">
-                          {usernameStatus.checking && (
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                          )}
-                          {!usernameStatus.checking && usernameStatus.available === true && (
-                            <Check className="h-4 w-4 text-green-600" />
-                          )}
-                          {!usernameStatus.checking && usernameStatus.available === false && usernameStatus.message && (
-                            <X className="h-4 w-4 text-red-600" />
-                          )}
-                        </div>
-                      </div>
-                      {usernameStatus.message && (
-                        <p className={`text-sm ${usernameStatus.available ? 'text-green-600' : 'text-destructive'}`}>
-                          {usernameStatus.message}
-                        </p>
+                {/* Registrazione “no frills” + z-index alto */}
+                <form onSubmit={registerForm.handleSubmit(onRegister)} className="space-y-4 relative z-[99999]">
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={registerForm.control}
+                      name="nome"
+                      render={({ field }) => (
+                        <FormItem>
+                          <Label htmlFor="nome">Nome</Label>
+                          <FormControl>
+                            <Input
+                              id="nome"
+                              placeholder="Il tuo nome"
+                              {...field}
+                              onChange={(e) => {
+                                const v = capitalizeWords(e.target.value);
+                                field.onChange(v);
+                              }}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
                       )}
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                    />
+                    <FormField
+                      control={registerForm.control}
+                      name="cognome"
+                      render={({ field }) => (
+                        <FormItem>
+                          <Label htmlFor="cognome">Cognome</Label>
+                          <FormControl>
+                            <Input
+                              id="cognome"
+                              placeholder="Il tuo cognome"
+                              {...field}
+                              onChange={(e) => {
+                                const v = capitalizeWords(e.target.value);
+                                field.onChange(v);
+                              }}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
 
-                <FormField
-                  control={registerForm.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <Label htmlFor="regPassword">Password</Label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground z-10" />
-                        <PasswordInput
-                          id="regPassword"
-                          className="pl-10"
-                          placeholder="Password sicura"
-                          showPasswordHint={true}
-                          {...field}
-                        />
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  {/* EMAIL – campo “protetto” */}
+                  <FormField
+                    control={registerForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <Label htmlFor="email">Email</Label>
+                        <FormControl>
+                          <Input
+                            id="email"
+                            type="email"
+                            autoComplete="email"
+                            className="relative z-[2147483647]"
+                            placeholder="email@esempio.com"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <Button
-                  type="submit"
-                  className="w-full bg-green-600 hover:bg-green-700"
-                  disabled={
-                    registerForm.formState.isSubmitting || 
-                    !usernameStatus.available ||
-                    usernameStatus.checking ||
-                    !registerForm.formState.isValid
-                  }
-                >
-                  {registerForm.formState.isSubmitting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Registrazione...
-                    </>
-                  ) : (
-                    <>
-                      <UserPlus className="mr-2 h-4 w-4" />
-                      Registrati
-                    </>
-                  )}
-                </Button>
+                  <FormField
+                    control={registerForm.control}
+                    name="username"
+                    render={({ field }) => (
+                      <FormItem>
+                        <Label htmlFor="username">Username</Label>
+                        <FormControl>
+                          <Input
+                            id="username"
+                            placeholder="Username univoco"
+                            autoComplete="username"
+                            {...field}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              field.onChange(value);
+                              if (value.length >= 3) {
+                                checkUsernameAvailability(value);
+                              } else {
+                                setUsernameStatus({
+                                  checking: false,
+                                  available: false,
+                                  message: "Username deve essere di almeno 3 caratteri",
+                                });
+                              }
+                            }}
+                          />
+                        </FormControl>
+                        {usernameStatus.message && (
+                          <p className={`text-sm ${usernameStatus.available ? "text-green-600" : "text-red-600"}`}>
+                            {usernameStatus.message}
+                          </p>
+                        )}
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
+                  <FormField
+                    control={registerForm.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <Label htmlFor="regPassword">Password</Label>
+                        <FormControl>
+                          <PasswordInput
+                            id="regPassword"
+                            placeholder="Min 6 caratteri, 1 maiuscola, 1 numero"
+                            showPasswordHint
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-
-                <div className="text-center">
-                  <span className="text-muted-foreground">Hai già un account? </span>
                   <Button
-                    type="button"
-                    variant="link"
-                    className="p-0"
-                    onClick={() => setIsLogin(true)}
+                    type="submit"
+                    className="w-full bg-green-600 hover:bg-green-700"
+                    disabled={registerForm.formState.isSubmitting || !usernameStatus.available}
                   >
-                    Accedi
+                    <UserPlus className="mr-2 h-4 w-4" />
+                    Registrati
                   </Button>
-                </div>
+
+                  <div className="text-center">
+                    <p className="text-sm text-gray-600">Hai già un account?</p>
+                    <Button variant="link" className="p-0" onClick={() => setIsLogin(true)}>
+                      Accedi
+                    </Button>
+                  </div>
                 </form>
               </Form>
             )}
