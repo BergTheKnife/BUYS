@@ -80,9 +80,13 @@ export const inventario = pgTable("inventario", {
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   activityId: uuid("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
   nomeArticolo: text("nome_articolo").notNull(),
-  taglia: text("taglia").notNull(),
+  taglia: text("taglia"), // Ora facoltativo
   costo: decimal("costo", { precision: 10, scale: 2 }).notNull(),
   quantita: integer("quantita").notNull(),
+  // Campi dimensioni in cm
+  lunghezza: decimal("lunghezza", { precision: 6, scale: 2 }), // cm
+  larghezza: decimal("larghezza", { precision: 6, scale: 2 }), // cm
+  altezza: decimal("altezza", { precision: 6, scale: 2 }), // cm
   immagineUrl: text("immagine_url"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -93,11 +97,15 @@ export const vendite = pgTable("vendite", {
   activityId: uuid("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
   inventarioId: uuid("inventario_id").notNull().references(() => inventario.id),
   nomeArticolo: text("nome_articolo").notNull(),
-  taglia: text("taglia").notNull(),
+  taglia: text("taglia"),
   quantita: integer("quantita").notNull().default(1),
   prezzoVendita: decimal("prezzo_vendita", { precision: 10, scale: 2 }).notNull(),
-  incassatoDa: text("incassato_da").notNull(),
-  incassatoSu: text("incassato_su").notNull(),
+  // Nuovo campo "venduto a"
+  vendutoA: text("venduto_a"),
+  // Campo incassato SI/NO - null significa NO, not null significa SI
+  incassato: integer("incassato").default(0), // 0 = NO, 1 = SI
+  incassatoDa: text("incassato_da"), // Ora condizionale
+  incassatoSu: text("incassato_su"), // Ora condizionale
   data: timestamp("data").notNull(),
   margine: decimal("margine", { precision: 10, scale: 2 }).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
@@ -139,6 +147,26 @@ export const financialHistory = pgTable("financial_history", {
   data: timestamp("data").notNull().defaultNow(),
 });
 
+// Spedizioni e Consegne table - ogni vendita genera automaticamente una spedizione
+export const spedizioni = pgTable("spedizioni", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  activityId: uuid("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
+  venditaId: uuid("vendita_id").notNull().references(() => vendite.id, { onDelete: "cascade" }),
+  // Duplicati dalla vendita per query veloci
+  nomeArticolo: text("nome_articolo").notNull(),
+  taglia: text("taglia"),
+  quantita: integer("quantita").notNull().default(1),
+  vendutoA: text("venduto_a"),
+  // Stato spedizione
+  speditoConsegnato: integer("spedito_consegnato").default(0), // 0 = in attesa, 1 = completato
+  dataSpedizione: timestamp("data_spedizione"), // Solo se spedito/consegnato
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("spedizioni_vendita_idx").on(table.venditaId),
+  index("spedizioni_activity_idx").on(table.activityId),
+]);
+
 export const emailVerificationTokensRelations = relations(emailVerificationTokens, ({ one }) => ({
   user: one(users, {
     fields: [emailVerificationTokens.userId],
@@ -159,6 +187,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   spese: many(spese),
   fundTransfers: many(fundTransfers),
   financialHistory: many(financialHistory),
+  spedizioni: many(spedizioni),
   ownedActivities: many(activities),
   activityMemberships: many(activityUsers),
   emailVerificationTokens: many(emailVerificationTokens),
@@ -175,6 +204,7 @@ export const activitiesRelations = relations(activities, ({ one, many }) => ({
   spese: many(spese),
   fundTransfers: many(fundTransfers),
   financialHistory: many(financialHistory),
+  spedizioni: many(spedizioni),
 }));
 
 export const activityUsersRelations = relations(activityUsers, ({ one }) => ({
@@ -200,7 +230,7 @@ export const inventarioRelations = relations(inventario, ({ one, many }) => ({
   vendite: many(vendite),
 }));
 
-export const venditeRelations = relations(vendite, ({ one }) => ({
+export const venditeRelations = relations(vendite, ({ one, many }) => ({
   user: one(users, {
     fields: [vendite.userId],
     references: [users.id],
@@ -212,6 +242,10 @@ export const venditeRelations = relations(vendite, ({ one }) => ({
   inventario: one(inventario, {
     fields: [vendite.inventarioId],
     references: [inventario.id],
+  }),
+  spedizione: one(spedizioni, {
+    fields: [vendite.id],
+    references: [spedizioni.venditaId],
   }),
 }));
 
@@ -245,6 +279,21 @@ export const financialHistoryRelations = relations(financialHistory, ({ one }) =
   activity: one(activities, {
     fields: [financialHistory.activityId],
     references: [activities.id],
+  }),
+}));
+
+export const spedizioniRelations = relations(spedizioni, ({ one }) => ({
+  user: one(users, {
+    fields: [spedizioni.userId],
+    references: [users.id],
+  }),
+  activity: one(activities, {
+    fields: [spedizioni.activityId],
+    references: [activities.id],
+  }),
+  vendita: one(vendite, {
+    fields: [spedizioni.venditaId],
+    references: [vendite.id],
   }),
 }));
 
@@ -329,7 +378,12 @@ export const restockItemSchema = z.object({
   costo: z.string().optional(), // Nuovo costo opzionale
 });
 
-export const insertInventarioSchema = createInsertSchema(inventario).omit({
+export const insertInventarioSchema = createInsertSchema(inventario, {
+  taglia: z.string().optional(),
+  lunghezza: z.string().optional(),
+  larghezza: z.string().optional(),
+  altezza: z.string().optional(),
+}).omit({
   id: true,
   userId: true,
   activityId: true,  // Excluded because it's added server-side
@@ -337,7 +391,12 @@ export const insertInventarioSchema = createInsertSchema(inventario).omit({
   immagineUrl: true,
 });
 
-export const insertVenditaSchema = createInsertSchema(vendite).omit({
+export const insertVenditaSchema = createInsertSchema(vendite, {
+  vendutoA: z.string().optional(),
+  incassato: z.number().min(0).max(1).default(0),
+  incassatoDa: z.string().optional(),
+  incassatoSu: z.string().optional(),
+}).omit({
   id: true,
   userId: true,
   activityId: true,  // Excluded because it's added server-side
@@ -396,3 +455,14 @@ export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;
 
 export type ForgotPassword = z.infer<typeof forgotPasswordSchema>;
 export type ResetPassword = z.infer<typeof resetPasswordSchema>;
+
+// Nuovi tipi per spedizioni
+export type Spedizione = typeof spedizioni.$inferSelect;
+export type InsertSpedizione = typeof spedizioni.$inferInsert;
+
+// Schema per aggiornare spedizione
+export const updateSpedizioneSchema = z.object({
+  speditoConsegnato: z.number().min(0).max(1),
+});
+
+export type UpdateSpedizione = z.infer<typeof updateSpedizioneSchema>;
