@@ -216,11 +216,11 @@ export default function Welcome() {
                   variant="ghost"
                   className="text-sm px-4 py-2 rounded-lg font-medium"
                   style={{
-                    backgroundColor: isLogin ? '#2563eb !important' : 'transparent !important',
-                    color: isLogin ? '#ffffff !important' : '#6b7280 !important',
-                    boxShadow: isLogin ? '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important' : 'none !important',
-                    border: 'none !important',
-                    transition: 'none !important'
+                    backgroundColor: isLogin ? 'hsl(220, 100%, 35%)' : 'transparent',
+                    color: isLogin ? '#ffffff' : '#6b7280',
+                    boxShadow: isLogin ? '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' : 'none',
+                    border: 'none',
+                    transition: 'all 0.15s ease'
                   }}
                   data-testid="button-accedi"
                 >
@@ -237,11 +237,11 @@ export default function Welcome() {
                   variant="ghost"
                   className="text-sm px-4 py-2 rounded-lg font-medium"
                   style={{
-                    backgroundColor: !isLogin ? '#2563eb !important' : 'transparent !important',
-                    color: !isLogin ? '#ffffff !important' : '#6b7280 !important',
-                    boxShadow: !isLogin ? '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important' : 'none !important',
-                    border: 'none !important',
-                    transition: 'none !important'
+                    backgroundColor: !isLogin ? 'hsl(220, 100%, 35%)' : 'transparent',
+                    color: !isLogin ? '#ffffff' : '#6b7280',
+                    boxShadow: !isLogin ? '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' : 'none',
+                    border: 'none',
+                    transition: 'all 0.15s ease'
                   }}
                   data-testid="button-registrati"
                 >
