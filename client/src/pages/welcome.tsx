@@ -364,7 +364,10 @@ export default function Welcome() {
                             autoComplete="email"
                             className="relative z-[2147483647]"
                             placeholder="email@esempio.com"
-                            {...field}
+                            value={field.value}
+                            onChange={field.onChange}
+                            onBlur={field.onBlur}
+                            name={field.name}
                           />
                         </FormControl>
                         <FormMessage />
