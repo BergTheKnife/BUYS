@@ -42,36 +42,35 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
     })),
     defaultValues: {
       nomeArticolo: "",
-      taglia: undefined,
+      taglia: "",
       costo: "0",
       quantita: 1,
-      lunghezza: undefined,
-      larghezza: undefined,
-      altezza: undefined,
+      lunghezza: "",
+      larghezza: "",
+      altezza: "",
     },
-
   });
 
   useEffect(() => {
     if (editingItem) {
       form.reset({
         nomeArticolo: editingItem.nomeArticolo,
-        taglia: editingItem.taglia ?? undefined,
+        taglia: editingItem.taglia || "",
         costo: editingItem.costo.toString(),
         quantita: editingItem.quantita,
-        lunghezza: editingItem.lunghezza ?? undefined,
-        larghezza: editingItem.larghezza ?? undefined,
-        altezza: editingItem.altezza ?? undefined,
+        lunghezza: editingItem.lunghezza ? editingItem.lunghezza.toString() : "",
+        larghezza: editingItem.larghezza ? editingItem.larghezza.toString() : "",
+        altezza: editingItem.altezza ? editingItem.altezza.toString() : "",
       });
     } else {
       form.reset({
         nomeArticolo: "",
-        taglia: undefined,
+        taglia: "",
         costo: "0",
         quantita: 1,
-        lunghezza: undefined,
-        larghezza: undefined,
-        altezza: undefined,
+        lunghezza: "",
+        larghezza: "",
+        altezza: "",
       });
     }
   }, [editingItem, form]);
@@ -254,10 +253,7 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
                 step="0.1"
                 min="0"
                 placeholder="Es. 30.5"
-                {...form.register("lunghezza", { 
-                  valueAsNumber: true,
-                  setValueAs: (v) => v === "" || v === null || v === undefined ? undefined : Number(v)
-                })}
+                {...form.register("lunghezza")}
               />
               {form.formState.errors.lunghezza && (
                 <p className="text-sm text-destructive">
@@ -275,10 +271,7 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
                 step="0.1"
                 min="0"
                 placeholder="Es. 20.0"
-                {...form.register("larghezza", { 
-                  valueAsNumber: true,
-                  setValueAs: (v) => v === "" || v === null || v === undefined ? undefined : Number(v)
-                })}
+                {...form.register("larghezza")}
               />
               {form.formState.errors.larghezza && (
                 <p className="text-sm text-destructive">
@@ -296,10 +289,7 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
                 step="0.1"
                 min="0"
                 placeholder="Es. 1.5"
-                {...form.register("altezza", { 
-                  valueAsNumber: true,
-                  setValueAs: (v) => v === "" || v === null || v === undefined ? undefined : Number(v)
-                })}
+                {...form.register("altezza")}
               />
               {form.formState.errors.altezza && (
                 <p className="text-sm text-destructive">
