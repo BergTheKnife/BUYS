@@ -214,12 +214,9 @@ export default function Welcome() {
                   aria-pressed={isLogin}
                   onClick={() => setIsLogin(true)}
                   variant="ghost"
-                  className="text-sm px-4 py-2 rounded-lg transition-all duration-150 font-medium"
-                  style={{
-                    backgroundColor: isLogin ? '#2563eb' : 'transparent',
-                    color: isLogin ? '#ffffff' : '#374151',
-                    boxShadow: isLogin ? '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' : 'none'
-                  }}
+                  className={`text-sm px-4 py-2 rounded-lg transition-all duration-150 font-medium ${
+                    isLogin ? 'toggle-button-active' : 'toggle-button-inactive'
+                  }`}
                   data-testid="button-accedi"
                 >
                   <LogIn className="mr-2 h-4 w-4 transition-colors" />
@@ -230,12 +227,9 @@ export default function Welcome() {
                   aria-pressed={!isLogin}
                   onClick={() => setIsLogin(false)}
                   variant="ghost"
-                  className="text-sm px-4 py-2 rounded-lg transition-all duration-150 font-medium"
-                  style={{
-                    backgroundColor: !isLogin ? '#2563eb' : 'transparent',
-                    color: !isLogin ? '#ffffff' : '#374151',
-                    boxShadow: !isLogin ? '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' : 'none'
-                  }}
+                  className={`text-sm px-4 py-2 rounded-lg transition-all duration-150 font-medium ${
+                    !isLogin ? 'toggle-button-active' : 'toggle-button-inactive'
+                  }`}
                   data-testid="button-registrati"
                 >
                   <UserPlus className="mr-2 h-4 w-4 transition-colors" />

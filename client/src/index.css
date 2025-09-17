@@ -389,6 +389,58 @@
     100% { background-position: 0% 50%; }
   }
 
+  /* Custom toggle button classes with maximum priority */
+  .toggle-button-active {
+    background-color: #2563eb !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+    border: none !important;
+  }
+
+  .toggle-button-inactive {
+    background-color: transparent !important;
+    color: #374151 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Force override all hover states for toggle buttons */
+  .toggle-button-active:hover,
+  .toggle-button-active:focus,
+  .toggle-button-active:active {
+    background-color: #2563eb !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+  }
+
+  .toggle-button-inactive:hover,
+  .toggle-button-inactive:focus,
+  .toggle-button-inactive:active {
+    background-color: rgba(37, 99, 235, 0.1) !important;
+    color: #2563eb !important;
+  }
+
+  /* Touch-specific overrides */
+  @media (hover: none) {
+    .toggle-button-active,
+    .toggle-button-active:hover,
+    .toggle-button-active:focus,
+    .toggle-button-active:active {
+      background-color: #2563eb !important;
+      color: #ffffff !important;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+    }
+
+    .toggle-button-inactive,
+    .toggle-button-inactive:hover,
+    .toggle-button-inactive:focus,
+    .toggle-button-inactive:active {
+      background-color: transparent !important;
+      color: #374151 !important;
+      box-shadow: none !important;
+    }
+  }
+
   /* Checkbox forced dimensions */
   .checkbox-forced {
     max-width: 100%;
