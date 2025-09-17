@@ -214,17 +214,20 @@ export default function Welcome() {
                   aria-pressed={isLogin}
                   onClick={() => setIsLogin(true)}
                   variant="ghost"
-                  className={`text-sm px-4 py-2 rounded-lg transition-all duration-150 font-medium ${
-                    isLogin ? 'toggle-button-active' : 'toggle-button-inactive'
-                  }`}
+                  className="text-sm px-4 py-2 rounded-lg font-medium"
                   style={{
-                    backgroundColor: isLogin ? '#2563eb' : 'transparent',
-                    color: isLogin ? '#ffffff' : '#6b7280',
-                    boxShadow: isLogin ? '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' : 'none'
+                    backgroundColor: isLogin ? '#2563eb !important' : 'transparent !important',
+                    color: isLogin ? '#ffffff !important' : '#6b7280 !important',
+                    boxShadow: isLogin ? '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important' : 'none !important',
+                    border: 'none !important',
+                    transition: 'none !important'
                   }}
                   data-testid="button-accedi"
                 >
-                  <LogIn className="mr-2 h-4 w-4 transition-colors" />
+                  <LogIn 
+                    className="mr-2 h-4 w-4" 
+                    style={{ color: isLogin ? '#ffffff' : '#6b7280' }}
+                  />
                   Accedi
                 </Button>
 
@@ -232,17 +235,20 @@ export default function Welcome() {
                   aria-pressed={!isLogin}
                   onClick={() => setIsLogin(false)}
                   variant="ghost"
-                  className={`text-sm px-4 py-2 rounded-lg transition-all duration-150 font-medium ${
-                    !isLogin ? 'toggle-button-active' : 'toggle-button-inactive'
-                  }`}
+                  className="text-sm px-4 py-2 rounded-lg font-medium"
                   style={{
-                    backgroundColor: !isLogin ? '#2563eb' : 'transparent',
-                    color: !isLogin ? '#ffffff' : '#6b7280',
-                    boxShadow: !isLogin ? '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' : 'none'
+                    backgroundColor: !isLogin ? '#2563eb !important' : 'transparent !important',
+                    color: !isLogin ? '#ffffff !important' : '#6b7280 !important',
+                    boxShadow: !isLogin ? '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important' : 'none !important',
+                    border: 'none !important',
+                    transition: 'none !important'
                   }}
                   data-testid="button-registrati"
                 >
-                  <UserPlus className="mr-2 h-4 w-4 transition-colors" />
+                  <UserPlus 
+                    className="mr-2 h-4 w-4" 
+                    style={{ color: !isLogin ? '#ffffff' : '#6b7280' }}
+                  />
                   Registrati
                 </Button>
               </div>
