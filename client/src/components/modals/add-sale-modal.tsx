@@ -239,10 +239,18 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
               </SelectTrigger>
               <SelectContent>
                 {inventory
-                  .filter((item: Inventario) => item.quantita > 0)
+                  .filter((item: Inventario) => {
+                    // For editing, include the currently selected item even if quantity is 0
+                    if (editingSale && editingSale.inventarioId === item.id) {
+                      return true;
+                    }
+                    // For new sales, only show items with quantity > 0
+                    return item.quantita > 0;
+                  })
                   .map((item: Inventario) => (
                   <SelectItem key={item.id} value={item.id}>
                     {item.nomeArticolo} - {item.taglia} (Qta: {item.quantita})
+                    {editingSale && editingSale.inventarioId === item.id && item.quantita === 0 ? ' - ESAURITO' : ''}
                   </SelectItem>
                 ))}
               </SelectContent>

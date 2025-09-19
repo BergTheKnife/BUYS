@@ -90,7 +90,7 @@ export interface IStorage {
 
   // Sales methods (now with activity context)
   getSalesByActivity(activityId: string): Promise<Vendita[]>;
-  createSale(sale: InsertVendita & { userId: string; activityId: string; nomeArticolo: string; taglia: string | null; margine: string; vendutoA?: string; incassato?: number; incassatoDa?: string; incassatoSu?: string }): Promise<Vendita>;
+  createSale(sale: InsertVendita & { userId: string; activityId: string; nomeArticolo: string; taglia: string; margine: string }): Promise<Vendita>;
   getSaleById(id: string, activityId: string): Promise<Vendita | null>;
   updateSale(id: string, activityId: string, updates: Partial<InsertVendita> & { nomeArticolo?: string; taglia?: string | null; margine?: string }): Promise<Vendita | null>;
   deleteSale(id: string, activityId: string): Promise<boolean>;
@@ -1134,7 +1134,6 @@ export class DatabaseStorage implements IStorage {
         (updates as any).incassatoSu = null;
       } else if (updates.incassato === 1) {
         // If setting incassato to YES, keep existing values if not provided
-        // Business rule validation should happen at the API level
         if (updates.incassatoDa === undefined) {
           (updates as any).incassatoDa = existingSale.incassatoDa;
         }
@@ -1168,32 +1167,46 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteSale(id: string, activityId: string): Promise<boolean> {
-    // Get the sale data to restore inventory quantity
-    const [sale] = await db
+    // Get the sale to restore inventory quantity
+    const [saleToDelete] = await db
       .select()
       .from(vendite)
       .where(and(eq(vendite.id, id), eq(vendite.activityId, activityId)));
 
-    if (!sale) return false;
+    if (!saleToDelete) return false;
 
-    // Restore the inventory quantity
+    // Restore inventory quantity
     await db
       .update(inventario)
       .set({ 
-        quantita: sql`${inventario.quantita} + ${sale.quantita}`
+        quantita: sql`${inventario.quantita} + ${saleToDelete.quantita}`
       })
-      .where(eq(inventario.id, sale.inventarioId));
+      .where(eq(inventario.id, saleToDelete.inventarioId));
 
-    // Restore FIFO batches - this is a best-effort approach since we don't track which specific batches were used
-    // We'll restore to the oldest batches first (FIFO order) up to the sold quantity
-    await this.restoreBatchesAfterSaleDelete(sale.inventarioId, sale.quantita, Number(sale.margine));
+    // Restore inventory batches using FIFO logic (reverse the sale)
+    await this.restoreBatchesAfterSaleDelete(saleToDelete.inventarioId, saleToDelete.quantita, Number(saleToDelete.prezzoVendita));
+
+    // Delete related financial history if sale was incassato
+    if (saleToDelete.incassato === 1) {
+      await db.delete(financialHistory)
+        .where(and(
+          eq(financialHistory.activityId, activityId),
+          eq(financialHistory.azione, "Vendita incassata"),
+          sql`JSON_EXTRACT(${financialHistory.dettagli}, '$.venditaId') = ${id}`
+        ));
+    }
+
+    // Delete related spedizione record
+    await db
+      .delete(spedizioni)
+      .where(and(eq(spedizioni.venditaId, id), eq(spedizioni.activityId, activityId)));
 
     // Delete the sale
     const result = await db
       .delete(vendite)
       .where(and(eq(vendite.id, id), eq(vendite.activityId, activityId)));
 
-    return (result.rowCount ?? 0) > 0;
+    return result.rowCount !== null && result.rowCount > 0;
   }
 
   // Helper method to restore batches when a sale is deleted
