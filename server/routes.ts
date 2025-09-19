@@ -10,6 +10,7 @@ import bcrypt from "bcrypt";
 import { randomBytes } from "crypto";
 import { eq, sql, and } from "drizzle-orm";
 import { activities, activityUsers, vendite, spese, inventario, users, financialHistory, fundTransfers } from "@shared/schema";
+import { db } from "./db";
 import multer from "multer";
 import path from "path";
 import fs from "fs";

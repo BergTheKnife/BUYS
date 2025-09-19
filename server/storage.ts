@@ -54,7 +54,7 @@ export interface IStorage {
   createEmailVerificationToken(token: InsertEmailVerificationToken): Promise<EmailVerificationToken>;
   getEmailVerificationToken(token: string): Promise<EmailVerificationToken | undefined>;
   deleteEmailVerificationToken(token: string): Promise<boolean>;
-  deleteEmailVerificationTokensByUserId(userId: string): Promise<void>;
+  deleteEmailVerificationTokenByUserId(userId: string): Promise<void>;
   deleteExpiredTokens(): Promise<void>;
 
   // Password reset methods
