@@ -269,6 +269,11 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
               </p>
               <p className="text-sm">
                 <strong>Quantità disponibile:</strong> {selectedItem.quantita}
+                {editingSale && (
+                  <span className="text-muted-foreground ml-1">
+                    (+ {editingSale.quantita} dalla vendita corrente)
+                  </span>
+                )}
               </p>
             </div>
           )}
@@ -280,7 +285,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
               data-testid="input-quantita-venduta"
               type="number"
               min="1"
-              max={selectedItem?.quantita || 1}
+              max={editingSale ? undefined : (selectedItem?.quantita || 1)}
               {...form.register("quantita", { valueAsNumber: true })}
             />
             {form.formState.errors.quantita && (
