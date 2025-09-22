@@ -10,7 +10,6 @@ import bcrypt from "bcrypt";
 import { randomBytes } from "crypto";
 import { eq, sql, and } from "drizzle-orm";
 import { activities, activityUsers, vendite, spese, inventario, users, financialHistory, fundTransfers } from "@shared/schema";
-import { db } from "./db";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -939,18 +938,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/auth/check-username/:username', async (req, res) => {
     try {
       const { username } = req.params;
+      console.log(`🔍 [USERNAME CHECK] Checking availability for username: "${username}"`);
       
       if (!username || username.length < 3) {
+        console.log(`❌ [USERNAME CHECK] Username too short: "${username}"`);
         return res.json({ available: false, message: "Username deve essere di almeno 3 caratteri" });
       }
 
+      console.log(`🗄️ [USERNAME CHECK] Querying database for username: "${username}"`);
       const existingUser = await storage.getUserByUsername(username);
+      console.log(`📊 [USERNAME CHECK] Database result:`, existingUser ? 'User found' : 'No user found');
       
-      res.json({ 
+      const result = { 
         available: !existingUser,
         message: existingUser ? "Username già in uso" : "Username disponibile"
-      });
+      };
+      
+      console.log(`✅ [USERNAME CHECK] Sending response:`, result);
+      res.json(result);
     } catch (error: any) {
+      console.error(`❌ [USERNAME CHECK] Error checking username "${req.params.username}":`, error);
+      console.error(`❌ [USERNAME CHECK] Error details:`, {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
       res.status(500).json({ message: error.message || "Errore del server" });
     }
   });

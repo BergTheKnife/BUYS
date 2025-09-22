@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { ProtectedRoute, UserOnlyRoute } from "@/lib/auth";
 import Welcome from "@/pages/welcome";
+import Register from "@/pages/register";
 import ActivitySelection from "@/pages/activity-selection";
 import Dashboard from "@/pages/dashboard";
 import Inventory from "@/pages/inventory";
@@ -53,6 +54,7 @@ function AppContent() {
       <div className={user ? "pt-20 sm:pt-24" : ""}>
         <Switch>
           <Route path="/" component={HomeRedirect} />
+          <Route path="/registrati" component={Register} />
           <Route path="/attivita" component={ActivitySelection} />
           <Route path="/forgot-password" component={ForgotPassword} />
           <Route path="/reset-password/:token" component={ResetPassword} />

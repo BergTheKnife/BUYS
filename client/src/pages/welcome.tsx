@@ -226,6 +226,16 @@ export default function Welcome() {
                   <LogIn className="mr-2 h-4 w-4" />
                   Accedi
                 </Button>
+
+                {/* Link per la registrazione */}
+                <div className="text-center pt-4 border-t mt-4">
+                  <p className="text-sm text-gray-600">Non hai ancora un account?</p>
+                  <Link href="/registrati">
+                    <Button variant="link" className="p-0" data-testid="link-register">
+                      Registrati qui
+                    </Button>
+                  </Link>
+                </div>
               </form>
             </Form>
           </CardContent>
