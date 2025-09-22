@@ -2,14 +2,13 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
-import type { User, InsertUser, LoginUser } from "@shared/schema";
+import type { User, LoginUser } from "@shared/schema";
 
 interface AuthContextType {
   user: User | null;
   currentActivity: any | null;
   hasActivity: boolean;
   login: (credentials: LoginUser) => Promise<void>;
-  register: (userData: InsertUser) => Promise<void>;
   logout: () => Promise<void>;
   switchActivity: (activityId: string) => Promise<void>;
   isLoading: boolean;
@@ -61,16 +60,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
   });
 
-  const registerMutation = useMutation({
-    mutationFn: async (userData: InsertUser) => {
-      const response = await apiRequest("POST", "/api/auth/register", userData);
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      // Don't redirect automatically - let the ProtectedRoute handle activity selection
-    },
-  });
 
   const switchActivityMutation = useMutation({
     mutationFn: async (activityId: string) => {
@@ -139,10 +128,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     currentActivity,
     hasActivity,
     login: loginMutation.mutateAsync,
-    register: registerMutation.mutateAsync,
     logout: logoutMutation.mutateAsync,
     switchActivity: switchActivityMutation.mutateAsync,
-    isLoading: isLoading || loginMutation.isPending || registerMutation.isPending || switchActivityMutation.isPending,
+    isLoading: isLoading || loginMutation.isPending || switchActivityMutation.isPending,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
