@@ -284,6 +284,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error('Registration error:', error);
       
+      // Check if it's a database connectivity issue (Neon endpoint disabled)
+      if (error.message && error.message.includes('endpoint has been disabled')) {
+        console.log(`🚨 [REGISTRATION] Database endpoint disabled - returning graceful message`);
+        return res.status(503).json({ 
+          message: "Il servizio di registrazione è temporaneamente non disponibile. Riprova più tardi o contatta il supporto.",
+          serviceUnavailable: true
+        });
+      }
+      
       // Handle Zod validation errors
       if (error.name === 'ZodError') {
         const validationErrors = error.errors.map((err: any) => `${err.path.join('.')}: ${err.message}`).join(', ');
@@ -958,12 +967,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(result);
     } catch (error: any) {
       console.error(`❌ [USERNAME CHECK] Error checking username "${req.params.username}":`, error);
+      
+      // Check if it's a database connectivity issue (Neon endpoint disabled)
+      if (error.message && error.message.includes('endpoint has been disabled')) {
+        console.log(`🚨 [USERNAME CHECK] Database endpoint disabled - returning graceful fallback`);
+        return res.json({ 
+          available: true, 
+          message: "Verifica disponibilità temporaneamente non disponibile. Puoi procedere con la registrazione.",
+          warning: true
+        });
+      }
+      
       console.error(`❌ [USERNAME CHECK] Error details:`, {
         message: error.message,
         stack: error.stack,
         name: error.name
       });
-      res.status(500).json({ message: error.message || "Errore del server" });
+      
+      // Return a user-friendly message for any database errors
+      res.json({ 
+        available: true, 
+        message: "Verifica disponibilità temporaneamente non disponibile. Puoi procedere con la registrazione.",
+        warning: true
+      });
     }
   });
 
