@@ -143,7 +143,7 @@ export default function Inventory() {
       }
 
       // Filtro per taglia
-      if (filters.taglia && !item.taglia.toLowerCase().includes(filters.taglia.toLowerCase())) {
+      if (filters.taglia && !item.taglia?.toLowerCase().includes(filters.taglia.toLowerCase())) {
         return false;
       }
 

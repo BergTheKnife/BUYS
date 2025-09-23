@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 
 interface ImagePreviewProps {
@@ -39,6 +42,12 @@ export function ImagePreview({ src, alt, isOpen, onClose }: ImagePreviewProps) {
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-[95vw] max-h-[95vh] p-0 bg-black/90 border-none">
+        <DialogHeader className="sr-only">
+          <DialogTitle>Image Preview</DialogTitle>
+          <DialogDescription>
+            Image preview with zoom and rotation controls. Press Escape or click the X button to close.
+          </DialogDescription>
+        </DialogHeader>
         <div className="relative w-full h-full flex items-center justify-center">
           {/* Controls */}
           <div className="absolute top-4 right-4 flex gap-2 z-10">
