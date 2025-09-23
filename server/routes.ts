@@ -203,17 +203,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const userData = insertUserSchema.parse(req.body);
       
-      // Check if user already exists
-      const existingUserByEmail = await storage.getUserByEmail(userData.email);
-      if (existingUserByEmail) {
-        console.log('Email already exists:', userData.email);
-        return res.status(400).json({ message: "Email già in uso" });
-      }
+      // Check if user already exists with enhanced error handling
+      let existingUserByEmail;
+      let existingUserByUsername;
+      
+      try {
+        existingUserByEmail = await storage.getUserByEmail(userData.email);
+        if (existingUserByEmail) {
+          console.log('Email already exists:', userData.email);
+          return res.status(400).json({ message: "Email già in uso" });
+        }
 
-      const existingUserByUsername = await storage.getUserByUsername(userData.username);
-      if (existingUserByUsername) {
-        console.log('Username already exists:', userData.username);
-        return res.status(400).json({ message: "Username già in uso" });
+        existingUserByUsername = await storage.getUserByUsername(userData.username);
+        if (existingUserByUsername) {
+          console.log('Username already exists:', userData.username);
+          return res.status(400).json({ message: "Username già in uso" });
+        }
+      } catch (dbError: any) {
+        console.error('Database error during user existence check:', dbError);
+        
+        // Handle Neon database endpoint disabled
+        if (dbError.message && (
+          dbError.message.includes('endpoint has been disabled') ||
+          dbError.message.includes('compute endpoint is not available') ||
+          dbError.code === 'ECONNREFUSED'
+        )) {
+          console.log(`🚨 [REGISTRATION] Database endpoint disabled - returning activation message`);
+          return res.status(503).json({ 
+            message: "Il database è temporaneamente in standby. Riprova tra qualche secondo.",
+            serviceUnavailable: true,
+            retryable: true
+          });
+        }
+        
+        // Re-throw other database errors to be caught by main catch block
+        throw dbError;
       }
 
       // Hash password

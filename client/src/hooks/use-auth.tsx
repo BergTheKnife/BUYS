@@ -64,6 +64,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const registerMutation = useMutation({
     mutationFn: async (userData: InsertUser) => {
       const response = await apiRequest("POST", "/api/auth/register", userData);
+      if (!response.ok) {
+        const error = await response.json();
+
+        // Special handling for service unavailable (database disabled)
+        if (response.status === 503 && error.serviceUnavailable) {
+          throw new Error("Il database è temporaneamente in standby. Attendi 10-15 secondi e riprova.");
+        }
+
+        throw new Error(error.message);
+      }
       return response.json();
     },
     onSuccess: () => {

@@ -110,9 +110,20 @@ export default function Register() {
       });
       setLocation("/");
     } catch (error: any) {
+      let errorMessage = error.message || "Si è verificato un errore durante la registrazione";
+      
+      // Handle database unavailable errors
+      if (error.message && (
+        error.message.includes('endpoint has been disabled') ||
+        error.message.includes('database è temporaneamente in standby') ||
+        error.message.includes('serviceUnavailable')
+      )) {
+        errorMessage = "Il database è temporaneamente in standby. Attendi 10-15 secondi e riprova.";
+      }
+      
       toast({
         title: "Errore nella registrazione",
-        description: error.message || "Si è verificato un errore durante la registrazione",
+        description: errorMessage,
         variant: "destructive",
       });
     }
