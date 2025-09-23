@@ -85,16 +85,19 @@ export default function FinancialManagement() {
   // Fetch sales data to calculate balances
   const { data: sales = [], isLoading: salesLoading } = useQuery<Vendita[]>({
     queryKey: ["/api/vendite"],
+    staleTime: 30 * 1000, // 30 secondi invece di 5 minuti
   });
 
   // Fetch fund transfers
   const { data: fundTransfers = [], isLoading: transfersLoading } = useQuery<FundTransfer[]>({
     queryKey: ["/api/fund-transfers"],
+    staleTime: 30 * 1000, // 30 secondi invece di 5 minuti
   });
 
   // Fetch financial history
   const { data: financialHistory = [], isLoading: historyLoading } = useQuery<FinancialHistoryItem[]>({
     queryKey: ["/api/financial-history"],
+    staleTime: 30 * 1000, // 30 secondi invece di 5 minuti
   });
 
   const formatCurrency = (amount: number) => {
@@ -122,6 +125,7 @@ export default function FinancialManagement() {
   // Fetch cassa reinvestimento balance from API
   const { data: cassaBalance } = useQuery<{ balance: number }>({
     queryKey: ["/api/cassa-reinvestimento-balance"],
+    staleTime: 30 * 1000, // 30 secondi invece di 5 minuti
   });
 
   // Calculate financial summary from sales data
@@ -277,6 +281,8 @@ export default function FinancialManagement() {
         title: "Azione annullata",
         description: "L'azione finanziaria è stata annullata con successo",
       });
+      // Invalida tutte le query necessarie per aggiornamento automatico
+      queryClient.invalidateQueries({ queryKey: ["/api/vendite"] });
       queryClient.invalidateQueries({ queryKey: ["/api/fund-transfers"] });
       queryClient.invalidateQueries({ queryKey: ["/api/financial-history"] });
       queryClient.invalidateQueries({ queryKey: ["/api/cassa-reinvestimento-balance"] });
@@ -322,8 +328,11 @@ export default function FinancialManagement() {
       setShowTransferModal(false);
       setSelectedTransfers({});
       setTransferDescription("");
+      // Invalida tutte le query necessarie per aggiornamento automatico
+      queryClient.invalidateQueries({ queryKey: ["/api/vendite"] });
       queryClient.invalidateQueries({ queryKey: ["/api/fund-transfers"] });
       queryClient.invalidateQueries({ queryKey: ["/api/financial-history"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cassa-reinvestimento-balance"] });
     },
     onError: (error: Error) => {
       toast({

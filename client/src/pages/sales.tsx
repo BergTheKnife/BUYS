@@ -231,6 +231,7 @@ export default function Sales() {
       queryClient.invalidateQueries({ queryKey: ["/api/vendite"] });
       queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cassa-reinvestimento-balance"] });
       toast({
         title: "Successo",
         description: "Vendita ripetuta con successo",
@@ -256,6 +257,7 @@ export default function Sales() {
       queryClient.invalidateQueries({ queryKey: ["/api/vendite"] });
       queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cassa-reinvestimento-balance"] });
       toast({
         title: "Successo",
         description: "Vendita eliminata con successo",
@@ -582,7 +584,7 @@ export default function Sales() {
                         item.id === sale.inventarioId || 
                         (item.nomeArticolo === sale.nomeArticolo && item.taglia === sale.taglia)
                       );
-                      
+
                       return (
                         <TableRow key={sale.id}>
                           <TableCell>{formatDate(sale.data.toString())}</TableCell>

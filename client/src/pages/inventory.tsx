@@ -65,7 +65,7 @@ export default function Inventory() {
   const { currentActivity } = useAuth();
   // Hook undo/redo rimosso
   const [previewImage, setPreviewImage] = useState<{ src: string; alt: string } | null>(null);
-  
+
   // Toggle per nascondere articoli terminati
   const [hideOutOfStock, setHideOutOfStock] = useState(false);
 
@@ -119,13 +119,13 @@ export default function Inventory() {
   // Calcola le quantità vendute per ogni articolo
   const soldQuantities = useMemo(() => {
     const quantities = new Map<string, number>();
-    
+
     sales.forEach((sale: any) => {
       const key = `${sale.nomeArticolo}-${sale.taglia}`;
       const currentSold = quantities.get(key) || 0;
       quantities.set(key, currentSold + sale.quantita);
     });
-    
+
     return quantities;
   }, [sales]);
 
@@ -270,11 +270,11 @@ export default function Inventory() {
   const handleExcelDownload = async () => {
     try {
       const response = await apiRequest("GET", "/api/export/inventory/excel");
-      
+
       if (!response.ok) {
         throw new Error("Errore nel download del file Excel");
       }
-      
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -285,7 +285,7 @@ export default function Inventory() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      
+
       toast({
         title: "Successo",
         description: "File Excel scaricato con successo",
