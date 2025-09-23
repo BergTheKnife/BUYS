@@ -292,6 +292,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(emailVerificationTokens.userId, userId));
   }
 
+  async deleteEmailVerificationTokenByUserId(userId: string): Promise<void> {
+    await this.deleteEmailVerificationTokensByUserId(userId);
+  }
+
   async deleteExpiredTokens(): Promise<void> {
     await db
       .delete(emailVerificationTokens)
@@ -2071,7 +2075,7 @@ export class DatabaseStorage implements IStorage {
       margine: row.margine,
       spedizione: {
         id: row.spedizioneId,
-        speditoConsegnato: row.speditoConsegnato,
+        speditoConsegnato: row.speditoConsegnato ?? 0,
         dataSpedizione: row.dataSpedizione,
       },
     }));
