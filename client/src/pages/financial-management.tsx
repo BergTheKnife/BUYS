@@ -129,25 +129,27 @@ export default function FinancialManagement() {
     const memberBalances: { [member: string]: MemberBalance } = {};
     const accountTotals: { [account: string]: number } = {};
 
-    // Process sales to calculate initial balances
-    sales.forEach(sale => {
-      const member = sale.incassatoDa;
-      const account = sale.incassatoSu;
-      const amount = Number(sale.prezzoVendita);
+    // Process only sales that have been actually collected (incassato = 1)
+    sales
+      .filter(sale => sale.incassato === 1)
+      .forEach(sale => {
+        const member = sale.incassatoDa;
+        const account = sale.incassatoSu;
+        const amount = Number(sale.prezzoVendita);
 
-      if (!memberBalances[member]) {
-        memberBalances[member] = {
-          member,
-          accounts: {},
-          total: 0
-        };
-      }
+        if (!memberBalances[member]) {
+          memberBalances[member] = {
+            member,
+            accounts: {},
+            total: 0
+          };
+        }
 
-      memberBalances[member].accounts[account] = (memberBalances[member].accounts[account] || 0) + amount;
-      memberBalances[member].total += amount;
-      
-      accountTotals[account] = (accountTotals[account] || 0) + amount;
-    });
+        memberBalances[member].accounts[account] = (memberBalances[member].accounts[account] || 0) + amount;
+        memberBalances[member].total += amount;
+        
+        accountTotals[account] = (accountTotals[account] || 0) + amount;
+      });
 
     // Subtract fund transfers from member balances
     fundTransfers.forEach(transfer => {
