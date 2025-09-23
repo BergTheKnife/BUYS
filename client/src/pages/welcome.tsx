@@ -93,18 +93,33 @@ export default function Welcome() {
   });
 
   return (
-    <div className="min-h-screen bg-primary flex items-center justify-center p-4 overflow-x-hidden">
-      <div className="w-full max-w-md min-w-0">
-        <Card className="backdrop-blur-lg bg-white/95 shadow-2xl border-0 overflow-hidden">
-          <CardContent className="p-6">
-            {/* Header: SOLO logo */}
-            <div className="flex justify-center mb-6">
-              <img
-                src={buysLogoColorPath}
-                alt="BUYS Logo"
-                className="h-20 w-auto"
-                draggable={false}
-              />
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-purple-50 to-orange-50 flex items-center justify-center p-4 overflow-x-hidden relative">
+      {/* Animated background elements */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-gradient-to-r from-purple-400/20 to-blue-400/20 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-gradient-to-r from-orange-400/20 to-pink-400/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
+      </div>
+      
+      <div className="w-full max-w-md min-w-0 relative z-10">
+        <Card className="glass-card shadow-2xl border-0 overflow-hidden backdrop-blur-xl">
+          <CardContent className="p-8">
+            {/* Header: SOLO logo with modern styling */}
+            <div className="flex flex-col items-center mb-8">
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 to-orange-600/20 rounded-2xl blur-2xl"></div>
+                <img
+                  src={buysLogoColorPath}
+                  alt="BUYS Logo"
+                  className="h-24 w-auto relative z-10 drop-shadow-lg"
+                  draggable={false}
+                />
+              </div>
+              <h1 className="gradient-text text-2xl font-bold mt-4 text-center">
+                Build Up Your Store
+              </h1>
+              <p className="text-muted-foreground text-sm mt-2 text-center">
+                La piattaforma completa per il tuo business
+              </p>
             </div>
 
             {/* Form di login */}
@@ -117,21 +132,24 @@ export default function Welcome() {
                   control={form.control}
                   name="emailOrUsername"
                   render={({ field }) => (
-                    <FormItem>
-                      <Label htmlFor="emailOrUsername">
+                    <FormItem className="space-y-3">
+                      <Label htmlFor="emailOrUsername" className="text-sm font-semibold text-gray-700">
                         Email o Username
                       </Label>
                       <FormControl>
-                        <Input
-                          id="emailOrUsername"
-                          placeholder="Inserisci email o username"
-                          autoComplete="username"
-                          data-testid="input-email-username"
-                          {...field}
-                        />
+                        <div className="relative">
+                          <Input
+                            id="emailOrUsername"
+                            placeholder="Inserisci email o username"
+                            autoComplete="username"
+                            data-testid="input-email-username"
+                            className="h-12 pl-4 pr-4 border-2 border-gray-200 rounded-xl bg-white/80 backdrop-blur-sm transition-all duration-300 focus:border-primary/50 focus:shadow-lg focus:shadow-primary/10 hover:border-gray-300"
+                            {...field}
+                          />
+                        </div>
                       </FormControl>
                       {form.formState.errors.emailOrUsername && (
-                        <p className="text-sm text-destructive">
+                        <p className="text-sm text-destructive font-medium">
                           {form.formState.errors.emailOrUsername.message}
                         </p>
                       )}
@@ -143,15 +161,20 @@ export default function Welcome() {
                   control={form.control}
                   name="password"
                   render={({ field }) => (
-                    <FormItem>
-                      <Label htmlFor="password">Password</Label>
+                    <FormItem className="space-y-3">
+                      <Label htmlFor="password" className="text-sm font-semibold text-gray-700">
+                        Password
+                      </Label>
                       <FormControl>
-                        <PasswordInput
-                          id="password"
-                          placeholder="La tua password"
-                          data-testid="input-password"
-                          {...field}
-                        />
+                        <div className="relative">
+                          <PasswordInput
+                            id="password"
+                            placeholder="La tua password"
+                            data-testid="input-password"
+                            className="h-12 pl-4 pr-12 border-2 border-gray-200 rounded-xl bg-white/80 backdrop-blur-sm transition-all duration-300 focus:border-primary/50 focus:shadow-lg focus:shadow-primary/10 hover:border-gray-300"
+                            {...field}
+                          />
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -219,19 +242,31 @@ export default function Welcome() {
 
                 <Button
                   type="submit"
-                  className="w-full"
+                  className="w-full h-14 text-base font-semibold mt-6"
                   disabled={form.formState.isSubmitting}
                   data-testid="button-login"
+                  size="lg"
                 >
-                  <LogIn className="mr-2 h-4 w-4" />
-                  Accedi
+                  <LogIn className="mr-2 h-5 w-5" />
+                  {form.formState.isSubmitting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                      Accesso in corso...
+                    </>
+                  ) : (
+                    "Accedi"
+                  )}
                 </Button>
 
                 {/* Link per la registrazione */}
-                <div className="text-center pt-4 border-t mt-4">
-                  <p className="text-sm text-gray-600">Non hai ancora un account?</p>
+                <div className="text-center pt-6 border-t border-gray-200/50 mt-6">
+                  <p className="text-sm text-gray-600 mb-3">Non hai ancora un account?</p>
                   <Link href="/registrati">
-                    <Button variant="link" className="p-0" data-testid="link-register">
+                    <Button 
+                      variant="outline" 
+                      className="w-full h-12 font-semibold border-2 border-primary/20 hover:border-primary/40 hover:bg-primary/5" 
+                      data-testid="link-register"
+                    >
                       Registrati qui
                     </Button>
                   </Link>

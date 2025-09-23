@@ -181,33 +181,55 @@ export default function Dashboard() {
       <div>
         <div className="container mx-auto py-6 sm:py-8 lg:py-10 px-3 sm:px-4 lg:px-6 max-w-full container-with-navbar">
           {/* Welcome Header */}
-          <div className="mb-6 sm:mb-8">
-            <Card className="bg-primary text-white border-0">
-              <CardContent className="py-4 sm:py-6 lg:py-8 text-center">
-                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-2">
-                  Ciao, {user?.nome}!
-                </h1>
-                <p className="text-white/80 text-sm sm:text-base">Benvenuto in BUYS - Build Up Your Success</p>
+          <div className="mb-8 sm:mb-12">
+            <Card className="quick-stats text-white border-0 overflow-hidden">
+              <CardContent className="py-8 sm:py-12 lg:py-16 text-center relative">
+                <div className="relative z-10">
+                  <div className="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 bg-white/10 rounded-2xl mb-6">
+                    <span className="text-3xl sm:text-4xl">👋</span>
+                  </div>
+                  <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-4 tracking-tight">
+                    Ciao, {user?.nome}!
+                  </h1>
+                  <p className="text-white/90 text-base sm:text-lg font-medium max-w-md mx-auto">
+                    Benvenuto nel tuo centro di controllo aziendale
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-2 mt-6">
+                    <div className="px-3 py-1 bg-white/10 rounded-full text-sm font-medium">
+                      📊 Dashboard
+                    </div>
+                    <div className="px-3 py-1 bg-white/10 rounded-full text-sm font-medium">
+                      🚀 BUYS Pro
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
 
           {/* Stats Cards */}
-          <div className="responsive-grid mb-6 sm:mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 sm:mb-12">
             {statsCards.map((stat, index) => {
               const Icon = stat.icon;
               return (
-                <Card key={index} className="hover:shadow-lg transition-shadow">
-                  <CardContent className="p-3 sm:p-4 lg:p-6">
-                    <div className="flex items-center">
-                      <div className={`p-2 sm:p-3 rounded-lg ${stat.color} text-white mr-3 sm:mr-4 flex-shrink-0`}>
-                        <Icon className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" />
+                <Card key={index} className="stat-card group">
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className={`p-3 rounded-2xl ${stat.color} text-white shadow-lg group-hover:scale-110 transition-transform duration-300`}>
+                        <Icon className="h-6 w-6" />
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">
-                          {stat.title}
-                        </p>
-                        <p className="text-lg sm:text-xl lg:text-2xl font-bold">{stat.value}</p>
+                      <div className="w-2 h-2 bg-green-400 rounded-full shadow-lg"></div>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-muted-foreground mb-2 tracking-wide uppercase">
+                        {stat.title}
+                      </p>
+                      <p className="text-2xl sm:text-3xl font-bold tracking-tight">
+                        {stat.value}
+                      </p>
+                      <div className="mt-3 flex items-center text-xs text-green-600 font-medium">
+                        <div className="w-1 h-1 bg-green-400 rounded-full mr-2"></div>
+                        Aggiornato ora
                       </div>
                     </div>
                   </CardContent>
@@ -218,10 +240,18 @@ export default function Dashboard() {
 
           {/* Activity and Top Items */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <CardTitle className="text-base sm:text-lg">Cronologia Attività</CardTitle>
+            <Card className="modern-card">
+              <CardHeader className="pb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                      <Calendar className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg sm:text-xl font-bold">Cronologia Attività</CardTitle>
+                      <p className="text-sm text-muted-foreground">Panoramica delle tue operazioni</p>
+                    </div>
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     <Select value={historyFilter} onValueChange={setHistoryFilter}>
                       <SelectTrigger className="w-20 sm:w-28 text-xs sm:text-sm">
@@ -342,9 +372,17 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="modern-card">
               <CardHeader>
-                <CardTitle>Articoli Più Venduti</CardTitle>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
+                    <TrendingUp className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg sm:text-xl font-bold">Articoli Più Venduti</CardTitle>
+                    <p className="text-sm text-muted-foreground">I tuoi prodotti di punta</p>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
