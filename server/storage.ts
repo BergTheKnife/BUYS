@@ -674,7 +674,7 @@ export class DatabaseStorage implements IStorage {
       .delete(vendite)
       .where(eq(vendite.inventarioId, id));
 
-    // Find all related expenses for this inventory item before deleting them
+    // Find all related expenses for this inventory item
     const relatedExpenses = await db
       .select()
       .from(spese)
@@ -688,9 +688,9 @@ export class DatabaseStorage implements IStorage {
         )
       ));
 
-    // For each related expense, check if it was covered by cassa reinvestimento and restore it
+    // IMPORTANTE: Ripristina la cassa reinvestimento PRIMA di eliminare le spese
+    // per evitare che il metodo deleteExpense faccia un doppio ripristino
     for (const expense of relatedExpenses) {
-      // Check if this expense was covered by cassa reinvestimento
       const coverage = await db
         .select()
         .from(financialHistory)
@@ -700,8 +700,8 @@ export class DatabaseStorage implements IStorage {
           sql`${financialHistory.descrizione} LIKE ${'%' + expense.voce + '%'}`
         ));
 
-      // If it was covered, restore the amount to cassa reinvestimento
       if (coverage.length > 0) {
+        // Ripristina la cassa reinvestimento
         await this.updateCassaReinvestimento(
           activityId,
           Number(expense.importo),
@@ -709,14 +709,15 @@ export class DatabaseStorage implements IStorage {
           item.userId
         );
 
-        // Delete the coverage record from financial history
+        // Elimina il record di copertura per evitare futuri conflitti
         await db
           .delete(financialHistory)
           .where(eq(financialHistory.id, coverage[0].id));
       }
     }
 
-    // Delete all related expenses for this inventory item
+    // Elimina direttamente le spese senza passare per deleteExpense
+    // per evitare il doppio ripristino della cassa
     await db
       .delete(spese)
       .where(and(
@@ -729,13 +730,10 @@ export class DatabaseStorage implements IStorage {
         )
       ));
 
-    // Finally, delete the inventory item
+    // Infine, elimina l'articolo dal magazzino
     const result = await db
       .delete(inventario)
       .where(and(eq(inventario.id, id), eq(inventario.activityId, activityId)));
-
-    // NOTE: Removed the orphaned expenses cleanup section that was causing double restoration
-    // The expenses are already correctly handled above
 
     return (result.rowCount ?? 0) > 0;
   }
