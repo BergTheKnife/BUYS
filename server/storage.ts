@@ -674,8 +674,49 @@ export class DatabaseStorage implements IStorage {
       .delete(vendite)
       .where(eq(vendite.inventarioId, id));
 
-    // Find and delete all related expenses for this inventory item
-    // This includes initial addition and any quantity updates (rifornimenti/riduzioni)
+    // Find all related expenses for this inventory item before deleting them
+    const relatedExpenses = await db
+      .select()
+      .from(spese)
+      .where(and(
+        eq(spese.activityId, activityId),
+        sql`(${spese.categoria} = 'Aggiunta articolo' OR ${spese.categoria} = 'Inventario')`,
+        or(
+          like(spese.voce, `%${item.nomeArticolo} - ${item.taglia}%`),
+          like(spese.voce, `%Rifornimento: ${item.nomeArticolo} - ${item.taglia}%`),
+          like(spese.voce, `%Riduzione inventario: ${item.nomeArticolo} - ${item.taglia}%`)
+        )
+      ));
+
+    // For each related expense, check if it was covered by cassa reinvestimento and restore it
+    for (const expense of relatedExpenses) {
+      // Check if this expense was covered by cassa reinvestimento
+      const coverage = await db
+        .select()
+        .from(financialHistory)
+        .where(and(
+          eq(financialHistory.activityId, activityId),
+          eq(financialHistory.azione, "PRELIEVO_CASSA"),
+          sql`${financialHistory.descrizione} LIKE ${'%' + expense.voce + '%'}`
+        ));
+
+      // If it was covered, restore the amount to cassa reinvestimento
+      if (coverage.length > 0) {
+        await this.updateCassaReinvestimento(
+          activityId,
+          Number(expense.importo),
+          `Ripristino per eliminazione articolo: ${item.nomeArticolo} - ${item.taglia}`,
+          item.userId
+        );
+
+        // Delete the coverage record from financial history
+        await db
+          .delete(financialHistory)
+          .where(eq(financialHistory.id, coverage[0].id));
+      }
+    }
+
+    // Delete all related expenses for this inventory item
     await db
       .delete(spese)
       .where(and(
