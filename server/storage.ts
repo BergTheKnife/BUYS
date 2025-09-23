@@ -1146,6 +1146,9 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(inventario.id, oldInventarioId));
 
+    // Restore batches for the old sale to reset FIFO state
+    await this.restoreBatchesAfterSaleDelete(oldInventarioId, oldQuantity, Number(existingSale.prezzoVendita));
+
     // If we're changing to a different inventory item OR keeping the same item
     if (newInventarioId !== oldInventarioId || newQuantity !== oldQuantity) {
       // Check if target item has enough quantity
@@ -1193,7 +1196,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(inventario.id, oldInventarioId));
     }
 
-    // If quantity or item changed, recalculate FIFO margin for new data
+    // If quantity, item, or price changed, recalculate FIFO margin for new data
     if ((updates.quantita && updates.quantita !== oldQuantity) || 
         (updates.inventarioId && updates.inventarioId !== oldInventarioId) ||
         (updates.prezzoVendita && updates.prezzoVendita !== existingSale.prezzoVendita)) {
@@ -1202,11 +1205,28 @@ export class DatabaseStorage implements IStorage {
       const finalQuantity = updates.quantita || oldQuantity;
       const finalPrice = Number(updates.prezzoVendita || existingSale.prezzoVendita);
 
-      // Calculate FIFO margin and update batches for the new sale parameters
-      const { margine, batchesUsed } = await this.calculateFIFOMargin(finalInventarioId, finalQuantity, finalPrice);
-      await this.updateBatchesAfterSale(batchesUsed);
+      try {
+        // Calculate FIFO margin and update batches for the new sale parameters
+        const { margine, batchesUsed } = await this.calculateFIFOMargin(finalInventarioId, finalQuantity, finalPrice);
+        await this.updateBatchesAfterSale(batchesUsed);
 
-      updates.margine = margine.toString();
+        updates.margine = margine.toString();
+      } catch (error) {
+        // If FIFO calculation fails, fall back to using current item cost for margin calculation
+        console.warn('FIFO calculation failed during sale update, falling back to current cost:', error);
+        
+        const [currentItem] = await db
+          .select()
+          .from(inventario)
+          .where(eq(inventario.id, finalInventarioId));
+        
+        if (currentItem) {
+          const costoTotale = finalQuantity * Number(currentItem.costo);
+          const ricavoTotale = finalQuantity * finalPrice;
+          const margine = ricavoTotale - costoTotale;
+          updates.margine = margine.toString();
+        }
+      }
     }
 
     // Handle incassato field consistency logic
