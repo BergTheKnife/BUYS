@@ -694,6 +694,8 @@ export class DatabaseStorage implements IStorage {
     const item = await this.getInventoryItem(id, activityId);
     if (!item) return false;
 
+    console.log(`🔍 [DELETE DEBUG] Starting deletion of item ${id}: ${item.nomeArticolo} - ${item.taglia}, cost: ${item.costo}`);
+
     // First, delete all related sales to avoid foreign key constraint
     await db
       .delete(vendite)
@@ -714,6 +716,8 @@ export class DatabaseStorage implements IStorage {
         )
       ));
 
+    console.log(`🔍 [DELETE DEBUG] Found ${relatedExpenses.length} related expenses:`, relatedExpenses.map(e => `${e.voce}: ${e.importo}`));
+
     // Calculate total amount to restore by summing actual PRELIEVO_CASSA amounts
     let totalAmountToRestore = 0;
 
@@ -727,21 +731,31 @@ export class DatabaseStorage implements IStorage {
           sql`${financialHistory.descrizione} LIKE ${'%' + expense.voce + '%'}`
         ));
 
+      console.log(`🔍 [DELETE DEBUG] Expense "${expense.voce}" (${expense.importo}) has ${coverage.length} PRELIEVO coverage records:`, coverage.map(c => `${c.id}: ${c.importo}`));
+
       // Sum the actual PRELIEVO amounts that were taken from reinvestment cash
       // This handles partial coverage and multiple PRELIEVO entries correctly
       for (const prelievo of coverage) {
         totalAmountToRestore += Number(prelievo.importo);
+        console.log(`🔍 [DELETE DEBUG] Adding to restore: ${prelievo.importo}, running total: ${totalAmountToRestore}`);
       }
     }
 
+    const balanceBefore = await this.getCassaReinvestimentoBalance(activityId);
+    console.log(`🔍 [DELETE DEBUG] Cassa balance before restoration: ${balanceBefore}, total to restore: ${totalAmountToRestore}`);
+
     // Restore the total amount once to avoid double restoration
     if (totalAmountToRestore > 0) {
+      console.log(`🔍 [DELETE DEBUG] Calling updateCassaReinvestimento with +${totalAmountToRestore}`);
       await this.updateCassaReinvestimento(
         activityId,
         totalAmountToRestore,
         `Ripristino per eliminazione articolo: ${item.nomeArticolo} - ${item.taglia}`,
         item.userId
       );
+
+      const balanceAfter = await this.getCassaReinvestimentoBalance(activityId);
+      console.log(`🔍 [DELETE DEBUG] Cassa balance after restoration: ${balanceAfter} (expected: ${balanceBefore + totalAmountToRestore})`);
 
       // DO NOT delete the original PRELIEVO_CASSA records from financialHistory
       // Keep them for audit trail and correct balance calculation
