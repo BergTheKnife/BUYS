@@ -734,44 +734,8 @@ export class DatabaseStorage implements IStorage {
       .delete(inventario)
       .where(and(eq(inventario.id, id), eq(inventario.activityId, activityId)));
 
-    // After deleting the inventory item, clean up orphaned expenses
-    // Get all remaining inventory items for this activity
-    const remainingInventoryItems = await db
-      .select({
-        nomeArticolo: inventario.nomeArticolo,
-        taglia: inventario.taglia
-      })
-      .from(inventario)
-      .where(eq(inventario.activityId, activityId));
-
-    // Get all inventory-related expenses for this activity
-    const inventoryExpenses = await db
-      .select()
-      .from(spese)
-      .where(and(
-        eq(spese.activityId, activityId),
-        sql`(${spese.categoria} = 'Aggiunta articolo' OR ${spese.categoria} = 'Inventario')`
-      ));
-
-    // Find orphaned expenses (expenses that don't match any remaining inventory item)
-    for (const expense of inventoryExpenses) {
-      let isOrphaned = true;
-
-      for (const inventoryItem of remainingInventoryItems) {
-        const itemSignature = `${inventoryItem.nomeArticolo} - ${inventoryItem.taglia}`;
-        if (expense.voce.includes(itemSignature)) {
-          isOrphaned = false;
-          break;
-        }
-      }
-
-      // Delete orphaned expense
-      if (isOrphaned) {
-        await db
-          .delete(spese)
-          .where(eq(spese.id, expense.id));
-      }
-    }
+    // NOTE: Removed the orphaned expenses cleanup section that was causing double restoration
+    // The expenses are already correctly handled above
 
     return (result.rowCount ?? 0) > 0;
   }
@@ -1338,7 +1302,7 @@ export class DatabaseStorage implements IStorage {
         sql`${financialHistory.descrizione} LIKE ${'%' + originalExpense.voce + '%'}`
       ));
 
-    // Se era stata coperta dalla cassa, ripristina l'importo originale
+    // Se era stata coperta dalla cassa, ripristina l'importo originale E elimina il record
     if (originalCoverage.length > 0) {
       await this.updateCassaReinvestimento(
         activityId,
@@ -1346,6 +1310,11 @@ export class DatabaseStorage implements IStorage {
         `Ripristino per modifica spesa: ${originalExpense.voce}`,
         originalExpense.userId
       );
+
+      // IMPORTANTE: Elimina il record di copertura originale per evitare duplicazioni
+      await db
+        .delete(financialHistory)
+        .where(eq(financialHistory.id, originalCoverage[0].id));
     }
 
     // Aggiorna la spesa
@@ -1399,7 +1368,7 @@ export class DatabaseStorage implements IStorage {
         sql`${financialHistory.descrizione} LIKE ${'%' + expense.voce + '%'}`
       ));
 
-    // Se era stata coperta dalla cassa, ripristina l'importo
+    // Se era stata coperta dalla cassa, ripristina l'importo E elimina il record di copertura
     if (coverage.length > 0) {
       await this.updateCassaReinvestimento(
         activityId,
@@ -1407,6 +1376,11 @@ export class DatabaseStorage implements IStorage {
         `Ripristino per eliminazione spesa: ${expense.voce}`,
         expense.userId
       );
+
+      // IMPORTANTE: Elimina il record di copertura per evitare che venga processato di nuovo
+      await db
+        .delete(financialHistory)
+        .where(eq(financialHistory.id, coverage[0].id));
     }
 
     const result = await db
