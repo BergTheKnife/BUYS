@@ -37,7 +37,7 @@ import {
   type UpdateSpedizione
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, sum, sql, gte, lt, lte, or, like, ilike } from "drizzle-orm";
+import { eq, and, desc, sum, sql, gte, lt, lte, or, like, ilike, inArray } from "drizzle-orm";
 
 export interface IStorage {
   // User methods
@@ -632,6 +632,31 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
+    // If cost changed, create adjustment entry ONLY for existing inventory
+    if (updates.costo !== undefined && Number(updates.costo) !== Number(currentItem.costo)) {
+      // Use ONLY the original quantity for cost adjustment, not the new quantity
+      const existingQuantity = currentItem.quantita;
+      
+      // Skip adjustment if there's no existing quantity
+      if (existingQuantity > 0) {
+        const oldCostTotal = Number(currentItem.costo) * existingQuantity;
+        const newCostTotal = Number(updates.costo) * existingQuantity;
+        const costDifference = newCostTotal - oldCostTotal;
+
+        // Only create adjustment record if there's an actual difference
+        if (Math.abs(costDifference) > 0.001) { // Using small epsilon for decimal comparison
+          await this.createExpense({
+            userId: updatedItem.userId,
+            activityId: activityId,
+            voce: `Aggiustamento costo: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${existingQuantity} pz)`,
+            importo: costDifference.toString(),
+            categoria: "Inventario",
+            data: new Date(),
+          });
+        }
+      }
+    }
+
     // If quantity changed, create/update expense entry
     if (updates.quantita !== undefined && updates.quantita !== currentItem.quantita) {
       const quantityDifference = updates.quantita - currentItem.quantita;
@@ -674,7 +699,7 @@ export class DatabaseStorage implements IStorage {
       .delete(vendite)
       .where(eq(vendite.inventarioId, id));
 
-    // Find all related expenses for this inventory item
+    // Find all related expenses for this inventory item including cost adjustments
     const relatedExpenses = await db
       .select()
       .from(spese)
@@ -682,14 +707,16 @@ export class DatabaseStorage implements IStorage {
         eq(spese.activityId, activityId),
         sql`(${spese.categoria} = 'Aggiunta articolo' OR ${spese.categoria} = 'Inventario')`,
         or(
-          like(spese.voce, `%${item.nomeArticolo} - ${item.taglia}%`),
+          like(spese.voce, `%Acquisto: ${item.nomeArticolo} - ${item.taglia}%`),
           like(spese.voce, `%Rifornimento: ${item.nomeArticolo} - ${item.taglia}%`),
-          like(spese.voce, `%Riduzione inventario: ${item.nomeArticolo} - ${item.taglia}%`)
+          like(spese.voce, `%Riduzione inventario: ${item.nomeArticolo} - ${item.taglia}%`),
+          like(spese.voce, `%Aggiustamento costo: ${item.nomeArticolo} - ${item.taglia}%`)
         )
       ));
 
-    // IMPORTANTE: Ripristina la cassa reinvestimento PRIMA di eliminare le spese
-    // per evitare che il metodo deleteExpense faccia un doppio ripristino
+    // Calculate total amount to restore by summing actual PRELIEVO_CASSA amounts
+    let totalAmountToRestore = 0;
+
     for (const expense of relatedExpenses) {
       const coverage = await db
         .select()
@@ -700,33 +727,41 @@ export class DatabaseStorage implements IStorage {
           sql`${financialHistory.descrizione} LIKE ${'%' + expense.voce + '%'}`
         ));
 
-      if (coverage.length > 0) {
-        // Ripristina la cassa reinvestimento
-        await this.updateCassaReinvestimento(
-          activityId,
-          Number(expense.importo),
-          `Ripristino per eliminazione articolo: ${item.nomeArticolo} - ${item.taglia}`,
-          item.userId
-        );
-
-        // Elimina il record di copertura per evitare futuri conflitti
-        await db
-          .delete(financialHistory)
-          .where(eq(financialHistory.id, coverage[0].id));
+      // Sum the actual PRELIEVO amounts that were taken from reinvestment cash
+      // This handles partial coverage and multiple PRELIEVO entries correctly
+      for (const prelievo of coverage) {
+        totalAmountToRestore += Number(prelievo.importo);
       }
     }
 
-    // Elimina direttamente le spese senza passare per deleteExpense
-    // per evitare il doppio ripristino della cassa
+    // Restore the total amount once to avoid double restoration
+    if (totalAmountToRestore > 0) {
+      await this.updateCassaReinvestimento(
+        activityId,
+        totalAmountToRestore,
+        `Ripristino per eliminazione articolo: ${item.nomeArticolo} - ${item.taglia}`,
+        item.userId
+      );
+
+      // DO NOT delete the original PRELIEVO_CASSA records from financialHistory
+      // Keep them for audit trail and correct balance calculation
+      // The balance is calculated as sum of all history entries, so we need:
+      // - Original PRELIEVI (negative impact when expenses were made)
+      // - New DEPOSITO (positive impact for restoration)
+      // This ensures correct balance without double-counting
+    }
+
+    // Delete all related expenses directly to avoid double restoration
     await db
       .delete(spese)
       .where(and(
         eq(spese.activityId, activityId),
         sql`(${spese.categoria} = 'Aggiunta articolo' OR ${spese.categoria} = 'Inventario')`,
         or(
-          like(spese.voce, `%${item.nomeArticolo} - ${item.taglia}%`),
+          like(spese.voce, `%Acquisto: ${item.nomeArticolo} - ${item.taglia}%`),
           like(spese.voce, `%Rifornimento: ${item.nomeArticolo} - ${item.taglia}%`),
-          like(spese.voce, `%Riduzione inventario: ${item.nomeArticolo} - ${item.taglia}%`)
+          like(spese.voce, `%Riduzione inventario: ${item.nomeArticolo} - ${item.taglia}%`),
+          like(spese.voce, `%Aggiustamento costo: ${item.nomeArticolo} - ${item.taglia}%`)
         )
       ));
 
