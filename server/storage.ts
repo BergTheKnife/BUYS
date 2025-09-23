@@ -650,11 +650,12 @@ export class DatabaseStorage implements IStorage {
         // Only create adjustment record if there's an actual difference
         if (Math.abs(costDifference) > 0.001) { // Using small epsilon for decimal comparison
           
-          // Gestisci coerentemente la cassa reinvestimento
-          const cassaBalance = await this.getCassaReinvestimentoBalance(activityId);
+          // Per gli aggiustamenti di costo, gestiamo solo la cassa reinvestimento
+          // La spesa viene creata automaticamente dal metodo createExpense quando necessario
           
           if (costDifference > 0) {
             // Costo aumentato - preleva dalla cassa reinvestimento se disponibile
+            const cassaBalance = await this.getCassaReinvestimentoBalance(activityId);
             if (cassaBalance >= costDifference) {
               await this.updateCassaReinvestimento(
                 activityId,
@@ -662,6 +663,16 @@ export class DatabaseStorage implements IStorage {
                 `Aggiustamento costo (aumento): ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${existingQuantity} pz)`,
                 updatedItem.userId
               );
+            } else {
+              // Se non ci sono fondi sufficienti in cassa, crea una spesa normale
+              await this.createExpense({
+                userId: updatedItem.userId,
+                activityId: activityId,
+                voce: `Aggiustamento costo: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${existingQuantity} pz)`,
+                importo: costDifference.toString(),
+                categoria: "Inventario",
+                data: new Date(),
+              });
             }
           } else {
             // Costo diminuito - rimborsa alla cassa reinvestimento
@@ -672,16 +683,6 @@ export class DatabaseStorage implements IStorage {
               updatedItem.userId
             );
           }
-
-          // Crea sempre la spesa di aggiustamento per tracciamento
-          await this.createExpense({
-            userId: updatedItem.userId,
-            activityId: activityId,
-            voce: `Aggiustamento costo: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${existingQuantity} pz)`,
-            importo: costDifference.toString(),
-            categoria: "Inventario",
-            data: new Date(),
-          });
         }
       }
     }
