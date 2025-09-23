@@ -649,6 +649,31 @@ export class DatabaseStorage implements IStorage {
 
         // Only create adjustment record if there's an actual difference
         if (Math.abs(costDifference) > 0.001) { // Using small epsilon for decimal comparison
+          
+          // Gestisci coerentemente la cassa reinvestimento
+          const cassaBalance = await this.getCassaReinvestimentoBalance(activityId);
+          
+          if (costDifference > 0) {
+            // Costo aumentato - preleva dalla cassa reinvestimento se disponibile
+            if (cassaBalance >= costDifference) {
+              await this.updateCassaReinvestimento(
+                activityId,
+                -costDifference,
+                `Aggiustamento costo (aumento): ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${existingQuantity} pz)`,
+                updatedItem.userId
+              );
+            }
+          } else {
+            // Costo diminuito - rimborsa alla cassa reinvestimento
+            await this.updateCassaReinvestimento(
+              activityId,
+              Math.abs(costDifference),
+              `Aggiustamento costo (riduzione): ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${existingQuantity} pz)`,
+              updatedItem.userId
+            );
+          }
+
+          // Crea sempre la spesa di aggiustamento per tracciamento
           await this.createExpense({
             userId: updatedItem.userId,
             activityId: activityId,
@@ -661,14 +686,25 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    // If quantity changed, create/update expense entry
+    // If quantity changed, create/update expense entry and manage cassa reinvestimento
     if (updates.quantita !== undefined && updates.quantita !== currentItem.quantita) {
       const quantityDifference = updates.quantita - currentItem.quantita;
       const costPerUnit = Number(updates.costo || currentItem.costo);
       const totalCostDifference = costPerUnit * quantityDifference;
 
       if (quantityDifference > 0) {
-        // Quantity increased - add expense for additional stock
+        // Quantity increased - manage cassa reinvestimento and add expense for additional stock
+        const cassaBalance = await this.getCassaReinvestimentoBalance(activityId);
+        
+        if (totalCostDifference > 0 && cassaBalance >= totalCostDifference) {
+          await this.updateCassaReinvestimento(
+            activityId,
+            -totalCostDifference,
+            `Rifornimento coperto da cassa: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (+${quantityDifference} pz)`,
+            updatedItem.userId
+          );
+        }
+
         await this.createExpense({
           userId: updatedItem.userId,
           activityId: activityId,
@@ -678,7 +714,16 @@ export class DatabaseStorage implements IStorage {
           data: new Date(),
         });
       } else {
-        // Quantity decreased - add negative expense (reduction)
+        // Quantity decreased - restore to cassa reinvestimento and add negative expense
+        if (totalCostDifference < 0) {
+          await this.updateCassaReinvestimento(
+            activityId,
+            Math.abs(totalCostDifference),
+            `Ripristino per riduzione inventario: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${quantityDifference} pz)`,
+            updatedItem.userId
+          );
+        }
+
         await this.createExpense({
           userId: updatedItem.userId,
           activityId: activityId,
