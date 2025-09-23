@@ -101,7 +101,7 @@ export async function sendVerificationEmail(
         <div style="background: white; padding: 40px; border: 1px solid #e1e5e9; border-top: none; border-radius: 0 0 10px 10px;">
           <h2 style="color: #333; margin-top: 0;">Ciao ${nome} ${cognome}!</h2>
           
-          <p>Benvenuto in <strong>BUYS</strong>, la piattaforma per gestire il tuo negozio di abbigliamento.</p>
+          <p>Benvenuto in <strong>BUYS</strong>, la piattaforma per gestire il tuo store.</p>
           
           <p>Per completare la registrazione e accedere a tutte le funzionalità, devi confermare il tuo indirizzo email cliccando sul pulsante qui sotto:</p>
           
@@ -135,7 +135,7 @@ export async function sendVerificationEmail(
     text: `
 Ciao ${nome} ${cognome}!
 
-Benvenuto in BUYS, la piattaforma per gestire il tuo negozio di abbigliamento.
+Benvenuto in BUYS, la piattaforma per gestire il tuo store.
 
 Per completare la registrazione e accedere a tutte le funzionalità, devi confermare il tuo indirizzo email visitando questo link:
 
@@ -147,7 +147,7 @@ Se non hai richiesto questa registrazione, puoi ignorare questa email.
 
 ---
 BUYS - Build Up Your Store
-Sistema di gestione per negozi di abbigliamento
+Sistema di gestione per il tuo store.
     `,
   };
 
@@ -246,7 +246,7 @@ export async function sendWelcomeEmail(
           
           <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e1e5e9; text-align: center; color: #666; font-size: 12px;">
             <p>Grazie per aver scelto BUYS - Build Up Your Store</p>
-            <p>Il sistema completo per la gestione del tuo negozio di abbigliamento</p>
+            <p>Il sistema completo per la gestione del tuo store</p>
           </div>
         </div>
       </body>
@@ -336,7 +336,7 @@ export async function sendPasswordResetEmail(
           
           <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e1e5e9; text-align: center; color: #666; font-size: 12px;">
             <p>Questa email è stata inviata da BUYS - Build Up Your Store</p>
-            <p>Sistema di gestione per negozi di abbigliamento</p>
+            <p>Sistema di gestione per il tuo store.</p>
           </div>
         </div>
       </body>
@@ -360,7 +360,7 @@ Se non hai richiesto il reset della password, la tua password è ancora sicura e
 
 ---
 BUYS - Build Up Your Store
-Sistema di gestione per negozi di abbigliamento
+Sistema di gestione per il tuo store.
     `,
   };
 
@@ -437,7 +437,7 @@ export async function sendPasswordChangeConfirmationEmail(
           
           <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e1e5e9; text-align: center; color: #666; font-size: 12px;">
             <p>Questa email è stata inviata da BUYS - Build Up Your Store</p>
-            <p>Sistema di gestione per negozi di abbigliamento</p>
+            <p>Sistema di gestione per il tuo store.</p>
           </div>
         </div>
       </body>
