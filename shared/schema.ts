@@ -87,6 +87,7 @@ export const inventario = pgTable("inventario", {
   lunghezza: decimal("lunghezza", { precision: 6, scale: 2 }), // cm
   larghezza: decimal("larghezza", { precision: 6, scale: 2 }), // cm
   altezza: decimal("altezza", { precision: 6, scale: 2 }), // cm
+  cassaCoverage: numeric("cassa_coverage", { precision: 10, scale: 2 }).default("0"),
   immagineUrl: text("immagine_url"),
   createdAt: timestamp("created_at").defaultNow(),
 });

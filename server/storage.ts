@@ -83,7 +83,7 @@ export interface IStorage {
   // Inventory methods (now with activity context)
   getInventoryByActivity(activityId: string): Promise<Inventario[]>;
   getInventoryItem(id: string, activityId: string): Promise<Inventario | undefined>;
-  createInventoryItem(item: InsertInventario & { userId: string; activityId: string }): Promise<Inventario>;
+  createInventoryItem(item: InsertInventario & { userId: string; activityId: string; immagineUrl?: string | null }): Promise<Inventario>;
   updateInventoryItem(id: string, activityId: string, updates: Partial<InsertInventario>): Promise<Inventario | undefined>;
   deleteInventoryItem(id: string, activityId: string): Promise<boolean>;
   updateInventoryQuantity(id: string, newQuantity: number): Promise<Inventario | undefined>;
@@ -564,31 +564,58 @@ export class DatabaseStorage implements IStorage {
     return item || undefined;
   }
 
-  async createInventoryItem(data: any): Promise<Inventario> {
-    const [item] = await db.insert(inventario).values(data).returning();
+  async createInventoryItem(itemData: InsertInventario & { userId: string; activityId: string; immagineUrl?: string | null }): Promise<Inventario> {
+    const [item] = await db.insert(inventario).values(itemData).returning();
 
-    // Automatically create an inventory batch for the initial stock
-    if (item) {
-      await this.createInventoryBatch({
-        inventarioId: item.id,
-        activityId: data.activityId,
-        userId: data.userId,
-        costo: data.costo,
-        quantita: data.quantita,
-      });
+    // Calcola il costo totale dell'articolo
+    const totalCost = Number(itemData.costo) * itemData.quantita;
 
-      // Also create an expense for this inventory addition
+    // Controlla il saldo della cassa reinvestimento
+    const cassaBalance = await this.getCassaReinvestimentoBalance(itemData.activityId);
+    let amountFromCassa = 0;
+    let remainingCost = totalCost;
+
+    // Se c'è saldo in cassa, utilizzalo prioritariamente (anche se non copre tutto)
+    if (cassaBalance > 0) {
+      amountFromCassa = Math.min(cassaBalance, totalCost);
+      remainingCost = totalCost - amountFromCassa;
+
+      // Preleva dalla cassa reinvestimento
+      await this.updateCassaReinvestimento(
+        itemData.activityId,
+        -amountFromCassa,
+        `Acquisto articolo (copertura cassa): ${itemData.nomeArticolo} - ${itemData.taglia} (${itemData.quantita} pz)`,
+        itemData.userId
+      );
+    }
+
+    // Se rimane un costo da coprire, crea una spesa normale
+    if (remainingCost > 0) {
       await this.createExpense({
-        userId: data.userId,
-        activityId: data.activityId,
-        voce: `Acquisto: ${data.nomeArticolo} - ${data.taglia} (${data.quantita} pz)`,
-        importo: (Number(data.costo) * data.quantita).toString(),
-        categoria: "Inventario",
+        userId: itemData.userId,
+        activityId: itemData.activityId,
+        voce: `Acquisto: ${itemData.nomeArticolo} - ${itemData.taglia} (${itemData.quantita} pz)`,
+        importo: remainingCost.toString(),
+        categoria: "Aggiunta articolo",
         data: new Date(),
       });
     }
 
-    return item;
+    // Create initial inventory batch for FIFO tracking
+    await this.createInventoryBatch({
+      inventarioId: item.id,
+      activityId: itemData.activityId,
+      userId: itemData.userId,
+      costo: itemData.costo,
+      quantita: itemData.quantita,
+    });
+
+    // Store the cassa coverage amount in the item for future deletion tracking
+    await db.update(inventario)
+      .set({ cassaCoverage: amountFromCassa.toString() })
+      .where(eq(inventario.id, item.id));
+
+    return { ...item, cassaCoverage: amountFromCassa.toString() };
   }
 
   async updateInventoryItem(id: string, activityId: string, updates: Partial<InsertInventario>): Promise<Inventario | undefined> {
@@ -640,7 +667,7 @@ export class DatabaseStorage implements IStorage {
     if (updates.costo !== undefined && Number(updates.costo) !== Number(currentItem.costo)) {
       // Use ONLY the original quantity for cost adjustment, not the new quantity
       const existingQuantity = currentItem.quantita;
-      
+
       // Skip adjustment if there's no existing quantity
       if (existingQuantity > 0) {
         const oldCostTotal = Number(currentItem.costo) * existingQuantity;
@@ -649,10 +676,10 @@ export class DatabaseStorage implements IStorage {
 
         // Only create adjustment record if there's an actual difference
         if (Math.abs(costDifference) > 0.001) { // Using small epsilon for decimal comparison
-          
+
           // Per gli aggiustamenti di costo, gestiamo solo la cassa reinvestimento
           // La spesa viene creata automaticamente dal metodo createExpense quando necessario
-          
+
           if (costDifference > 0) {
             // Costo aumentato - preleva dalla cassa reinvestimento se disponibile
             const cassaBalance = await this.getCassaReinvestimentoBalance(activityId);
@@ -696,7 +723,7 @@ export class DatabaseStorage implements IStorage {
       if (quantityDifference > 0) {
         // Quantity increased - manage cassa reinvestimento and add expense for additional stock
         const cassaBalance = await this.getCassaReinvestimentoBalance(activityId);
-        
+
         if (totalCostDifference > 0 && cassaBalance >= totalCostDifference) {
           await this.updateCassaReinvestimento(
             activityId,
@@ -746,16 +773,12 @@ export class DatabaseStorage implements IStorage {
 
     console.log(`🔍 [DELETE DEBUG] Starting deletion of item ${id}: ${item.nomeArticolo} - ${item.taglia}, cost: ${item.costo}, quantity: ${item.quantita}`);
 
-    // Calculate the current total value of the inventory item
     const currentTotalValue = Number(item.costo) * item.quantita;
+    const cassaCoverage = Number(item.cassaCoverage || 0);
     console.log(`🔍 [DELETE DEBUG] Current total inventory value: ${currentTotalValue} (${item.costo} × ${item.quantita})`);
+    console.log(`🔍 [DELETE DEBUG] Original cassa coverage: ${cassaCoverage}`);
 
-    // First, delete all related sales to avoid foreign key constraint
-    await db
-      .delete(vendite)
-      .where(eq(vendite.inventarioId, id));
-
-    // Find all related expenses for cleanup
+    // Find related expenses for cleanup
     const relatedExpenses = await db
       .select()
       .from(spese)
@@ -772,23 +795,30 @@ export class DatabaseStorage implements IStorage {
 
     console.log(`🔍 [DELETE DEBUG] Found ${relatedExpenses.length} related expenses for cleanup`);
 
+    // Get current cassa balance for debugging
     const balanceBefore = await this.getCassaReinvestimentoBalance(activityId);
     console.log(`🔍 [DELETE DEBUG] Cassa balance before restoration: ${balanceBefore}`);
 
-    // Restore the current inventory value to the reinvestment fund
-    // This ensures accounting consistency regardless of historical cost changes
-    if (currentTotalValue > 0) {
-      console.log(`🔍 [DELETE DEBUG] Restoring current inventory value: ${currentTotalValue}`);
+    // Restore only the amount that was originally covered by cassa reinvestimento
+    if (cassaCoverage > 0) {
+      console.log(`🔍 [DELETE DEBUG] Restoring original cassa coverage: ${cassaCoverage}`);
       await this.updateCassaReinvestimento(
         activityId,
-        currentTotalValue,
-        `Ripristino per eliminazione articolo: ${item.nomeArticolo} - ${item.taglia} (${item.quantita} pz @ €${item.costo})`,
+        cassaCoverage,
+        `Ripristino cassa per eliminazione articolo: ${item.nomeArticolo} - ${item.taglia} (${item.quantita} pz)`,
         item.userId
       );
 
       const balanceAfter = await this.getCassaReinvestimentoBalance(activityId);
-      console.log(`🔍 [DELETE DEBUG] Cassa balance after restoration: ${balanceAfter} (expected: ${balanceBefore + currentTotalValue})`);
+      console.log(`🔍 [DELETE DEBUG] Cassa balance after restoration: ${balanceAfter} (expected: ${balanceBefore + cassaCoverage})`);
+    } else {
+      console.log(`🔍 [DELETE DEBUG] No cassa coverage to restore`);
     }
+
+    // Delete all related sales to avoid foreign key constraint
+    await db
+      .delete(vendite)
+      .where(eq(vendite.inventarioId, id));
 
     // Delete all related expenses for cleanup
     await db
@@ -1214,12 +1244,12 @@ export class DatabaseStorage implements IStorage {
       } catch (error) {
         // If FIFO calculation fails, fall back to using current item cost for margin calculation
         console.warn('FIFO calculation failed during sale update, falling back to current cost:', error);
-        
+
         const [currentItem] = await db
           .select()
           .from(inventario)
           .where(eq(inventario.id, finalInventarioId));
-        
+
         if (currentItem) {
           const costoTotale = finalQuantity * Number(currentItem.costo);
           const ricavoTotale = finalQuantity * finalPrice;
@@ -1381,32 +1411,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Updated expenses methods with activity context
-  async getExpensesByActivity(activityId: string): Promise<Spesa[]> {
-    return await db.select().from(spese).where(eq(spese.activityId, activityId)).orderBy(desc(spese.data));
-  }
-
   async createExpense(expenseData: InsertSpesa & { userId: string; activityId: string }): Promise<Spesa> {
-    // Verifica se ci sono fondi nella cassa reinvestimento per coprire la spesa
-    const cassaBalance = await this.getCassaReinvestimentoBalance(expenseData.activityId);
-    const expenseAmount = Number(expenseData.importo);
+    // Crea sempre la spesa normale - la gestione della cassa reinvestimento 
+    // viene fatta esplicitamente nei metodi che la chiamano
+    const [expense] = await db.insert(spese).values({
+      ...expenseData,
+      data: expenseData.data || new Date(),
+    }).returning();
 
-    // Se l'importo è positivo (uscita) e ci sono fondi sufficienti nella cassa reinvestimento
-    if (expenseAmount > 0 && cassaBalance >= expenseAmount) {
-      // Utilizza la cassa reinvestimento per coprire la spesa
-      await this.updateCassaReinvestimento(
-        expenseData.activityId,
-        -expenseAmount,
-        `Spesa coperta da cassa reinvestimento: ${expenseData.voce}`,
-        expenseData.userId
-      );
-    }
-
-    // Crea la spesa per registrare il movimento
-    const [newExpense] = await db
-      .insert(spese)
-      .values(expenseData)
-      .returning();
-    return newExpense;
+    return expense;
   }
 
   async updateExpense(id: string, activityId: string, updates: Partial<InsertSpesa>): Promise<Spesa | undefined> {
