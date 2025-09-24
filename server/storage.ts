@@ -754,8 +754,8 @@ export class DatabaseStorage implements IStorage {
               userId: updatedItem.userId,
               activityId: activityId,
               voce: `Riduzione valore inventario: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${existingQuantity} pz) - Costo ridotto di €${totalCostReduction.toFixed(2)}`,
-              importo: (-totalCostReduction).toString(), // Importo negativo per indicare una riduzione di spesa
-              categoria: "Inventario",
+              importo: totalCostReduction.toString(), // Importo positivo per la riduzione
+              categoria: "Riduzione Inventario", // Categoria specifica per le riduzioni
               data: new Date(),
             });
           }
@@ -839,6 +839,7 @@ export class DatabaseStorage implements IStorage {
           like(spese.voce, `%Inventario: ${item.nomeArticolo} - ${item.taglia}%`),
           like(spese.voce, `%Rifornimento: ${item.nomeArticolo} - ${item.taglia}%`),
           like(spese.voce, `%Riduzione inventario: ${item.nomeArticolo} - ${item.taglia}%`),
+          like(spese.voce, `%Riduzione valore inventario: ${item.nomeArticolo} - ${item.taglia}%`),
           like(spese.voce, `%Aggiustamento costo: ${item.nomeArticolo} - ${item.taglia}%`),
           // Compatibilità con spese vecchie create prima di questa modifica
           like(spese.voce, `%Acquisto: ${item.nomeArticolo} - ${item.taglia}%`)
@@ -881,6 +882,7 @@ export class DatabaseStorage implements IStorage {
           like(spese.voce, `%Inventario: ${item.nomeArticolo} - ${item.taglia}%`),
           like(spese.voce, `%Rifornimento: ${item.nomeArticolo} - ${item.taglia}%`),
           like(spese.voce, `%Riduzione inventario: ${item.nomeArticolo} - ${item.taglia}%`),
+          like(spese.voce, `%Riduzione valore inventario: ${item.nomeArticolo} - ${item.taglia}%`),
           like(spese.voce, `%Aggiustamento costo: ${item.nomeArticolo} - ${item.taglia}%`),
           // Compatibilità con spese vecchie create prima di questa modifica
           like(spese.voce, `%Acquisto: ${item.nomeArticolo} - ${item.taglia}%`)
