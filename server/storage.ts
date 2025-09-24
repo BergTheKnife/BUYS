@@ -748,6 +748,16 @@ export class DatabaseStorage implements IStorage {
                 );
               }
             }
+
+            // Crea SEMPRE una registrazione contabile per la riduzione del valore inventario
+            await this.createExpense({
+              userId: updatedItem.userId,
+              activityId: activityId,
+              voce: `Riduzione valore inventario: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${existingQuantity} pz) - Costo ridotto di €${totalCostReduction.toFixed(2)}`,
+              importo: (-totalCostReduction).toString(), // Importo negativo per indicare una riduzione di spesa
+              categoria: "Inventario",
+              data: new Date(),
+            });
           }
         }
       }
