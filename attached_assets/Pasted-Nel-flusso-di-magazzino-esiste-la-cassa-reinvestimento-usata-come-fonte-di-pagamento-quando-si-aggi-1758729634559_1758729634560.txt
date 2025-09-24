@@ -1,0 +1,91 @@
+Nel flusso di magazzino esiste la cassa reinvestimento, usata come fonte di pagamento quando si aggiungono articoli.
+
+Problema riscontrato
+
+Mancanza registrazione spesa “Inventario”
+
+Quando aggiungo un articolo in magazzino non viene più creata la spesa con causale inventario non eliminabile, che in passato veniva generata e garantiva tracciamento contabile.
+
+Gestione incoerente della cassa reinvestimento
+
+Durante l’aggiunta di un articolo, la cassa reinvestimento dovrebbe:
+
+scalare fino all’importo disponibile,
+
+se il costo articolo supera la cassa, questa deve azzerarsi e la differenza è coperta con fondi personali.
+
+Se successivamente modifico il costo dell’articolo, la cassa deve essere rettificata solo della differenza realmente usata, non dell’intero importo.
+
+Esempio: cassa = 30 €, aggiungo articolo costo 35 € → prelievo 30 € da cassa + 5 € fondi personali.
+Se poi riduco il costo a 25 €, la cassa deve ricevere solo 5 € di rientro (perché 30 € erano già corretti).
+
+Storico e fonte di finanziamento
+
+Ogni azione (aggiunta, modifica, eliminazione) deve lasciare una registrazione univoca per mantenere un margine corretto e tracciabile.
+
+È indispensabile distinguere, per ogni articolo, quanto è stato pagato con cassa reinvestimento e quanto con fondi personali.
+
+Se in futuro modifico il costo:
+
+se l’articolo era pagato totalmente con fondi personali → nessun movimento in cassa;
+
+se era parzialmente o totalmente pagato con cassa → rettifica solo per la quota di cassa.
+
+Comportamento atteso
+
+Inserimento articolo
+
+Crea sempre una spesa inventario non eliminabile, con importo totale dell’articolo e dettagli su:
+
+quota pagata con cassa,
+
+quota con fondi personali.
+
+Scala dalla cassa solo l’importo disponibile (min(costo, saldo cassa)).
+
+Modifica costo articolo
+
+Aggiorna la spesa inventario o crea un movimento di rettifica, mantenendo lo storico.
+
+Aggiorna la cassa solo per la differenza di quota cassa effettiva.
+
+Eliminazione articolo
+
+Ripristina in cassa esclusivamente la quota che era stata prelevata dalla cassa, non l’intero costo.
+
+Mantiene la registrazione storica della spesa e del movimento di rientro.
+
+Azioni richieste al codice
+
+Ripristinare/aggiungere la logica che crea la spesa inventario al momento dell’inserimento articolo.
+
+Gestire in modo accurato i movimenti su cassa reinvestimento:
+
+prelievo iniziale (fino al saldo disponibile),
+
+rettifiche differenziali in updateInventoryItem se cambia il costo,
+
+rientro parziale in deleteInventoryItem se l’articolo viene rimosso.
+
+Assicurare che ogni movimento abbia una storicità univoca (ID o riferimento chiaro all’articolo e all’azione).
+
+Aggiornare eventuali query e viste per mostrare sempre:
+
+totale spesa,
+
+quota cassa,
+
+quota fondi personali.
+
+Test di accettazione
+
+Caso base: cassa 30 €, aggiungo articolo costo 35 € → cassa diventa 0 €, spesa inventario = 35 € (30 da cassa, 5 personali).
+
+Modifica costo: porto costo da 35 € a 25 € → cassa torna a 5 €, spesa storica aggiornata/annotata con delta −10 €.
+
+Articolo pagato solo con fondi personali: nessuna variazione cassa se modifico il costo.
+
+Eliminazione: rientro in cassa della sola quota prelevata (nel caso sopra, massimo 30 €).
+
+Richiesta finale
+Implementare questa logica garantendo integrità transazionale (una sola transazione DB per ogni azione) e assicurando che tutti i movimenti finanziari siano tracciati per data, articolo e fonte di pagamento.
