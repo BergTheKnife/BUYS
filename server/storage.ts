@@ -1313,29 +1313,26 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Helper method to restore batches when a sale is deleted
-  async restoreBatchesAfterSaleDelete(inventarioId: string, quantitaToRestore: number, costoTotale: number) {
-    const { inventoryBatches } = await import('../migrations/schema');
+  async restoreBatchesAfterSaleDelete(inventarioId: string, quantitaToRestore: number, prezzoVendita: number) {
+    try {
+      const { inventoryBatches } = await import('../migrations/schema');
 
-    // Get all batches for this inventory item, ordered by date (FIFO)
-    const batches = await db
-      .select()
-      .from(inventoryBatches)
-      .where(eq(inventoryBatches.inventarioId, inventarioId))
-      .orderBy(inventoryBatches.dataAcquisto);
+      // Get all batches for this inventory item, ordered by date (FIFO reverse)
+      const batches = await db
+        .select()
+        .from(inventoryBatches)
+        .where(eq(inventoryBatches.inventarioId, inventarioId))
+        .orderBy(sql`${inventoryBatches.dataAcquisto} DESC`); // Reverse FIFO for restoration
 
-    // Calculate average cost of the deleted sale
-    const costoMedio = costoTotale / quantitaToRestore;
+      let rimanenteRestore = quantitaToRestore;
 
-    let rimanenteRestore = quantitaToRestore;
+      // Restore quantity to most recent batches first (reverse FIFO)
+      for (const batch of batches) {
+        if (rimanenteRestore <= 0) break;
 
-    // Try to restore to batches with similar cost (FIFO order)
-    for (const batch of batches) {
-      if (rimanenteRestore <= 0) break;
-
-      const batchCost = Number(batch.costo);
-      // Only restore to batches with similar cost (within 10% tolerance)
-      if (Math.abs(batchCost - costoMedio) / costoMedio <= 0.1) {
-        const quantitaToRestoreToBatch = Math.min(rimanenteRestore, batch.quantitaIniziale - batch.quantitaRimanente);
+        // Calculate how much we can restore to this batch
+        const maxRestorableToBatch = batch.quantitaIniziale - batch.quantitaRimanente;
+        const quantitaToRestoreToBatch = Math.min(rimanenteRestore, maxRestorableToBatch);
 
         if (quantitaToRestoreToBatch > 0) {
           await db
@@ -1348,8 +1345,30 @@ export class DatabaseStorage implements IStorage {
           rimanenteRestore -= quantitaToRestoreToBatch;
         }
       }
-    }
 
+      // If we still have quantity to restore and no batches can accommodate it,
+      // create a new batch with current inventory item cost
+      if (rimanenteRestore > 0) {
+        const [inventoryItem] = await db
+          .select()
+          .from(inventario)
+          .where(eq(inventario.id, inventarioId));
+
+        if (inventoryItem) {
+          await this.createInventoryBatch({
+            inventarioId: inventarioId,
+            activityId: inventoryItem.activityId,
+            userId: inventoryItem.userId,
+            costo: inventoryItem.costo,
+            quantita: rimanenteRestore,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error restoring batches after sale deletion:', error);
+      // Continue without throwing - inventory quantity is already restored
+      // This is a batch optimization, not critical for basic functionality
+    }
   }
 
   // Updated expenses methods with activity context
