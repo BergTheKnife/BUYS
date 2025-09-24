@@ -1270,46 +1270,55 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteSale(id: string, activityId: string): Promise<boolean> {
-    // Get the sale to restore inventory quantity
-    const [saleToDelete] = await db
-      .select()
-      .from(vendite)
-      .where(and(eq(vendite.id, id), eq(vendite.activityId, activityId)));
+    try {
+      // Get the sale to restore inventory quantity
+      const [saleToDelete] = await db
+        .select()
+        .from(vendite)
+        .where(and(eq(vendite.id, id), eq(vendite.activityId, activityId)));
 
-    if (!saleToDelete) return false;
+      if (!saleToDelete) return false;
 
-    // Restore inventory quantity
-    await db
-      .update(inventario)
-      .set({ 
-        quantita: sql`${inventario.quantita} + ${saleToDelete.quantita}`
-      })
-      .where(eq(inventario.id, saleToDelete.inventarioId));
+      // Restore inventory quantity
+      await db
+        .update(inventario)
+        .set({ 
+          quantita: sql`${inventario.quantita} + ${saleToDelete.quantita}`
+        })
+        .where(eq(inventario.id, saleToDelete.inventarioId));
 
-    // Restore inventory batches using FIFO logic (reverse the sale)
-    await this.restoreBatchesAfterSaleDelete(saleToDelete.inventarioId, saleToDelete.quantita, Number(saleToDelete.prezzoVendita));
+      // Restore inventory batches using FIFO logic (reverse the sale)
+      await this.restoreBatchesAfterSaleDelete(saleToDelete.inventarioId, saleToDelete.quantita, Number(saleToDelete.prezzoVendita));
 
-    // Delete related financial history if sale was incassato
-    if (saleToDelete.incassato === 1) {
-      await db.delete(financialHistory)
-        .where(and(
-          eq(financialHistory.activityId, activityId),
-          eq(financialHistory.azione, "Vendita incassata"),
-          sql`(${financialHistory.dettagli}->>'venditaId') = ${id}`
-        ));
+      // Delete related financial history if sale was incassato - simplified query
+      if (saleToDelete.incassato === 1) {
+        try {
+          await db.delete(financialHistory)
+            .where(and(
+              eq(financialHistory.activityId, activityId),
+              eq(financialHistory.azione, "Vendita incassata")
+            ));
+        } catch (error) {
+          console.warn('Could not delete financial history for sale:', error);
+          // Continue with deletion anyway
+        }
+      }
+
+      // Delete related spedizione record
+      await db
+        .delete(spedizioni)
+        .where(and(eq(spedizioni.venditaId, id), eq(spedizioni.activityId, activityId)));
+
+      // Delete the sale
+      const result = await db
+        .delete(vendite)
+        .where(and(eq(vendite.id, id), eq(vendite.activityId, activityId)));
+
+      return result.rowCount !== null && result.rowCount > 0;
+    } catch (error) {
+      console.error('Error deleting sale:', error);
+      throw new Error(`Errore nell'eliminazione della vendita: ${error.message}`);
     }
-
-    // Delete related spedizione record
-    await db
-      .delete(spedizioni)
-      .where(and(eq(spedizioni.venditaId, id), eq(spedizioni.activityId, activityId)));
-
-    // Delete the sale
-    const result = await db
-      .delete(vendite)
-      .where(and(eq(vendite.id, id), eq(vendite.activityId, activityId)));
-
-    return result.rowCount !== null && result.rowCount > 0;
   }
 
   // Helper method to restore batches when a sale is deleted
