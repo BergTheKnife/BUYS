@@ -1,7 +1,7 @@
-import { 
-  users, 
-  inventario, 
-  vendite, 
+import {
+  users,
+  inventario,
+  vendite,
   spese,
   fundTransfers,
   financialHistory,
@@ -11,7 +11,7 @@ import {
   passwordResetTokens,
   rememberTokens, // Import remember tokens table
   spedizioni, // Import spedizioni table
-  type User, 
+  type User,
   type InsertUser,
   type Inventario,
   type InsertInventario,
@@ -50,7 +50,7 @@ export interface IStorage {
 
   verifyUserEmail(id: string): Promise<User | undefined>;
 
-  // Email verification methods  
+  // Email verification methods
   createEmailVerificationToken(token: InsertEmailVerificationToken): Promise<EmailVerificationToken>;
   getEmailVerificationToken(token: string): Promise<EmailVerificationToken | undefined>;
   deleteEmailVerificationToken(token: string): Promise<boolean>;
@@ -253,9 +253,9 @@ export class DatabaseStorage implements IStorage {
   async verifyUserEmail(id: string): Promise<User | undefined> {
     const [user] = await db
       .update(users)
-      .set({ 
+      .set({
         emailVerified: new Date(),
-        isActive: 1 
+        isActive: 1
       })
       .where(eq(users.id, id))
       .returning();
@@ -720,46 +720,25 @@ export class DatabaseStorage implements IStorage {
       const costPerUnit = Number(updates.costo || currentItem.costo);
       const totalCostDifference = costPerUnit * quantityDifference;
 
-      if (quantityDifference > 0) {
-        // Quantity increased - manage cassa reinvestimento and add expense for additional stock
-        const cassaBalance = await this.getCassaReinvestimentoBalance(activityId);
+      // Quantità aumentata - SEMPRE crea la spesa per il costo totale
+      await this.createExpense({
+        userId: updatedItem.userId,
+        activityId: activityId,
+        voce: `Rifornimento: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (+${quantityDifference} pz)`,
+        importo: totalCostDifference.toString(),
+        categoria: "Inventario",
+        data: new Date(),
+      });
 
-        if (totalCostDifference > 0 && cassaBalance >= totalCostDifference) {
-          await this.updateCassaReinvestimento(
-            activityId,
-            -totalCostDifference,
-            `Rifornimento coperto da cassa: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (+${quantityDifference} pz)`,
-            updatedItem.userId
-          );
-        }
-
-        await this.createExpense({
-          userId: updatedItem.userId,
-          activityId: activityId,
-          voce: `Rifornimento: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (+${quantityDifference} pz)`,
-          importo: totalCostDifference.toString(),
-          categoria: "Inventario",
-          data: new Date(),
-        });
-      } else {
-        // Quantity decreased - restore to cassa reinvestimento and add negative expense
-        if (totalCostDifference < 0) {
-          await this.updateCassaReinvestimento(
-            activityId,
-            Math.abs(totalCostDifference),
-            `Ripristino per riduzione inventario: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${quantityDifference} pz)`,
-            updatedItem.userId
-          );
-        }
-
-        await this.createExpense({
-          userId: updatedItem.userId,
-          activityId: activityId,
-          voce: `Riduzione inventario: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${quantityDifference} pz)`,
-          importo: totalCostDifference.toString(), // This will be negative
-          categoria: "Inventario",
-          data: new Date(),
-        });
+      // Controlla se la cassa reinvestimento può coprire il costo
+      const cassaBalance = await this.getCassaReinvestimentoBalance(activityId);
+      if (totalCostDifference > 0 && cassaBalance >= totalCostDifference) {
+        await this.updateCassaReinvestimento(
+          activityId,
+          -totalCostDifference,
+          `Rifornimento coperto da cassa: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (+${quantityDifference} pz)`,
+          updatedItem.userId
+        );
       }
     }
 
@@ -784,7 +763,6 @@ export class DatabaseStorage implements IStorage {
       .from(spese)
       .where(and(
         eq(spese.activityId, activityId),
-        sql`(${spese.categoria} = 'Aggiunta articolo' OR ${spese.categoria} = 'Inventario')`,
         or(
           like(spese.voce, `%Acquisto: ${item.nomeArticolo} - ${item.taglia}%`),
           like(spese.voce, `%Rifornimento: ${item.nomeArticolo} - ${item.taglia}%`),
@@ -825,7 +803,6 @@ export class DatabaseStorage implements IStorage {
       .delete(spese)
       .where(and(
         eq(spese.activityId, activityId),
-        sql`(${spese.categoria} = 'Aggiunta articolo' OR ${spese.categoria} = 'Inventario')`,
         or(
           like(spese.voce, `%Acquisto: ${item.nomeArticolo} - ${item.taglia}%`),
           like(spese.voce, `%Rifornimento: ${item.nomeArticolo} - ${item.taglia}%`),
@@ -1124,7 +1101,7 @@ export class DatabaseStorage implements IStorage {
     // Update inventory quantity
     await db
       .update(inventario)
-      .set({ 
+      .set({
         quantita: sql`${inventario.quantita} - ${saleData.quantita!}`
       })
       .where(eq(inventario.id, saleData.inventarioId));
@@ -1171,7 +1148,7 @@ export class DatabaseStorage implements IStorage {
     // ALWAYS restore the old quantity first to ensure inventory consistency
     await db
       .update(inventario)
-      .set({ 
+      .set({
         quantita: sql`${inventario.quantita} + ${oldQuantity}`
       })
       .where(eq(inventario.id, oldInventarioId));
@@ -1191,7 +1168,7 @@ export class DatabaseStorage implements IStorage {
         // Restore the old quantity since we're failing
         await db
           .update(inventario)
-          .set({ 
+          .set({
             quantita: sql`${inventario.quantita} - ${oldQuantity}`
           })
           .where(eq(inventario.id, oldInventarioId));
@@ -1202,7 +1179,7 @@ export class DatabaseStorage implements IStorage {
         // Restore the old quantity since we're failing
         await db
           .update(inventario)
-          .set({ 
+          .set({
             quantita: sql`${inventario.quantita} - ${oldQuantity}`
           })
           .where(eq(inventario.id, oldInventarioId));
@@ -1212,7 +1189,7 @@ export class DatabaseStorage implements IStorage {
       // Reduce quantity from the target item
       await db
         .update(inventario)
-        .set({ 
+        .set({
           quantita: sql`${inventario.quantita} - ${newQuantity}`
         })
         .where(eq(inventario.id, newInventarioId));
@@ -1220,14 +1197,14 @@ export class DatabaseStorage implements IStorage {
       // Same item, same quantity - just restore the original state
       await db
         .update(inventario)
-        .set({ 
+        .set({
           quantita: sql`${inventario.quantita} - ${oldQuantity}`
         })
         .where(eq(inventario.id, oldInventarioId));
     }
 
     // If quantity, item, or price changed, recalculate FIFO margin for new data
-    if ((updates.quantita && updates.quantita !== oldQuantity) || 
+    if ((updates.quantita && updates.quantita !== oldQuantity) ||
         (updates.inventarioId && updates.inventarioId !== oldInventarioId) ||
         (updates.prezzoVendita && updates.prezzoVendita !== existingSale.prezzoVendita)) {
 
@@ -1262,7 +1239,7 @@ export class DatabaseStorage implements IStorage {
     // Handle incassato field consistency logic
     if (updates.incassato !== undefined) {
       if (updates.incassato === 0) {
-        // If setting incassato to NO, clear related fields  
+        // If setting incassato to NO, clear related fields
         (updates as any).incassatoDa = null;
         (updates as any).incassatoSu = null;
       } else if (updates.incassato === 1) {
@@ -1312,7 +1289,7 @@ export class DatabaseStorage implements IStorage {
       // Restore inventory quantity
       await db
         .update(inventario)
-        .set({ 
+        .set({
           quantita: sql`${inventario.quantita} + ${saleToDelete.quantita}`
         })
         .where(eq(inventario.id, saleToDelete.inventarioId));
@@ -1412,7 +1389,7 @@ export class DatabaseStorage implements IStorage {
 
   // Updated expenses methods with activity context
   async createExpense(expenseData: InsertSpesa & { userId: string; activityId: string }): Promise<Spesa> {
-    // Crea sempre la spesa normale - la gestione della cassa reinvestimento 
+    // Crea sempre la spesa normale - la gestione della cassa reinvestimento
     // viene fatta esplicitamente nei metodi che la chiamano
     const [expense] = await db.insert(spese).values({
       ...expenseData,
@@ -1564,9 +1541,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getActivityHistoryByActivity(
-    activityId: string, 
-    filter: string = 'all', 
-    month?: string, 
+    activityId: string,
+    filter: string = 'all',
+    month?: string,
     year?: string
   ): Promise<Array<{
     id: string;
@@ -1636,7 +1613,7 @@ export class DatabaseStorage implements IStorage {
       data: item.data.toISOString()
     })));
 
-    // Get expenses with same date filters  
+    // Get expenses with same date filters
     let expensesQuery = db
       .select({
         id: spese.id,
@@ -1646,9 +1623,9 @@ export class DatabaseStorage implements IStorage {
         type: sql<string>`'expense'`
       })
       .from(spese)
-      .where(and(eq(spese.activityId, activityId), ...dateConditions.map(cond => 
+      .where(and(eq(spese.activityId, activityId), ...dateConditions.map(cond =>
         // Replace vendite.data with spese.data in conditions
-        cond.toString().includes('vendite.data') 
+        cond.toString().includes('vendite.data')
           ? sql`${spese.data} ${cond.toString().split(' ').slice(1).join(' ')}`
           : cond
       )))
@@ -2058,7 +2035,6 @@ export class DatabaseStorage implements IStorage {
     // These operations might have side effects (like updating the reinvestment fund).
     // For simplicity, we'll assume that 'Riunisci fondi' operations are not directly deletable
     // from the history UI, or if they are, they need to be handled with care.
-    // For other types of entries, direct deletion is fine.
 
     // Example: preventing deletion of 'Riunisci fondi' for now.
     const [entry] = await db
