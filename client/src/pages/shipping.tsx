@@ -440,6 +440,7 @@ export default function Shipping() {
                         </button>
                       </TableHead>
                       <TableHead>Stato Spedizione</TableHead>
+                      <TableHead>Numero Tracking</TableHead>
                       <TableHead>Azioni</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -489,6 +490,15 @@ export default function Shipping() {
                               {getStatusIcon(status)}
                               {getStatusLabel(status)}
                             </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {sale.spedizione?.numeroTracking ? (
+                              <code className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                {sale.spedizione.numeroTracking}
+                              </code>
+                            ) : (
+                              <span className="text-gray-400 text-sm">-</span>
+                            )}
                           </TableCell>
                           <TableCell>
                             <Button
