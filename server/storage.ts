@@ -589,17 +589,19 @@ export class DatabaseStorage implements IStorage {
       );
     }
 
-    // Se rimane un costo da coprire, crea una spesa normale
-    if (remainingCost > 0) {
-      await this.createExpense({
-        userId: itemData.userId,
-        activityId: itemData.activityId,
-        voce: `Acquisto: ${itemData.nomeArticolo} - ${itemData.taglia} (${itemData.quantita} pz)`,
-        importo: remainingCost.toString(),
-        categoria: "Aggiunta articolo",
-        data: new Date(),
-      });
-    }
+    // Crea SEMPRE una spesa "Inventario" per il costo totale con dettagli del finanziamento
+    const fundingDetails = amountFromCassa > 0 
+      ? `Costo totale €${totalCost.toFixed(2)} (€${amountFromCassa.toFixed(2)} da cassa reinvestimento + €${remainingCost.toFixed(2)} fondi personali)`
+      : `Costo totale €${totalCost.toFixed(2)} (fondi personali)`;
+    
+    await this.createExpense({
+      userId: itemData.userId,
+      activityId: itemData.activityId,
+      voce: `Inventario: ${itemData.nomeArticolo} - ${itemData.taglia} (${itemData.quantita} pz) - ${fundingDetails}`,
+      importo: totalCost.toString(),
+      categoria: "Inventario",
+      data: new Date(),
+    });
 
     // Create initial inventory batch for FIFO tracking
     await this.createInventoryBatch({
