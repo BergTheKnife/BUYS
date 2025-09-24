@@ -2035,6 +2035,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Export sales to Excel
+  app.get('/api/export/sales/excel', requireActivity, async (req, res) => {
+    try {
+      const xlsx = await import('xlsx');
+      const activityId = req.session.activityId!;
+      
+      // Get sales data
+      const sales = await storage.getSalesByActivity(activityId);
+      
+      // Prepare data for Excel export
+      const excelData = sales.map(sale => {
+        return {
+          'Data': new Date(sale.data || '').toLocaleDateString('it-IT'),
+          'Articolo': sale.nomeArticolo,
+          'Taglia': sale.taglia || 'N/A',
+          'Quantità': sale.quantita,
+          'Prezzo Vendita (€)': Number(sale.prezzoVendita).toFixed(2),
+          'Venduto A': sale.vendutoA || 'N/A',
+          'Incassato': sale.incassato === 1 ? 'SI' : 'NO',
+          'Incassato Da': sale.incassatoDa || 'N/A',
+          'Incassato Su': sale.incassatoSu || 'N/A',
+          'Margine (€)': Number(sale.margine).toFixed(2)
+        };
+      });
+      
+      // Create workbook and worksheet
+      const workbook = xlsx.utils.book_new();
+      const worksheet = xlsx.utils.json_to_sheet(excelData);
+      
+      // Set column widths
+      worksheet['!cols'] = [
+        { wch: 12 }, // Data
+        { wch: 20 }, // Articolo
+        { wch: 10 }, // Taglia
+        { wch: 10 }, // Quantità
+        { wch: 16 }, // Prezzo Vendita
+        { wch: 20 }, // Venduto A
+        { wch: 12 }, // Incassato
+        { wch: 15 }, // Incassato Da
+        { wch: 15 }, // Incassato Su
+        { wch: 12 }  // Margine
+      ];
+      
+      // Add worksheet to workbook
+      xlsx.utils.book_append_sheet(workbook, worksheet, 'Vendite');
+      
+      // Generate Excel file buffer
+      const excelBuffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      
+      // Set response headers for file download
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="vendite_${new Date().toISOString().split('T')[0]}.xlsx"`);
+      res.setHeader('Content-Length', excelBuffer.length);
+      
+      // Send the Excel file
+      res.send(excelBuffer);
+    } catch (error: any) {
+      console.error('Sales Excel export error:', error);
+      res.status(500).json({ message: error.message || "Errore nell'esportazione Excel delle vendite" });
+    }
+  });
+
   // Get activity members for dropdown selections
   app.get("/api/activity-members", requireActivity, async (req, res) => {
     try {
@@ -2433,16 +2495,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/spedizioni/:venditaId', requireActivity, async (req, res) => {
     try {
       const { venditaId } = req.params;
-      const { speditoConsegnato } = req.body;
+      const { speditoConsegnato, numeroTracking } = req.body;
       
       // Validate input
       if (typeof speditoConsegnato !== 'number' || (speditoConsegnato !== 0 && speditoConsegnato !== 1)) {
         return res.status(400).json({ message: "speditoConsegnato deve essere 0 o 1" });
       }
       
-      const updatedSpedizione = await storage.updateSpedizioneStatus(venditaId, req.session.activityId!, {
-        speditoConsegnato
-      });
+      const updates: any = { speditoConsegnato };
+      
+      // Add tracking number if provided
+      if (numeroTracking !== undefined) {
+        updates.numeroTracking = numeroTracking || null;
+      }
+      
+      const updatedSpedizione = await storage.updateSpedizioneStatus(venditaId, req.session.activityId!, updates);
       
       if (!updatedSpedizione) {
         return res.status(404).json({ message: "Spedizione non trovata" });

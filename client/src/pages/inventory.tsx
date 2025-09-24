@@ -450,7 +450,9 @@ export default function Inventory() {
                 Cancella Filtri
               </Button>
               <div className="text-sm text-muted-foreground text-center sm:text-left">
-                Risultati: <span className="font-medium">{filteredInventory.length}</span> di <span className="font-medium">{inventory.length}</span>
+                Risultati: <span className="font-medium">{filteredInventory.length}</span> articoli di <span className="font-medium">{inventory.length}</span>
+                <br />
+                Pezzi totali: <span className="font-medium text-blue-600">{filteredInventory.reduce((sum, item) => sum + item.quantita, 0)}</span> di <span className="font-medium">{inventory.reduce((sum, item) => sum + item.quantita, 0)}</span>
               </div>
             </div>
           </CardContent>
@@ -489,8 +491,11 @@ export default function Inventory() {
               <div className="text-center py-12">
                 <Package className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
                 <h3 className="text-lg font-semibold mb-2">Nessun articolo trovato</h3>
-                <p className="text-muted-foreground mb-4">
+                <p className="text-muted-foreground mb-2">
                   Prova a modificare i filtri per trovare gli articoli desiderati
+                </p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Totale pezzi disponibili: <span className="font-medium text-blue-600">{inventory.reduce((sum, item) => sum + item.quantita, 0)}</span> pezzi in <span className="font-medium">{inventory.length}</span> articoli
                 </p>
                 <Button 
                   variant="outline"

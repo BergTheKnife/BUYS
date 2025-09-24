@@ -301,6 +301,38 @@ export default function Sales() {
     }
   };
 
+  const handleExcelDownload = async () => {
+    try {
+      const response = await apiRequest("GET", "/api/export/sales/excel");
+
+      if (!response.ok) {
+        throw new Error("Errore nel download del file Excel");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `vendite_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "Successo",
+        description: "File Excel scaricato con successo",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore nel download del file Excel",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="page-with-navbar bg-gray-50 dark:bg-gray-900">
@@ -459,6 +491,16 @@ export default function Sales() {
         </Card>
 
         {/* Controlli undo/redo rimossi */}
+
+        {/* Pulsante Excel in alto a destra */}
+        {filteredAndSortedSales.length > 0 && (
+          <div className="flex justify-end mb-4">
+            <Button onClick={handleExcelDownload} variant="outline" className="bg-green-50 border-green-200 text-green-700 hover:bg-green-100">
+              <Download className="h-4 w-4 mr-2" />
+              Scarica Excel
+            </Button>
+          </div>
+        )}
 
         {/* Sales Table */}
         <Card>

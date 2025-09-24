@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { pgTable, text, varchar, decimal, integer, timestamp, uuid, index, numeric } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
-import { createInsertSchema } from "drizzle-zod";
+import { createInsertSchema, InferInsertModel, InferSelectModel } from "drizzle-zod";
 import { z } from "zod";
 
 export const users = pgTable("users", {
@@ -160,12 +160,10 @@ export const spedizioni = pgTable("spedizioni", {
   vendutoA: text("venduto_a"),
   // Stato spedizione
   speditoConsegnato: integer("spedito_consegnato").default(0), // 0 = da spedire, 1 = spedito
+  numeroTracking: text("numero_tracking"), // New tracking field
   dataSpedizione: timestamp("data_spedizione"), // Solo se spedito/consegnato
   createdAt: timestamp("created_at").defaultNow(),
-}, (table) => [
-  index("spedizioni_vendita_idx").on(table.venditaId),
-  index("spedizioni_activity_idx").on(table.activityId),
-]);
+});
 
 export const emailVerificationTokensRelations = relations(emailVerificationTokens, ({ one }) => ({
   user: one(users, {
@@ -464,6 +462,16 @@ export type InsertSpedizione = typeof spedizioni.$inferInsert;
 // Schema per aggiornare spedizione
 export const updateSpedizioneSchema = z.object({
   speditoConsegnato: z.number().min(0).max(1),
+  numeroTracking: z.string().optional(), // Aggiunto campo tracking opzionale
 });
 
 export type UpdateSpedizione = z.infer<typeof updateSpedizioneSchema>;
+
+// Schemi per inventario
+export const getInventarioFilteredSchema = z.object({
+  filtro: z.string().optional(),
+  campo: z.string().optional(), // Campo su cui filtrare
+  valore: z.string().optional(), // Valore del filtro
+});
+
+export type GetInventarioFiltered = z.infer<typeof getInventarioFilteredSchema>;

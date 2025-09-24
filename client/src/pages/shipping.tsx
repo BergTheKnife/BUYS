@@ -40,6 +40,7 @@ type ShippingItem = Vendita & {
     id: string;
     speditoConsegnato: number;
     dataSpedizione: Date | null;
+    numeroTracking: string | null;
   } | null;
 };
 
@@ -58,6 +59,7 @@ export default function Shipping() {
   const [selectedSale, setSelectedSale] = useState<Vendita | null>(null);
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [newStatus, setNewStatus] = useState<"da_spedire" | "spedito">("da_spedire");
+  const [trackingNumber, setTrackingNumber] = useState<string>("");
   const [previewImage, setPreviewImage] = useState<{ src: string; alt: string } | null>(null);
   
   const { toast } = useToast();
@@ -208,10 +210,11 @@ export default function Shipping() {
 
   // Update shipping status mutation
   const updateStatusMutation = useMutation({
-    mutationFn: async ({ spedizioneId, status }: { spedizioneId: string, status: string }) => {
+    mutationFn: async ({ spedizioneId, status, numeroTracking }: { spedizioneId: string, status: string, numeroTracking?: string }) => {
       const speditoConsegnato = status === "spedito" ? 1 : 0;
       const response = await apiRequest("PUT", `/api/spedizioni/${spedizioneId}`, {
         speditoConsegnato,
+        numeroTracking,
       });
       return response.json();
     },
@@ -223,6 +226,7 @@ export default function Shipping() {
       });
       setShowStatusDialog(false);
       setSelectedSale(null);
+      setTrackingNumber("");
     },
     onError: (error: any) => {
       toast({
@@ -238,6 +242,7 @@ export default function Shipping() {
       updateStatusMutation.mutate({
         spedizioneId: (selectedSale as ShippingItem).spedizione!.id,
         status: newStatus,
+        numeroTracking: trackingNumber.trim() || undefined,
       });
     }
   };
@@ -492,6 +497,7 @@ export default function Shipping() {
                               onClick={() => {
                                 setSelectedSale(sale);
                                 setNewStatus(status === "da_spedire" ? "spedito" : "da_spedire");
+                                setTrackingNumber(sale.spedizione?.numeroTracking || "");
                                 setShowStatusDialog(true);
                               }}
                               data-testid={`button-update-status-${sale.id}`}
@@ -540,11 +546,24 @@ export default function Shipping() {
                     </SelectContent>
                   </Select>
                 </div>
+                
+                <div className="space-y-2">
+                  <Label>Numero Tracking (facoltativo)</Label>
+                  <Input
+                    placeholder="Inserisci numero tracking..."
+                    value={trackingNumber}
+                    onChange={(e) => setTrackingNumber(e.target.value)}
+                    data-testid="input-tracking-number"
+                  />
+                </div>
               </div>
             )}
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setShowStatusDialog(false)}>
+              <Button variant="outline" onClick={() => {
+                setShowStatusDialog(false);
+                setTrackingNumber("");
+              }}>
                 Annulla
               </Button>
               <Button

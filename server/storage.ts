@@ -2118,6 +2118,7 @@ export class DatabaseStorage implements IStorage {
       id: string;
       speditoConsegnato: number;
       dataSpedizione: Date | null;
+      numeroTracking: string | null;
     };
   }>> {
     const result = await db
@@ -2133,6 +2134,7 @@ export class DatabaseStorage implements IStorage {
         spedizioneId: spedizioni.id,
         speditoConsegnato: spedizioni.speditoConsegnato,
         dataSpedizione: spedizioni.dataSpedizione,
+        numeroTracking: spedizioni.numeroTracking,
       })
       .from(vendite)
       .innerJoin(spedizioni, eq(vendite.id, spedizioni.venditaId))
@@ -2152,6 +2154,7 @@ export class DatabaseStorage implements IStorage {
         id: row.spedizioneId,
         speditoConsegnato: row.speditoConsegnato ?? 0,
         dataSpedizione: row.dataSpedizione,
+        numeroTracking: row.numeroTracking,
       },
     }));
   }
