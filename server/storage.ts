@@ -759,25 +759,48 @@ export class DatabaseStorage implements IStorage {
       const costPerUnit = Number(updates.costo || currentItem.costo);
       const totalCostDifference = costPerUnit * quantityDifference;
 
-      // Quantità aumentata - SEMPRE crea la spesa per il costo totale
-      await this.createExpense({
-        userId: updatedItem.userId,
-        activityId: activityId,
-        voce: `Rifornimento: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (+${quantityDifference} pz)`,
-        importo: totalCostDifference.toString(),
-        categoria: "Inventario",
-        data: new Date(),
-      });
+      // Gestione rifornimento con cassa reinvestimento e fondi personali
+      if (totalCostDifference > 0) {
+        const cassaBalance = await this.getCassaReinvestimentoBalance(activityId);
+        const amountFromCassa = Math.min(cassaBalance, totalCostDifference);
+        const remainingCost = totalCostDifference - amountFromCassa;
 
-      // Controlla se la cassa reinvestimento può coprire il costo
-      const cassaBalance = await this.getCassaReinvestimentoBalance(activityId);
-      if (totalCostDifference > 0 && cassaBalance >= totalCostDifference) {
-        await this.updateCassaReinvestimento(
-          activityId,
-          -totalCostDifference,
-          `Rifornimento coperto da cassa: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (+${quantityDifference} pz)`,
-          updatedItem.userId
-        );
+        // Preleva dalla cassa se disponibile
+        if (amountFromCassa > 0) {
+          await this.updateCassaReinvestimento(
+            activityId,
+            -amountFromCassa,
+            `Rifornimento (copertura cassa): ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (+${quantityDifference} pz)`,
+            updatedItem.userId
+          );
+
+          // Aggiorna il campo cassaCoverage - usa il valore aggiornato dal database
+          // poiché potrebbe essere già stato modificato nella sezione cambio costo sopra
+          const [currentItemState] = await db
+            .select({ cassaCoverage: inventario.cassaCoverage })
+            .from(inventario)
+            .where(eq(inventario.id, updatedItem.id));
+          
+          const currentCassaCoverage = Number(currentItemState?.cassaCoverage || 0);
+          const newCassaCoverage = currentCassaCoverage + amountFromCassa;
+          await db.update(inventario)
+            .set({ cassaCoverage: newCassaCoverage.toString() })
+            .where(eq(inventario.id, updatedItem.id));
+        }
+
+        // Crea spesa con dettagli del finanziamento
+        const fundingDetails = amountFromCassa > 0 
+          ? `Costo rifornimento €${totalCostDifference.toFixed(2)} (€${amountFromCassa.toFixed(2)} da cassa reinvestimento + €${remainingCost.toFixed(2)} fondi personali)`
+          : `Costo rifornimento €${totalCostDifference.toFixed(2)} (fondi personali)`;
+
+        await this.createExpense({
+          userId: updatedItem.userId,
+          activityId: activityId,
+          voce: `Rifornimento: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (+${quantityDifference} pz) - ${fundingDetails}`,
+          importo: totalCostDifference.toString(),
+          categoria: "Inventario",
+          data: new Date(),
+        });
       }
     }
 
@@ -803,10 +826,12 @@ export class DatabaseStorage implements IStorage {
       .where(and(
         eq(spese.activityId, activityId),
         or(
-          like(spese.voce, `%Acquisto: ${item.nomeArticolo} - ${item.taglia}%`),
+          like(spese.voce, `%Inventario: ${item.nomeArticolo} - ${item.taglia}%`),
           like(spese.voce, `%Rifornimento: ${item.nomeArticolo} - ${item.taglia}%`),
           like(spese.voce, `%Riduzione inventario: ${item.nomeArticolo} - ${item.taglia}%`),
-          like(spese.voce, `%Aggiustamento costo: ${item.nomeArticolo} - ${item.taglia}%`)
+          like(spese.voce, `%Aggiustamento costo: ${item.nomeArticolo} - ${item.taglia}%`),
+          // Compatibilità con spese vecchie create prima di questa modifica
+          like(spese.voce, `%Acquisto: ${item.nomeArticolo} - ${item.taglia}%`)
         )
       ));
 
@@ -843,10 +868,12 @@ export class DatabaseStorage implements IStorage {
       .where(and(
         eq(spese.activityId, activityId),
         or(
-          like(spese.voce, `%Acquisto: ${item.nomeArticolo} - ${item.taglia}%`),
+          like(spese.voce, `%Inventario: ${item.nomeArticolo} - ${item.taglia}%`),
           like(spese.voce, `%Rifornimento: ${item.nomeArticolo} - ${item.taglia}%`),
           like(spese.voce, `%Riduzione inventario: ${item.nomeArticolo} - ${item.taglia}%`),
-          like(spese.voce, `%Aggiustamento costo: ${item.nomeArticolo} - ${item.taglia}%`)
+          like(spese.voce, `%Aggiustamento costo: ${item.nomeArticolo} - ${item.taglia}%`),
+          // Compatibilità con spese vecchie create prima di questa modifica
+          like(spese.voce, `%Acquisto: ${item.nomeArticolo} - ${item.taglia}%`)
         )
       ));
 
