@@ -677,38 +677,75 @@ export class DatabaseStorage implements IStorage {
         // Only create adjustment record if there's an actual difference
         if (Math.abs(costDifference) > 0.001) { // Using small epsilon for decimal comparison
 
-          // Per gli aggiustamenti di costo, gestiamo solo la cassa reinvestimento
-          // La spesa viene creata automaticamente dal metodo createExpense quando necessario
+          console.log(`💰 [COST ADJUSTMENT] Item: ${currentItem.nomeArticolo} - ${currentItem.taglia}`);
+          console.log(`💰 [COST ADJUSTMENT] Old cost total: ${oldCostTotal}€, New cost total: ${newCostTotal}€`);
+          console.log(`💰 [COST ADJUSTMENT] Cost difference: ${costDifference}€`);
+          
+          // Get original cassa coverage for this item
+          const originalCassaCoverage = Number(currentItem.cassaCoverage || 0);
+          console.log(`💰 [COST ADJUSTMENT] Original cassa coverage: ${originalCassaCoverage}€`);
 
           if (costDifference > 0) {
             // Costo aumentato - preleva dalla cassa reinvestimento se disponibile
             const cassaBalance = await this.getCassaReinvestimentoBalance(activityId);
-            if (cassaBalance >= costDifference) {
+            const amountToCover = Math.min(cassaBalance, costDifference);
+            
+            console.log(`💰 [COST ADJUSTMENT] Cost increased. Cassa balance: ${cassaBalance}€, covering: ${amountToCover}€`);
+            
+            if (amountToCover > 0) {
               await this.updateCassaReinvestimento(
                 activityId,
-                -costDifference,
+                -amountToCover,
                 `Aggiustamento costo (aumento): ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${existingQuantity} pz)`,
                 updatedItem.userId
               );
-            } else {
-              // Se non ci sono fondi sufficienti in cassa, crea una spesa normale
+              
+              // Update cassa coverage - add the amount we just covered
+              const newCassaCoverage = originalCassaCoverage + amountToCover;
+              await db.update(inventario)
+                .set({ cassaCoverage: newCassaCoverage.toString() })
+                .where(eq(inventario.id, updatedItem.id));
+            }
+            
+            // If there's remaining cost not covered by cassa, create expense
+            const remainingCost = costDifference - amountToCover;
+            if (remainingCost > 0) {
               await this.createExpense({
                 userId: updatedItem.userId,
                 activityId: activityId,
                 voce: `Aggiustamento costo: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${existingQuantity} pz)`,
-                importo: costDifference.toString(),
+                importo: remainingCost.toString(),
                 categoria: "Inventario",
                 data: new Date(),
               });
             }
           } else {
-            // Costo diminuito - rimborsa alla cassa reinvestimento
-            await this.updateCassaReinvestimento(
-              activityId,
-              Math.abs(costDifference),
-              `Aggiustamento costo (riduzione): ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${existingQuantity} pz)`,
-              updatedItem.userId
-            );
+            // Costo diminuito - calcola quanto rimborsare correttamente
+            const totalCostReduction = Math.abs(costDifference);
+            console.log(`💰 [COST ADJUSTMENT] Cost decreased by: ${totalCostReduction}€`);
+            
+            if (originalCassaCoverage > 0) {
+              // Calculate new coverage needed and what to return to cassa
+              const newCoverageNeeded = Math.min(newCostTotal, originalCassaCoverage);
+              const amountToReturnToCassa = originalCassaCoverage - newCoverageNeeded;
+              
+              console.log(`💰 [COST ADJUSTMENT] New coverage needed: ${newCoverageNeeded}€, returning to cassa: ${amountToReturnToCassa}€`);
+              
+              // Update cassa coverage to reflect new coverage amount
+              await db.update(inventario)
+                .set({ cassaCoverage: newCoverageNeeded.toString() })
+                .where(eq(inventario.id, updatedItem.id));
+              
+              // Return excess amount to cassa
+              if (amountToReturnToCassa > 0) {
+                await this.updateCassaReinvestimento(
+                  activityId,
+                  amountToReturnToCassa,
+                  `Aggiustamento costo (riduzione): ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${existingQuantity} pz)`,
+                  updatedItem.userId
+                );
+              }
+            }
           }
         }
       }
