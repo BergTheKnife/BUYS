@@ -1295,7 +1295,7 @@ export class DatabaseStorage implements IStorage {
         .where(and(
           eq(financialHistory.activityId, activityId),
           eq(financialHistory.azione, "Vendita incassata"),
-          sql`JSON_EXTRACT(${financialHistory.dettagli}, '$.venditaId') = ${id}`
+          sql`(${financialHistory.dettagli}->>'venditaId') = ${id}`
         ));
     }
 
