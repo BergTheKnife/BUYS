@@ -1425,6 +1425,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Updated expenses methods with activity context
+  async getExpensesByActivity(activityId: string): Promise<Spesa[]> {
+    const expenses = await db
+      .select()
+      .from(spese)
+      .where(eq(spese.activityId, activityId))
+      .orderBy(desc(spese.data));
+    return expenses;
+  }
+
   async createExpense(expenseData: InsertSpesa & { userId: string; activityId: string }): Promise<Spesa> {
     // Crea sempre la spesa normale - la gestione della cassa reinvestimento
     // viene fatta esplicitamente nei metodi che la chiamano
