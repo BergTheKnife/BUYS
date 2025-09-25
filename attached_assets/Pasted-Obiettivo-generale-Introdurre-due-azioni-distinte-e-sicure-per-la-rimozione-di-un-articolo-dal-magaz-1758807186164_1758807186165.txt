@@ -1,0 +1,88 @@
+Obiettivo generale
+Introdurre due azioni distinte e sicure per la rimozione di un articolo dal magazzino, con regole contabili chiare:
+
+ARCHIVIAZIONE (non più disponibile / fuori produzione)
+
+Non altera in alcun modo la contabilità storica.
+
+Nessun ripristino della cassa reinvestimento.
+
+Nessuna cancellazione di spese, vendite, spedizioni o movimenti di cassa pregressi.
+
+L’articolo diventa “non operativo” (escluso da liste e selettori operativi) ma rimane nei report storici.
+
+ELIMINAZIONE DEFINITIVA (errore di caricamento)
+
+Consentita solo se l’articolo non ha vendite/spedizioni collegate (né altre dipendenze operative).
+
+Esegue un rollback contabile completo:
+
+ripristino della sola quota effettivamente prelevata dalla cassa reinvestimento (né più né meno);
+
+annullamento/eliminazione della spesa “Inventario” associata all’inserimento (e di eventuali spese correlate rifornimenti/riduzioni create solo per quell’errore);
+
+rimozione dell’articolo.
+
+Il risultato finale deve equivalere allo stato “come se quell’articolo non fosse mai stato caricato”.
+
+Nota importante
+Se l’utente sceglie “Elimina definitivamente” ma esistono già vendite/spedizioni collegate, bloccare l’operazione e proporre solo ARCHIVIAZIONE (oppure, se previsto in futuro, una procedura separata di storno; ma in questo task non implementarla).
+
+Requisiti funzionali dettagliati
+
+Archiviazione:
+
+Aggiornare lo stato dell’articolo a “archiviato” e non mostrarlo più in liste/selector operativi (nuove vendite, rifornimenti, ecc.).
+
+Non modificare nessun movimento contabile storico (spese, cassa, incassi vendite, ecc.).
+
+Mantenere l’articolo visibile nelle viste/report storici (eventuale badge “archiviato”).
+
+Eliminazione definitiva:
+
+Verificare assenza di dipendenze (vendite/spedizioni/altre relazioni). Se presenti, abortire con messaggio chiaro e proporre archiviazione.
+
+Eseguire in un’unica transazione:
+
+ripristino in cassa della sola quota usata per quell’articolo (cassa reinvestimento), con controllo di idempotenza per evitare doppi ripristini;
+
+eliminazione/annullamento della spesa “Inventario” collegata all’articolo (e di eventuali spese correlate create solo da quell’inserimento errato), lasciando zero residui contabili;
+
+rimozione definitiva dell’articolo.
+
+Tutte le correlazioni devono basarsi su ID (es. inventarioId, spesaId) salvati nei dettagli dei movimenti, mai su confronti testuali nelle descrizioni.
+
+Tracciabilità e sicurezza:
+
+Ogni movimento contabile deve avere riferimenti univoci (ID) per audit e per controlli di idempotenza.
+
+Vietato cancellare o alterare movimenti storici in caso di archiviazione.
+
+Nessun utilizzo di match testuali (LIKE) per correlare movimenti/spese.
+
+Criteri di accettazione (test manuali)
+
+Caso A – Archiviazione (articolo con storico):
+
+Dopo l’archiviazione l’articolo non è più selezionabile nelle operazioni, ma compare nei report storici.
+
+Nessun movimento in cassa viene eseguito. Nessuna spesa/elenco storico viene rimosso o alterato.
+
+Caso B – Eliminazione definitiva senza dipendenze:
+
+L’operazione riesce; lo stato contabile torna esattamente a prima dell’inserimento (cassa reintegrata della sola quota cassa usata; spesa inventario e correlati rimossi; nessun residuo).
+
+Ripetere l’operazione non genera doppi ripristini grazie ai controlli di idempotenza.
+
+Caso C – Eliminazione definitiva con dipendenze:
+
+L’operazione viene bloccata; viene proposto l’esito “archivia” come unica opzione. Nessuna variazione contabile avviene.
+
+Caso D – UI/Query:
+
+Archiviati esclusi da liste/selector operativi; visibili nei report storici con eventuale indicatore.
+
+La contabilità (cassa, spese, incassi) è coerente con le regole sopra.
+
+Consegna
+Implementare le due modalità con messaggistica chiara in UI (modale di conferma con scelta Archivia / Elimina definitivamente e relative condizioni), assicurando transazioni atomiche, idempotenza sui ripristini cassa dell’eliminazione definitiva e uso esclusivo di riferimenti ID per tutte le correlazioni contabili.

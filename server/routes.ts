@@ -2247,6 +2247,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 🗂️ MODALITÀ 1: ARCHIVIAZIONE - Solo soft-delete, nessun ripristino cassa
+  app.post('/api/inventario/:id/archive', requireActivity, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const archived = await storage.archiveInventoryItem(id, req.session.activityId!);
+      
+      if (!archived) {
+        return res.status(404).json({ message: "Articolo non trovato o già archiviato" });
+      }
+
+      res.json({ 
+        message: "Articolo archiviato con successo",
+        type: "archive",
+        details: "L'articolo non è più disponibile per nuove operazioni ma rimane visibile nei report storici."
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nell'archiviazione dell'articolo" });
+    }
+  });
+
+  // 🗑️ MODALITÀ 2: ELIMINAZIONE DEFINITIVA - Rollback completo se nessuna dipendenza
+  app.post('/api/inventario/:id/permanent-delete', requireActivity, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const result = await storage.permanentlyDeleteInventoryItem(id, req.session.activityId!);
+      
+      if (!result.success) {
+        return res.status(400).json({ 
+          message: result.error || "Impossibile eliminare l'articolo",
+          type: "blocked",
+          suggestArchive: true
+        });
+      }
+
+      res.json({ 
+        message: "Articolo eliminato definitivamente",
+        type: "permanent-delete",
+        details: "Rollback completo eseguito - come se l'articolo non fosse mai stato caricato."
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nell'eliminazione definitiva dell'articolo" });
+    }
+  });
+
+  // Mantieni la route originale per compatibilità (usa archiviazione di default)
   app.delete('/api/inventario/:id', requireActivity, async (req, res) => {
     try {
       const { id } = req.params;
@@ -2256,7 +2301,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Articolo non trovato" });
       }
 
-      res.json({ message: "Articolo eliminato con successo" });
+      res.json({ 
+        message: "Articolo archiviato con successo (modalità compatibilità)",
+        type: "archive",
+        compatibility: true
+      });
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nell'eliminazione dell'articolo" });
     }

@@ -85,6 +85,14 @@ export interface IStorage {
   getInventoryItem(id: string, activityId: string): Promise<Inventario | undefined>;
   createInventoryItem(item: InsertInventario & { userId: string; activityId: string; immagineUrl?: string | null }): Promise<Inventario>;
   updateInventoryItem(id: string, activityId: string, updates: Partial<InsertInventario>): Promise<Inventario | undefined>;
+  
+  // 🗂️ MODALITÀ 1: ARCHIVIAZIONE - Solo soft-delete, nessun ripristino cassa
+  archiveInventoryItem(id: string, activityId: string): Promise<boolean>;
+  
+  // 🗑️ MODALITÀ 2: ELIMINAZIONE DEFINITIVA - Rollback completo se nessuna dipendenza
+  permanentlyDeleteInventoryItem(id: string, activityId: string): Promise<{success: boolean, error?: string}>;
+  
+  // Mantieni per compatibilità (ora rimappa ad archiviazione di default)
   deleteInventoryItem(id: string, activityId: string): Promise<boolean>;
   updateInventoryQuantity(id: string, newQuantity: number): Promise<Inventario | undefined>;
 
@@ -222,7 +230,7 @@ export class DatabaseStorage implements IStorage {
 
   async getUserByEmailOrUsername(emailOrUsername: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(
-      sql`${users.email} = ${emailOrUsername} OR ${users.username} = ${emailOrUsername}`
+      or(eq(users.email, emailOrUsername), eq(users.username, emailOrUsername))
     );
     return user || undefined;
   }
@@ -619,6 +627,7 @@ export class DatabaseStorage implements IStorage {
       importo: totalCost.toString(),
       categoria: "Inventario",
       data: new Date(),
+      itemId: item.id // 🎯 RIFERIMENTO PUNTUALE all'articolo invece di confronti testuali
     });
 
     // Create initial inventory batch for FIFO tracking
@@ -828,6 +837,7 @@ export class DatabaseStorage implements IStorage {
           importo: totalCostDifference.toString(),
           categoria: "Inventario",
           data: new Date(),
+          itemId: updatedItem.id // 🎯 RIFERIMENTO PUNTUALE all'articolo per rifornimento
         });
       }
     }
@@ -835,87 +845,126 @@ export class DatabaseStorage implements IStorage {
     return updatedItem || undefined;
   }
 
-  async deleteInventoryItem(id: string, activityId: string): Promise<boolean> {
-    // 🗂️ SOFT-DELETE IMPLEMENTATION: L'articolo viene archiviato invece che eliminato
-    // Lo storico (vendite, spese, movimenti) rimane integro - nessuna cancellazione
+  // 🗂️ MODALITÀ 1: ARCHIVIAZIONE - Solo soft-delete, NESSUN ripristino cassa
+  async archiveInventoryItem(id: string, activityId: string): Promise<boolean> {
+    // ARCHIVIAZIONE: Non altera contabilità, solo esclusione da liste operative
+    
+    const [item] = await db.select().from(inventario)
+      .where(and(eq(inventario.id, id), eq(inventario.activityId, activityId)))
+      .limit(1);
+    
+    if (!item || item.archiviato === 1) return false;
+
+    console.log(`📂 [ARCHIVE ONLY] Archiving item ${id}: ${item.nomeArticolo} - ${item.taglia}`);
+    console.log(`📂 [ARCHIVE ONLY] NO cash restoration - item becomes non-operational but keeps historical integrity`);
+
+    // SOLO soft-delete - nessun ripristino cassa, nessun rollback contabile
+    const result = await db.update(inventario)
+      .set({ archiviato: 1 })
+      .where(and(eq(inventario.id, id), eq(inventario.activityId, activityId)));
+
+    console.log(`📂 [ARCHIVE ONLY] Item archived - excluded from operations but visible in historical reports`);
+    
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // 🗑️ MODALITÀ 2: ELIMINAZIONE DEFINITIVA - Rollback completo se nessuna dipendenza
+  async permanentlyDeleteInventoryItem(id: string, activityId: string): Promise<{success: boolean, error?: string}> {
+    // ELIMINAZIONE DEFINITIVA: Solo se nessuna dipendenza, rollback completo
     
     return await db.transaction(async (tx) => {
-      // Get the inventory item to check for related data
+      // Verifica che l'articolo esista e non sia già archiviato
       const item = await tx.select().from(inventario)
         .where(and(eq(inventario.id, id), eq(inventario.activityId, activityId)))
         .limit(1);
       
-      if (!item.length || item[0].archiviato === 1) return false;
+      if (!item.length) return {success: false, error: "Articolo non trovato"};
 
       const itemData = item[0];
-      console.log(`📂 [ARCHIVE] Starting archiving of item ${id}: ${itemData.nomeArticolo} - ${itemData.taglia}`);
+      console.log(`🗑️ [PERMANENT DELETE] Starting permanent deletion check for: ${itemData.nomeArticolo} - ${itemData.taglia}`);
+
+      // 🚫 CONTROLLO DIPENDENZE: Verifica assenza di vendite/spedizioni
+      const relatedSales = await tx.select().from(vendite)
+        .where(eq(vendite.inventarioId, id))
+        .limit(1);
+
+      const relatedSpedizioni = await tx.select().from(spedizioni)
+        .where(eq(spedizioni.inventarioId, id))
+        .limit(1);
+
+      if (relatedSales.length > 0 || relatedSpedizioni.length > 0) {
+        console.log(`🚫 [PERMANENT DELETE] BLOCKED - Found dependencies: ${relatedSales.length} sales, ${relatedSpedizioni.length} shipments`);
+        return {success: false, error: "Impossibile eliminare: esistono vendite/spedizioni collegate. Usa 'Archivia' invece."};
+      }
+
+      console.log(`✅ [PERMANENT DELETE] No dependencies found - proceeding with complete rollback`);
 
       const cassaCoverage = Number(itemData.cassaCoverage || 0);
-      console.log(`📂 [ARCHIVE] Original cassa coverage to restore: ${cassaCoverage}`);
+      console.log(`🗑️ [PERMANENT DELETE] Original cassa coverage to restore: ${cassaCoverage}`);
 
-      // 🛡️ CONTROLLO IDEMPOTENZA: Verifica se è già stato fatto un deposito per questo articolo
+      // 🛡️ CONTROLLO IDEMPOTENZA per ripristino cassa
       const existingRestoration = await tx.select().from(financialHistory)
         .where(and(
           eq(financialHistory.activityId, activityId),
           eq(financialHistory.itemId, id),
-          eq(financialHistory.azione, "Ripristino cassa per archiviazione articolo")
+          eq(financialHistory.azione, "Ripristino cassa per eliminazione definitiva")
         ));
 
-      console.log(`📂 [ARCHIVE] Found ${existingRestoration.length} existing restoration records`);
-
-      // Calcola quanto è già stato ripristinato
       let totalAlreadyRestored = 0;
       if (existingRestoration.length > 0) {
         totalAlreadyRestored = existingRestoration.reduce((sum, record) => {
           return sum + Number(record.importo || 0);
         }, 0);
-        console.log(`📂 [ARCHIVE] Already restored: ${totalAlreadyRestored}`);
       }
 
-      // Calcola quanto ancora da ripristinare (controllo idempotenza)
       const amountToRestore = cassaCoverage - totalAlreadyRestored;
-      console.log(`📂 [ARCHIVE] Amount to restore: ${amountToRestore} (coverage: ${cassaCoverage}, already restored: ${totalAlreadyRestored})`);
 
-      // Ripristina la quota di cassa solo se necessario
+      // Ripristina quota cassa se necessario
       if (amountToRestore > 0) {
-        console.log(`📂 [ARCHIVE] Restoring cassa coverage: ${amountToRestore}`);
+        console.log(`🗑️ [PERMANENT DELETE] Restoring cassa coverage: ${amountToRestore}`);
         
-        // Registra il movimento nella financial_history con riferimento puntuale (itemId)
         await tx.insert(financialHistory).values({
           userId: itemData.userId,
           activityId: activityId,
-          azione: "Ripristino cassa per archiviazione articolo",
-          descrizione: `Ripristino cassa: ${itemData.nomeArticolo} - ${itemData.taglia} (${itemData.quantita} pz)`,
+          azione: "Ripristino cassa per eliminazione definitiva",
+          descrizione: `Rollback completo: ${itemData.nomeArticolo} - ${itemData.taglia} (${itemData.quantita} pz)`,
           importo: amountToRestore.toString(),
-          itemId: id, // 🎯 RIFERIMENTO PUNTUALE invece di confronti testuali
+          itemId: id,
           data: new Date(),
         });
 
-        // Aggiorna il bilancio della cassa reinvestimento
         await this.updateCassaReinvestimento(
           activityId,
           amountToRestore,
-          `Ripristino cassa per archiviazione: ${itemData.nomeArticolo} - ${itemData.taglia} (${itemData.quantita} pz)`,
+          `Rollback eliminazione: ${itemData.nomeArticolo} - ${itemData.taglia} (${itemData.quantita} pz)`,
           itemData.userId
         );
-      } else if (amountToRestore === 0) {
-        console.log(`📂 [ARCHIVE] Restoration already completed - idempotence check passed`);
-      } else {
-        console.log(`📂 [ARCHIVE] Restoration amount is negative, possible data inconsistency`);
       }
 
-      // 🗂️ SOFT-DELETE: Marca l'articolo come archiviato invece di eliminarlo
-      const result = await tx.update(inventario)
-        .set({ archiviato: 1 })
+      // 🗑️ ANNULLAMENTO SPESE: Elimina spese "Inventario" associate usando itemId
+      await tx.delete(spese)
+        .where(and(
+          eq(spese.activityId, activityId),
+          eq(spese.itemId, id),
+          eq(spese.categoria, "Inventario")
+        ));
+
+      // 🗑️ RIMOZIONE DEFINITIVA dell'articolo
+      const result = await tx.delete(inventario)
         .where(and(eq(inventario.id, id), eq(inventario.activityId, activityId)));
 
-      console.log(`📂 [ARCHIVE] Item archived successfully - visible in historical reports but not in operational lists`);
+      console.log(`🗑️ [PERMANENT DELETE] Complete rollback executed - item permanently removed`);
+      console.log(`🗑️ [PERMANENT DELETE] Result: like it was never loaded`);
       
-      // 🏛️ STORICO PRESERVATO: Vendite, spese e movimenti rimangono intatti per i report storici
-      // Non viene cancellato nulla - tutto è tracciabile e auditabile
-      
-      return (result.rowCount ?? 0) > 0;
+      return {success: (result.rowCount ?? 0) > 0};
     });
+  }
+
+  // Mantieni la funzione originale per compatibilità (ora rimappa ad archiviazione di default)
+  async deleteInventoryItem(id: string, activityId: string): Promise<boolean> {
+    // ⚠️ COMPATIBILITÀ: Questa funzione ora usa ARCHIVIAZIONE di default
+    console.log(`⚠️ [COMPATIBILITY] Using legacy deleteInventoryItem - redirecting to ARCHIVE mode`);
+    return await this.archiveInventoryItem(id, activityId);
   }
 
   async updateInventoryQuantity(id: string, newQuantity: number): Promise<Inventario | undefined> {
