@@ -883,18 +883,14 @@ export class DatabaseStorage implements IStorage {
       const itemData = item[0];
       console.log(`🗑️ [PERMANENT DELETE] Starting permanent deletion check for: ${itemData.nomeArticolo} - ${itemData.taglia}`);
 
-      // 🚫 CONTROLLO DIPENDENZE: Verifica assenza di vendite/spedizioni
+      // 🚫 CONTROLLO DIPENDENZE: Verifica assenza di vendite (le spedizioni sono sempre collegate alle vendite)
       const relatedSales = await tx.select().from(vendite)
         .where(eq(vendite.inventarioId, id))
         .limit(1);
 
-      const relatedSpedizioni = await tx.select().from(spedizioni)
-        .where(eq(spedizioni.inventarioId, id))
-        .limit(1);
-
-      if (relatedSales.length > 0 || relatedSpedizioni.length > 0) {
-        console.log(`🚫 [PERMANENT DELETE] BLOCKED - Found dependencies: ${relatedSales.length} sales, ${relatedSpedizioni.length} shipments`);
-        return {success: false, error: "Impossibile eliminare: esistono vendite/spedizioni collegate. Usa 'Archivia' invece."};
+      if (relatedSales.length > 0) {
+        console.log(`🚫 [PERMANENT DELETE] BLOCKED - Found dependencies: ${relatedSales.length} sales (shipments automatically included)`);
+        return {success: false, error: "Impossibile eliminare: esistono vendite collegate. Usa 'Archivia' invece."};
       }
 
       console.log(`✅ [PERMANENT DELETE] No dependencies found - proceeding with complete rollback`);
