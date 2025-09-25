@@ -1672,12 +1672,12 @@ export class DatabaseStorage implements IStorage {
       ));
 
     const [salesSumResult] = await db
-      .select({ total: sql<number>`coalesce(sum(${vendite.prezzoVendita}), 0)` })
+      .select({ total: sql<number>`coalesce(sum(cast(${vendite.prezzoVendita} as decimal)), 0)` })
       .from(vendite)
       .where(eq(vendite.activityId, activityId));
 
     const [expensesSumResult] = await db
-      .select({ total: sql<number>`coalesce(sum(${spese.importo}), 0)` })
+      .select({ total: sql<number>`coalesce(sum(cast(${spese.importo} as decimal)), 0)` })
       .from(spese)
       .where(eq(spese.activityId, activityId));
 
@@ -2064,7 +2064,7 @@ export class DatabaseStorage implements IStorage {
     const salesByMonth = await db
       .select({
         month: sql<string>`to_char(${vendite.data}, 'YYYY-MM')`,
-        total: sql<number>`sum(${vendite.prezzoVendita})`
+        total: sql<number>`sum(cast(${vendite.prezzoVendita} as decimal))`
       })
       .from(vendite)
       .where(and(
@@ -2078,7 +2078,7 @@ export class DatabaseStorage implements IStorage {
     const expensesByMonth = await db
       .select({
         month: sql<string>`to_char(${spese.data}, 'YYYY-MM')`,
-        total: sql<number>`sum(${spese.importo})`
+        total: sql<number>`sum(cast(${spese.importo} as decimal))`
       })
       .from(spese)
       .where(and(
