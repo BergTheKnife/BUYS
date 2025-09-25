@@ -818,89 +818,86 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteInventoryItem(id: string, activityId: string): Promise<boolean> {
-    // Get the inventory item to check for related data
-    const item = await this.getInventoryItem(id, activityId);
-    if (!item) return false;
+    // 🗂️ SOFT-DELETE IMPLEMENTATION: L'articolo viene archiviato invece che eliminato
+    // Lo storico (vendite, spese, movimenti) rimane integro - nessuna cancellazione
+    
+    return await db.transaction(async (tx) => {
+      // Get the inventory item to check for related data
+      const item = await tx.select().from(inventario)
+        .where(and(eq(inventario.id, id), eq(inventario.activityId, activityId)))
+        .limit(1);
+      
+      if (!item.length || item[0].archiviato === 1) return false;
 
-    console.log(`🔍 [DELETE DEBUG] Starting deletion of item ${id}: ${item.nomeArticolo} - ${item.taglia}, cost: ${item.costo}, quantity: ${item.quantita}`);
+      const itemData = item[0];
+      console.log(`📂 [ARCHIVE] Starting archiving of item ${id}: ${itemData.nomeArticolo} - ${itemData.taglia}`);
 
-    const currentTotalValue = Number(item.costo) * item.quantita;
-    const cassaCoverage = Number(item.cassaCoverage || 0);
-    console.log(`🔍 [DELETE DEBUG] Current total inventory value: ${currentTotalValue} (${item.costo} × ${item.quantita})`);
-    console.log(`🔍 [DELETE DEBUG] Original cassa coverage: ${cassaCoverage}`);
+      const cassaCoverage = Number(itemData.cassaCoverage || 0);
+      console.log(`📂 [ARCHIVE] Original cassa coverage to restore: ${cassaCoverage}`);
 
-    // Find related expenses for cleanup
-    const relatedExpenses = await db
-      .select()
-      .from(spese)
-      .where(and(
-        eq(spese.activityId, activityId),
-        or(
-          like(spese.voce, `%Inventario: ${item.nomeArticolo} - ${item.taglia}%`),
-          like(spese.voce, `%Rifornimento: ${item.nomeArticolo} - ${item.taglia}%`),
-          like(spese.voce, `%Riduzione inventario: ${item.nomeArticolo} - ${item.taglia}%`),
-          like(spese.voce, `%Riduzione valore inventario: ${item.nomeArticolo} - ${item.taglia}%`),
-          like(spese.voce, `%Aggiustamento costo: ${item.nomeArticolo} - ${item.taglia}%`),
-          // Compatibilità con spese vecchie create prima di questa modifica
-          like(spese.voce, `%Acquisto: ${item.nomeArticolo} - ${item.taglia}%`)
-        )
-      ));
+      // 🛡️ CONTROLLO IDEMPOTENZA: Verifica se è già stato fatto un deposito per questo articolo
+      const existingRestoration = await tx.select().from(financialHistory)
+        .where(and(
+          eq(financialHistory.activityId, activityId),
+          eq(financialHistory.itemId, id),
+          eq(financialHistory.azione, "Ripristino cassa per archiviazione articolo")
+        ));
 
-    console.log(`🔍 [DELETE DEBUG] Found ${relatedExpenses.length} related expenses for cleanup`);
+      console.log(`📂 [ARCHIVE] Found ${existingRestoration.length} existing restoration records`);
 
-    // Get current cassa balance for debugging
-    const balanceBefore = await this.getCassaReinvestimentoBalance(activityId);
-    console.log(`🔍 [DELETE DEBUG] Cassa balance before restoration: ${balanceBefore}`);
+      // Calcola quanto è già stato ripristinato
+      let totalAlreadyRestored = 0;
+      if (existingRestoration.length > 0) {
+        totalAlreadyRestored = existingRestoration.reduce((sum, record) => {
+          return sum + Number(record.importo || 0);
+        }, 0);
+        console.log(`📂 [ARCHIVE] Already restored: ${totalAlreadyRestored}`);
+      }
 
-    // Restore only the amount that was originally covered by cassa reinvestimento
-    if (cassaCoverage > 0) {
-      console.log(`🔍 [DELETE DEBUG] Restoring original cassa coverage: ${cassaCoverage}`);
-      await this.updateCassaReinvestimento(
-        activityId,
-        cassaCoverage,
-        `Ripristino cassa per eliminazione articolo: ${item.nomeArticolo} - ${item.taglia} (${item.quantita} pz)`,
-        item.userId
-      );
+      // Calcola quanto ancora da ripristinare (controllo idempotenza)
+      const amountToRestore = cassaCoverage - totalAlreadyRestored;
+      console.log(`📂 [ARCHIVE] Amount to restore: ${amountToRestore} (coverage: ${cassaCoverage}, already restored: ${totalAlreadyRestored})`);
 
-      const balanceAfter = await this.getCassaReinvestimentoBalance(activityId);
-      console.log(`🔍 [DELETE DEBUG] Cassa balance after restoration: ${balanceAfter} (expected: ${balanceBefore + cassaCoverage})`);
-    } else {
-      console.log(`🔍 [DELETE DEBUG] No cassa coverage to restore`);
-    }
+      // Ripristina la quota di cassa solo se necessario
+      if (amountToRestore > 0) {
+        console.log(`📂 [ARCHIVE] Restoring cassa coverage: ${amountToRestore}`);
+        
+        // Registra il movimento nella financial_history con riferimento puntuale (itemId)
+        await tx.insert(financialHistory).values({
+          userId: itemData.userId,
+          activityId: activityId,
+          azione: "Ripristino cassa per archiviazione articolo",
+          descrizione: `Ripristino cassa: ${itemData.nomeArticolo} - ${itemData.taglia} (${itemData.quantita} pz)`,
+          importo: amountToRestore.toString(),
+          itemId: id, // 🎯 RIFERIMENTO PUNTUALE invece di confronti testuali
+          data: new Date(),
+        });
 
-    // Delete all related sales to avoid foreign key constraint
-    await db
-      .delete(vendite)
-      .where(eq(vendite.inventarioId, id));
+        // Aggiorna il bilancio della cassa reinvestimento
+        await this.updateCassaReinvestimento(
+          activityId,
+          amountToRestore,
+          `Ripristino cassa per archiviazione: ${itemData.nomeArticolo} - ${itemData.taglia} (${itemData.quantita} pz)`,
+          itemData.userId
+        );
+      } else if (amountToRestore === 0) {
+        console.log(`📂 [ARCHIVE] Restoration already completed - idempotence check passed`);
+      } else {
+        console.log(`📂 [ARCHIVE] Restoration amount is negative, possible data inconsistency`);
+      }
 
-    // Delete all related expenses for cleanup
-    await db
-      .delete(spese)
-      .where(and(
-        eq(spese.activityId, activityId),
-        or(
-          like(spese.voce, `%Inventario: ${item.nomeArticolo} - ${item.taglia}%`),
-          like(spese.voce, `%Rifornimento: ${item.nomeArticolo} - ${item.taglia}%`),
-          like(spese.voce, `%Riduzione inventario: ${item.nomeArticolo} - ${item.taglia}%`),
-          like(spese.voce, `%Riduzione valore inventario: ${item.nomeArticolo} - ${item.taglia}%`),
-          like(spese.voce, `%Aggiustamento costo: ${item.nomeArticolo} - ${item.taglia}%`),
-          // Compatibilità con spese vecchie create prima di questa modifica
-          like(spese.voce, `%Acquisto: ${item.nomeArticolo} - ${item.taglia}%`)
-        )
-      ));
+      // 🗂️ SOFT-DELETE: Marca l'articolo come archiviato invece di eliminarlo
+      const result = await tx.update(inventario)
+        .set({ archiviato: 1 })
+        .where(and(eq(inventario.id, id), eq(inventario.activityId, activityId)));
 
-    // Delete inventory batches
-    const { inventoryBatches } = await import('../migrations/schema');
-    await db
-      .delete(inventoryBatches)
-      .where(eq(inventoryBatches.inventarioId, id));
-
-    // Finally, delete the inventory item
-    const result = await db
-      .delete(inventario)
-      .where(and(eq(inventario.id, id), eq(inventario.activityId, activityId)));
-
-    return (result.rowCount ?? 0) > 0;
+      console.log(`📂 [ARCHIVE] Item archived successfully - visible in historical reports but not in operational lists`);
+      
+      // 🏛️ STORICO PRESERVATO: Vendite, spese e movimenti rimangono intatti per i report storici
+      // Non viene cancellato nulla - tutto è tracciabile e auditabile
+      
+      return (result.rowCount ?? 0) > 0;
+    });
   }
 
   async updateInventoryQuantity(id: string, newQuantity: number): Promise<Inventario | undefined> {
