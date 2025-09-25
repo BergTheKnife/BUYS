@@ -44,7 +44,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Package, Plus, Edit, Trash2, ImageIcon, PackagePlus, Filter, ArrowUpDown, ArrowUp, ArrowDown, Download } from "lucide-react";
+import { Package, Plus, Edit, Trash2, ImageIcon, PackagePlus, Filter, ArrowUpDown, ArrowUp, ArrowDown, Download, FolderArchive } from "lucide-react";
 import type { Inventario } from "@shared/schema";
 // Hook undo/redo rimosso
 import { ImagePreview } from "@/components/ui/image-preview";
@@ -53,6 +53,7 @@ export default function Inventory() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Inventario | null>(null);
   const [itemToDelete, setItemToDelete] = useState<Inventario | null>(null);
+  const [deleteMode, setDeleteMode] = useState<'archive' | 'permanent' | null>(null);
   const [restockItem, setRestockItem] = useState<Inventario | null>(null);
   const [restockQuantity, setRestockQuantity] = useState("1");
   const [restockNewCost, setRestockNewCost] = useState("");
@@ -202,25 +203,69 @@ export default function Inventory() {
     });
   }, [inventory, filters, sortConfig, hideOutOfStock]);
 
-  const deleteMutation = useMutation({
+  // 🗂️ MODALITÀ 1: ARCHIVIAZIONE - Solo soft-delete, preserva storico
+  const archiveMutation = useMutation({
     mutationFn: async (id: string) => {
-      const response = await apiRequest("DELETE", `/api/inventario/${id}`);
+      const response = await apiRequest("POST", `/api/inventario/${id}/archive`);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
       toast({
-        title: "Successo",
-        description: "Articolo eliminato con successo",
+        title: "Articolo Archiviato",
+        description: "L'articolo è stato archiviato. I dati storici sono preservati.",
       });
+      setItemToDelete(null);
     },
     onError: (error: any) => {
       toast({
         title: "Errore",
-        description: error.message || "Errore nell'eliminazione dell'articolo",
+        description: error.message || "Errore nell'archiviazione dell'articolo",
         variant: "destructive",
       });
+    },
+  });
+
+  // 🗑️ MODALITÀ 2: ELIMINAZIONE DEFINITIVA - Rollback completo se possibile
+  const permanentDeleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiRequest("POST", `/api/inventario/${id}/permanent-delete`);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/spese"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cassa-reinvestimento-balance"] });
+      toast({
+        title: "Eliminazione Definitiva",
+        description: "Rollback completo eseguito - come se l'articolo non fosse mai esistito.",
+      });
+      setItemToDelete(null);
+    },
+    onError: (error: any) => {
+      // Se l'eliminazione è bloccata, proponi automaticamente l'archiviazione
+      if (error.suggestArchive) {
+        toast({
+          title: "Eliminazione Bloccata",
+          description: "L'articolo ha vendite associate. Usa l'archiviazione invece.",
+          variant: "destructive",
+        });
+        // Mostra opzione di archiviazione dopo 2 secondi
+        setTimeout(() => {
+          toast({
+            title: "Suggerimento",
+            description: "Puoi comunque archiviare l'articolo per nasconderlo dalle liste operative.",
+          });
+        }, 2000);
+      } else {
+        toast({
+          title: "Errore",
+          description: error.message || "Errore nell'eliminazione definitiva dell'articolo",
+          variant: "destructive",
+        });
+      }
     },
   });
 
@@ -261,9 +306,20 @@ export default function Inventory() {
     }
   };
 
-  const handleDelete = (id: string) => {
-    if (window.confirm("Sei sicuro di voler eliminare questo articolo?")) {
-      deleteMutation.mutate(id);
+  // Handler che apre il dialog di scelta dual-mode
+  const handleDeleteClick = (item: Inventario) => {
+    setItemToDelete(item);
+    setDeleteMode(null); // Reset della modalità
+  };
+
+  // Handler per la scelta della modalità
+  const handleModeSelect = (mode: 'archive' | 'permanent') => {
+    if (!itemToDelete) return;
+
+    if (mode === 'archive') {
+      archiveMutation.mutate(itemToDelete.id);
+    } else if (mode === 'permanent') {
+      permanentDeleteMutation.mutate(itemToDelete.id);
     }
   };
 
@@ -619,8 +675,8 @@ export default function Inventory() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => setItemToDelete(item)}
-                              title="Elimina"
+                              onClick={() => handleDeleteClick(item)}
+                              title="Gestisci Eliminazione"
                               className="min-w-[36px] h-9 p-2"
                             >
                               <Trash2 className="h-6 w-6 text-red-600" />
@@ -655,23 +711,65 @@ export default function Inventory() {
           editingItem={editingItem}
         />
 
+        {/* 🎛️ DIALOG DUAL-MODE: Scelta tra Archiviazione e Eliminazione Definitiva */}
         <AlertDialog open={!!itemToDelete} onOpenChange={() => setItemToDelete(null)}>
-          <AlertDialogContent>
+          <AlertDialogContent className="max-w-md">
             <AlertDialogHeader>
-              <AlertDialogTitle>Conferma eliminazione</AlertDialogTitle>
+              <AlertDialogTitle>Come gestire questo articolo?</AlertDialogTitle>
               <AlertDialogDescription>
-                Sei sicuro di voler eliminare "{itemToDelete?.nomeArticolo}"? 
-                Questa azione non può essere annullata.
+                Scegli come vuoi gestire "{itemToDelete?.nomeArticolo} - {itemToDelete?.taglia}"
               </AlertDialogDescription>
             </AlertDialogHeader>
+            
+            <div className="grid gap-4 py-4">
+              {/* Opzione 1: Archiviazione */}
+              <div 
+                className="flex items-start gap-3 p-3 border rounded-lg hover:bg-blue-50 cursor-pointer transition-colors"
+                onClick={() => handleModeSelect('archive')}
+              >
+                <FolderArchive className="h-5 w-5 text-blue-600 mt-1" />
+                <div>
+                  <h4 className="font-medium text-blue-900">🗂️ Archivia</h4>
+                  <p className="text-sm text-gray-600">
+                    Nascondi dalle liste operative ma mantieni tutti i dati storici per i report
+                  </p>
+                </div>
+              </div>
+              
+              {/* Opzione 2: Eliminazione Definitiva */}
+              <div 
+                className="flex items-start gap-3 p-3 border rounded-lg hover:bg-red-50 cursor-pointer transition-colors"
+                onClick={() => handleModeSelect('permanent')}
+              >
+                <Trash2 className="h-5 w-5 text-red-600 mt-1" />
+                <div>
+                  <h4 className="font-medium text-red-900">🗑️ Elimina Definitivamente</h4>
+                  <p className="text-sm text-gray-600">
+                    Rollback completo - cancella tutto come se non fosse mai esistito
+                    <br />
+                    <span className="text-amber-600 text-xs font-medium">⚠️ Bloccato se ci sono vendite</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <AlertDialogFooter>
               <AlertDialogCancel>Annulla</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => itemToDelete && deleteMutation.mutate(itemToDelete.id)}
-                disabled={deleteMutation.isPending}
+              <Button 
+                variant="outline" 
+                onClick={() => handleModeSelect('archive')}
+                disabled={archiveMutation.isPending}
+                className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
               >
-                Elimina
-              </AlertDialogAction>
+                🗂️ Archivia
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={() => handleModeSelect('permanent')}
+                disabled={permanentDeleteMutation.isPending}
+              >
+                🗑️ Elimina
+              </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
