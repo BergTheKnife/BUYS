@@ -735,16 +735,35 @@ export class DatabaseStorage implements IStorage {
                 .where(eq(inventario.id, updatedItem.id));
             }
 
-            // Crea spesa per la differenza di costo (solo la parte non coperta dalla cassa)
-            const remainingCost = costDifference - amountToCover;
-            if (remainingCost > 0) {
+            // 🔧 AGGIORNA SPESA "Inventario": Quando il costo aumenta, aggiorna anche la spesa esistente
+            const existingExpense = await db
+              .select()
+              .from(spese)
+              .where(and(
+                eq(spese.activityId, activityId),
+                eq(spese.itemId, updatedItem.id),
+                eq(spese.categoria, "Inventario")
+              ))
+              .limit(1);
+
+            if (existingExpense.length > 0) {
+              console.log(`💰 [EXPENSE UPDATE] Updating original inventory expense from ${existingExpense[0].importo}€ to ${newCostTotal}€`);
+              await db.update(spese)
+                .set({ 
+                  importo: newCostTotal.toString(),
+                  voce: `${updatedItem.nomeArticolo}${updatedItem.taglia ? ` - ${updatedItem.taglia}` : ''} (${existingQuantity} pz) - Costo aggiornato`
+                })
+                .where(eq(spese.id, existingExpense[0].id));
+            } else {
+              // Se non esiste spesa precedente, crea nuova spesa
               await this.createExpense({
                 userId: updatedItem.userId,
                 activityId: activityId,
-                voce: `Aggiustamento costo: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${existingQuantity} pz) - Fondi personali`,
-                importo: remainingCost.toString(),
+                voce: `${updatedItem.nomeArticolo}${updatedItem.taglia ? ` - ${updatedItem.taglia}` : ''} (${existingQuantity} pz) - Costo aggiornato`,
+                importo: newCostTotal.toString(),
                 categoria: "Inventario",
                 data: new Date(),
+                itemId: updatedItem.id
               });
             }
           } else if (costDifference < 0) {
@@ -770,18 +789,27 @@ export class DatabaseStorage implements IStorage {
                 .where(eq(inventario.id, updatedItem.id));
             }
 
-            // Se la riduzione è maggiore della copertura cassa, crea una spesa negativa per ridurre il totale spese
-            const remainingReduction = costReduction - amountToReturn;
-            if (remainingReduction > 0) {
-              await this.createExpense({
-                userId: updatedItem.userId,
-                activityId: activityId,
-                voce: `Rimborso aggiustamento costo: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${existingQuantity} pz)`,
-                importo: (-remainingReduction).toString(), // Spesa negativa per ridurre il totale
-                categoria: "Inventario",
-                data: new Date(),
-              });
+            // 🔧 AGGIORNA SPESA "Inventario": Quando il costo diminuisce, aggiorna anche la spesa esistente
+            const existingExpense = await db
+              .select()
+              .from(spese)
+              .where(and(
+                eq(spese.activityId, activityId),
+                eq(spese.itemId, updatedItem.id),
+                eq(spese.categoria, "Inventario")
+              ))
+              .limit(1);
+
+            if (existingExpense.length > 0) {
+              console.log(`💰 [EXPENSE UPDATE] Updating original inventory expense from ${existingExpense[0].importo}€ to ${newCostTotal}€`);
+              await db.update(spese)
+                .set({ 
+                  importo: newCostTotal.toString(),
+                  voce: `${updatedItem.nomeArticolo}${updatedItem.taglia ? ` - ${updatedItem.taglia}` : ''} (${existingQuantity} pz) - Costo aggiornato`
+                })
+                .where(eq(spese.id, existingExpense[0].id));
             }
+
           }
         }
       }
@@ -1616,7 +1644,7 @@ export class DatabaseStorage implements IStorage {
     const [expense] = await db
       .select()
       .from(spese)
-      .where(and(eq(expense.id, id), eq(expense.activityId, activityId)));
+      .where(and(eq(spese.id, id), eq(spese.activityId, activityId)));
 
     if (!expense) return false;
 
