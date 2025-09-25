@@ -554,12 +554,30 @@ export class DatabaseStorage implements IStorage {
 
   // Updated inventory methods with activity context
   async getInventoryByActivity(activityId: string): Promise<Inventario[]> {
-    return await db.select().from(inventario).where(eq(inventario.activityId, activityId)).orderBy(desc(inventario.createdAt));
+    // 🔍 QUERY OPERATIVA: Esclude articoli archiviati dalle liste operative
+    return await db.select().from(inventario)
+      .where(and(
+        eq(inventario.activityId, activityId),
+        eq(inventario.archiviato, 0) // Solo articoli attivi nelle operazioni correnti
+      ))
+      .orderBy(desc(inventario.createdAt));
+  }
+
+  async getInventoryByActivityHistorical(activityId: string): Promise<Inventario[]> {
+    // 🏛️ QUERY STORICA: Include TUTTI gli articoli (attivi + archiviati) per report storici
+    return await db.select().from(inventario)
+      .where(eq(inventario.activityId, activityId))
+      .orderBy(desc(inventario.createdAt));
   }
 
   async getInventoryItem(id: string, activityId: string): Promise<Inventario | undefined> {
+    // 🔍 QUERY OPERATIVA: Esclude articoli archiviati dalle operazioni singole  
     const [item] = await db.select().from(inventario).where(
-      and(eq(inventario.id, id), eq(inventario.activityId, activityId))
+      and(
+        eq(inventario.id, id), 
+        eq(inventario.activityId, activityId),
+        eq(inventario.archiviato, 0) // Solo articoli attivi
+      )
     );
     return item || undefined;
   }
@@ -1399,7 +1417,7 @@ export class DatabaseStorage implements IStorage {
       return result.rowCount !== null && result.rowCount > 0;
     } catch (error) {
       console.error('Error deleting sale:', error);
-      throw new Error(`Errore nell'eliminazione della vendita: ${error.message}`);
+      throw new Error(`Errore nell'eliminazione della vendita: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -1599,7 +1617,10 @@ export class DatabaseStorage implements IStorage {
     const [inventoryCountResult] = await db
       .select({ count: sql<number>`coalesce(sum(${inventario.quantita}), 0)` })
       .from(inventario)
-      .where(eq(inventario.activityId, activityId));
+      .where(and(
+        eq(inventario.activityId, activityId),
+        eq(inventario.archiviato, 0) // Solo articoli attivi nelle statistiche
+      ));
 
     const [salesSumResult] = await db
       .select({ total: sql<number>`coalesce(sum(${vendite.prezzoVendita}), 0)` })
@@ -1906,7 +1927,10 @@ export class DatabaseStorage implements IStorage {
       .from(activities)
       .innerJoin(users, eq(activities.proprietarioId, users.id))
       .leftJoin(activityUsers, eq(activities.id, activityUsers.activityId))
-      .leftJoin(inventario, eq(activities.id, inventario.activityId))
+      .leftJoin(inventario, and(
+        eq(activities.id, inventario.activityId),
+        eq(inventario.archiviato, 0) // Solo articoli attivi nel conteggio admin
+      ))
       .leftJoin(vendite, eq(activities.id, vendite.activityId))
       .leftJoin(spese, eq(activities.id, spese.activityId))
       .groupBy(activities.id, activities.nome, users.nome, users.cognome, users.email, activities.createdAt)
@@ -1930,7 +1954,10 @@ export class DatabaseStorage implements IStorage {
     const [inventoryCount] = await db
       .select({ count: sql<number>`count(*)` })
       .from(inventario)
-      .where(eq(inventario.userId, userId));
+      .where(and(
+        eq(inventario.userId, userId),
+        eq(inventario.archiviato, 0) // Solo articoli attivi per controllo dati utente
+      ));
 
     const [salesCount] = await db
       .select({ count: sql<number>`count(*)` })
@@ -1949,7 +1976,10 @@ export class DatabaseStorage implements IStorage {
     const [inventoryCount] = await db
       .select({ count: sql<number>`count(*)` })
       .from(inventario)
-      .where(eq(inventario.activityId, activityId));
+      .where(and(
+        eq(inventario.activityId, activityId),
+        eq(inventario.archiviato, 0) // Solo articoli attivi per controllo dati attività
+      ));
 
     const [salesCount] = await db
       .select({ count: sql<number>`count(*)` })

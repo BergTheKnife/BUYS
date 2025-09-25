@@ -1678,7 +1678,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/export/data', requireActivity, async (req, res) => {
     try {
       const user = await storage.getUser(req.session.userId!);
-      const inventory = await storage.getInventoryByActivity(req.session.activityId!);
+      const inventory = await storage.getInventoryByActivityHistorical(req.session.activityId!); // 🏛️ VISTA STORICA: Include articoli archiviati per export completo
       const sales = await storage.getSalesByActivity(req.session.activityId!);
       const expenses = await storage.getExpensesByActivity(req.session.activityId!);
       const stats = await storage.getActivityStats(req.session.activityId!);
@@ -1971,8 +1971,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const xlsx = await import('xlsx');
       const activityId = req.session.activityId!;
       
-      // Get inventory and sales data
-      const inventory = await storage.getInventoryByActivity(activityId);
+      // Get inventory and sales data - 🏛️ VISTA STORICA: Include articoli archiviati per export completo 
+      const inventory = await storage.getInventoryByActivityHistorical(activityId);
       const sales = await storage.getSalesByActivity(activityId);
       
       // Calculate sold quantities for each inventory item
