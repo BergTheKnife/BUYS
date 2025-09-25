@@ -767,12 +767,18 @@ export class DatabaseStorage implements IStorage {
               });
             }
           } else if (costDifference < 0) {
-            // Costo diminuito - restituisci parte della copertura cassa se possibile
+            // Costo diminuito - calcolo corretto del rimborso cassa
             const costReduction = Math.abs(costDifference);
-            const amountToReturn = Math.min(originalCassaCoverage, costReduction);
+            
+            // LOGICA CORRETTA: Rimborsa la differenza tra quello che la cassa aveva coperto 
+            // e quello che dovrebbe coprire ora (limitato al nuovo costo totale)
+            const maxCassaCoverageNeeded = Math.min(newCostTotal, originalCassaCoverage);
+            const amountToReturn = originalCassaCoverage - maxCassaCoverageNeeded;
 
             console.log(`💰 [COST ADJUSTMENT] Cost decreased by: ${costReduction}€`);
-            console.log(`💰 [COST ADJUSTMENT] New coverage needed: ${newCostTotal}€, returning to cassa: ${amountToReturn}€`);
+            console.log(`💰 [COST ADJUSTMENT] Original cassa coverage: ${originalCassaCoverage}€`);
+            console.log(`💰 [COST ADJUSTMENT] New coverage needed: ${maxCassaCoverageNeeded}€`);
+            console.log(`💰 [COST ADJUSTMENT] Returning to cassa: ${amountToReturn}€`);
 
             if (amountToReturn > 0) {
               await this.updateCassaReinvestimento(
