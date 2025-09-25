@@ -940,6 +940,13 @@ export class DatabaseStorage implements IStorage {
           eq(spese.categoria, "Inventario")
         ));
 
+      // 🗑️ ANNULLAMENTO CRONOLOGIA FINANZIARIA: Elimina record financial_history collegati
+      await tx.delete(financialHistory)
+        .where(and(
+          eq(financialHistory.activityId, activityId),
+          eq(financialHistory.itemId, id)
+        ));
+
       // 🗑️ RIMOZIONE DEFINITIVA dell'articolo
       const result = await tx.delete(inventario)
         .where(and(eq(inventario.id, id), eq(inventario.activityId, activityId)));
