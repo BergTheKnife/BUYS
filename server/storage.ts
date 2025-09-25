@@ -872,7 +872,8 @@ export class DatabaseStorage implements IStorage {
   async permanentlyDeleteInventoryItem(id: string, activityId: string): Promise<{success: boolean, error?: string}> {
     // ELIMINAZIONE DEFINITIVA: Solo se nessuna dipendenza, rollback completo
     
-    return await db.transaction(async (tx) => {
+    try {
+      return await db.transaction(async (tx) => {
       // Verifica che l'articolo esista e non sia già archiviato
       const item = await tx.select().from(inventario)
         .where(and(eq(inventario.id, id), eq(inventario.activityId, activityId)))
@@ -947,7 +948,11 @@ export class DatabaseStorage implements IStorage {
       console.log(`🗑️ [PERMANENT DELETE] Result: like it was never loaded`);
       
       return {success: (result.rowCount ?? 0) > 0};
-    });
+      });
+    } catch (error) {
+      console.error(`🚨 [PERMANENT DELETE ERROR] Failed to permanently delete item:`, error);
+      return {success: false, error: `Errore eliminazione definitiva: ${error instanceof Error ? error.message : String(error)}`};
+    }
   }
 
   // Mantieni la funzione originale per compatibilità (ora rimappa ad archiviazione di default)
