@@ -930,35 +930,23 @@ export class DatabaseStorage implements IStorage {
       const cassaCoverage = Number(itemData.cassaCoverage || 0);
       console.log(`🗑️ [PERMANENT DELETE] Original cassa coverage to restore: ${cassaCoverage}`);
 
-      // 🛡️ CONTROLLO IDEMPOTENZA per ripristino cassa
-      const existingRestoration = await tx.select().from(financialHistory)
-        .where(and(
-          eq(financialHistory.activityId, activityId),
-          eq(financialHistory.itemId, id),
-          eq(financialHistory.azione, "DEPOSITO_CASSA")
-        ));
-
-      let totalAlreadyRestored = 0;
-      if (existingRestoration.length > 0) {
-        totalAlreadyRestored = existingRestoration.reduce((sum, record) => {
-          return sum + Number(record.importo || 0);
-        }, 0);
-      }
-
-      const amountToRestore = cassaCoverage - totalAlreadyRestored;
+      // Per eliminazione definitiva, ripristina sempre l'intera copertura cassa
+      // (tanto l'articolo verrà completamente rimosso)
+      const amountToRestore = cassaCoverage;
 
       // Ripristina quota cassa se necessario
       if (amountToRestore > 0) {
         console.log(`🗑️ [PERMANENT DELETE] Restoring cassa coverage: ${amountToRestore}`);
 
         // Inserisci il movimento nella financial_history all'interno della transazione
+        // IMPORTANTE: NON linkare itemId perché l'articolo verrà eliminato!
         await tx.insert(financialHistory).values({
           userId: itemData.userId,
           activityId: activityId,
           azione: "DEPOSITO_CASSA",
           descrizione: `Rollback eliminazione: ${itemData.nomeArticolo}${itemData.taglia ? ` - ${itemData.taglia}` : ''} (${itemData.quantita} pz)`,
           importo: amountToRestore.toString(),
-          itemId: id,
+          itemId: null, // ⚠️ NON linkare - l'articolo sarà eliminato
           data: new Date(),
         });
       }
@@ -971,12 +959,11 @@ export class DatabaseStorage implements IStorage {
           eq(spese.categoria, "Inventario")
         ));
 
-      // 🗑️ ANNULLAMENTO CRONOLOGIA FINANZIARIA: Elimina SOLO record di costi iniziali, mantieni ripristini
+      // 🗑️ ANNULLAMENTO CRONOLOGIA FINANZIARIA: Elimina TUTTI i record che puntano all'item
       await tx.delete(financialHistory)
         .where(and(
           eq(financialHistory.activityId, activityId),
-          eq(financialHistory.itemId, id),
-          ne(financialHistory.azione, "DEPOSITO_CASSA") // Mantieni i ripristini cassa
+          eq(financialHistory.itemId, id)
         ));
 
       // 🗑️ RIMOZIONE DEFINITIVA dell'articolo
