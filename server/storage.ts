@@ -903,7 +903,7 @@ export class DatabaseStorage implements IStorage {
         .where(and(
           eq(financialHistory.activityId, activityId),
           eq(financialHistory.itemId, id),
-          eq(financialHistory.azione, "Ripristino cassa per eliminazione definitiva")
+          eq(financialHistory.azione, "DEPOSITO_CASSA")
         ));
 
       let totalAlreadyRestored = 0;
@@ -919,22 +919,16 @@ export class DatabaseStorage implements IStorage {
       if (amountToRestore > 0) {
         console.log(`🗑️ [PERMANENT DELETE] Restoring cassa coverage: ${amountToRestore}`);
         
+        // Inserisci il movimento nella financial_history all'interno della transazione
         await tx.insert(financialHistory).values({
           userId: itemData.userId,
           activityId: activityId,
-          azione: "Ripristino cassa per eliminazione definitiva",
-          descrizione: `Rollback completo: ${itemData.nomeArticolo} - ${itemData.taglia} (${itemData.quantita} pz)`,
+          azione: "DEPOSITO_CASSA",
+          descrizione: `Rollback eliminazione: ${itemData.nomeArticolo}${itemData.taglia ? ` - ${itemData.taglia}` : ''} (${itemData.quantita} pz)`,
           importo: amountToRestore.toString(),
           itemId: id,
           data: new Date(),
         });
-
-        await this.updateCassaReinvestimento(
-          activityId,
-          amountToRestore,
-          `Rollback eliminazione: ${itemData.nomeArticolo} - ${itemData.taglia} (${itemData.quantita} pz)`,
-          itemData.userId
-        );
       }
 
       // 🗑️ ANNULLAMENTO SPESE: Elimina spese "Inventario" associate usando itemId
