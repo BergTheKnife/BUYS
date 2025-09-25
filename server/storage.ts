@@ -23,7 +23,6 @@ import {
   type InsertFundTransfer,
   type FinancialHistory,
   type InsertFinancialHistory,
-  type UpdateProfile,
   type Activity,
   type InsertActivity,
   type ActivityUser,
@@ -85,13 +84,13 @@ export interface IStorage {
   getInventoryItem(id: string, activityId: string): Promise<Inventario | undefined>;
   createInventoryItem(item: InsertInventario & { userId: string; activityId: string; immagineUrl?: string | null }): Promise<Inventario>;
   updateInventoryItem(id: string, activityId: string, updates: Partial<InsertInventario>): Promise<Inventario | undefined>;
-  
+
   // 🗂️ MODALITÀ 1: ARCHIVIAZIONE - Solo soft-delete, nessun ripristino cassa
   archiveInventoryItem(id: string, activityId: string): Promise<boolean>;
-  
+
   // 🗑️ MODALITÀ 2: ELIMINAZIONE DEFINITIVA - Rollback completo se nessuna dipendenza
   permanentlyDeleteInventoryItem(id: string, activityId: string): Promise<{success: boolean, error?: string}>;
-  
+
   // Mantieni per compatibilità (ora rimappa ad archiviazione di default)
   deleteInventoryItem(id: string, activityId: string): Promise<boolean>;
   updateInventoryQuantity(id: string, newQuantity: number): Promise<Inventario | undefined>;
@@ -619,7 +618,7 @@ export class DatabaseStorage implements IStorage {
     const fundingDetails = amountFromCassa > 0 
       ? `Costo totale €${totalCost.toFixed(2)} (€${amountFromCassa.toFixed(2)} da cassa reinvestimento + €${remainingCost.toFixed(2)} fondi personali)`
       : `Costo totale €${totalCost.toFixed(2)} (fondi personali)`;
-    
+
     await this.createExpense({
       userId: itemData.userId,
       activityId: itemData.activityId,
@@ -736,55 +735,53 @@ export class DatabaseStorage implements IStorage {
                 .where(eq(inventario.id, updatedItem.id));
             }
 
-            // If there's remaining cost not covered by cassa, create expense
+            // Crea spesa per la differenza di costo (solo la parte non coperta dalla cassa)
             const remainingCost = costDifference - amountToCover;
             if (remainingCost > 0) {
               await this.createExpense({
                 userId: updatedItem.userId,
                 activityId: activityId,
-                voce: `Aggiustamento costo: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${existingQuantity} pz)`,
+                voce: `Aggiustamento costo: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${existingQuantity} pz) - Fondi personali`,
                 importo: remainingCost.toString(),
                 categoria: "Inventario",
                 data: new Date(),
               });
             }
-          } else {
-            // Costo diminuito - calcola quanto rimborsare correttamente
-            const totalCostReduction = Math.abs(costDifference);
-            console.log(`💰 [COST ADJUSTMENT] Cost decreased by: ${totalCostReduction}€`);
+          } else if (costDifference < 0) {
+            // Costo diminuito - restituisci parte della copertura cassa se possibile
+            const costReduction = Math.abs(costDifference);
+            const amountToReturn = Math.min(originalCassaCoverage, costReduction);
 
-            if (originalCassaCoverage > 0) {
-              // Calculate new coverage needed and what to return to cassa
-              const newCoverageNeeded = Math.min(newCostTotal, originalCassaCoverage);
-              const amountToReturnToCassa = originalCassaCoverage - newCoverageNeeded;
+            console.log(`💰 [COST ADJUSTMENT] Cost decreased by: ${costReduction}€`);
+            console.log(`💰 [COST ADJUSTMENT] New coverage needed: ${newCostTotal}€, returning to cassa: ${amountToReturn}€`);
 
-              console.log(`💰 [COST ADJUSTMENT] New coverage needed: ${newCoverageNeeded}€, returning to cassa: ${amountToReturnToCassa}€`);
+            if (amountToReturn > 0) {
+              await this.updateCassaReinvestimento(
+                activityId,
+                amountToReturn,
+                `Aggiustamento costo (riduzione): ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${existingQuantity} pz)`,
+                updatedItem.userId
+              );
 
-              // Update cassa coverage to reflect new coverage amount
+              // Update cassa coverage - subtract what we returned
+              const newCassaCoverage = originalCassaCoverage - amountToReturn;
               await db.update(inventario)
-                .set({ cassaCoverage: newCoverageNeeded.toString() })
+                .set({ cassaCoverage: newCassaCoverage.toString() })
                 .where(eq(inventario.id, updatedItem.id));
-
-              // Return excess amount to cassa
-              if (amountToReturnToCassa > 0) {
-                await this.updateCassaReinvestimento(
-                  activityId,
-                  amountToReturnToCassa,
-                  `Aggiustamento costo (riduzione): ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${existingQuantity} pz)`,
-                  updatedItem.userId
-                );
-              }
             }
 
-            // Crea SEMPRE una registrazione contabile per la riduzione del valore inventario
-            await this.createExpense({
-              userId: updatedItem.userId,
-              activityId: activityId,
-              voce: `Riduzione valore inventario: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${existingQuantity} pz) - Costo ridotto di €${totalCostReduction.toFixed(2)}`,
-              importo: totalCostReduction.toString(), // Importo positivo per la riduzione
-              categoria: "Riduzione Inventario", // Categoria specifica per le riduzioni
-              data: new Date(),
-            });
+            // Se la riduzione è maggiore della copertura cassa, crea una spesa negativa per ridurre il totale spese
+            const remainingReduction = costReduction - amountToReturn;
+            if (remainingReduction > 0) {
+              await this.createExpense({
+                userId: updatedItem.userId,
+                activityId: activityId,
+                voce: `Rimborso aggiustamento costo: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${existingQuantity} pz)`,
+                importo: (-remainingReduction).toString(), // Spesa negativa per ridurre il totale
+                categoria: "Inventario",
+                data: new Date(),
+              });
+            }
           }
         }
       }
@@ -817,7 +814,7 @@ export class DatabaseStorage implements IStorage {
             .select({ cassaCoverage: inventario.cassaCoverage })
             .from(inventario)
             .where(eq(inventario.id, updatedItem.id));
-          
+
           const currentCassaCoverage = Number(currentItemState?.cassaCoverage || 0);
           const newCassaCoverage = currentCassaCoverage + amountFromCassa;
           await db.update(inventario)
@@ -848,11 +845,11 @@ export class DatabaseStorage implements IStorage {
   // 🗂️ MODALITÀ 1: ARCHIVIAZIONE - Solo soft-delete, NESSUN ripristino cassa
   async archiveInventoryItem(id: string, activityId: string): Promise<boolean> {
     // ARCHIVIAZIONE: Non altera contabilità, solo esclusione da liste operative
-    
+
     const [item] = await db.select().from(inventario)
       .where(and(eq(inventario.id, id), eq(inventario.activityId, activityId)))
       .limit(1);
-    
+
     if (!item || item.archiviato === 1) return false;
 
     console.log(`📂 [ARCHIVE ONLY] Archiving item ${id}: ${item.nomeArticolo} - ${item.taglia}`);
@@ -864,21 +861,21 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(inventario.id, id), eq(inventario.activityId, activityId)));
 
     console.log(`📂 [ARCHIVE ONLY] Item archived - excluded from operations but visible in historical reports`);
-    
+
     return (result.rowCount ?? 0) > 0;
   }
 
   // 🗑️ MODALITÀ 2: ELIMINAZIONE DEFINITIVA - Rollback completo se nessuna dipendenza
   async permanentlyDeleteInventoryItem(id: string, activityId: string): Promise<{success: boolean, error?: string}> {
     // ELIMINAZIONE DEFINITIVA: Solo se nessuna dipendenza, rollback completo
-    
+
     try {
       return await db.transaction(async (tx) => {
       // Verifica che l'articolo esista e non sia già archiviato
       const item = await tx.select().from(inventario)
         .where(and(eq(inventario.id, id), eq(inventario.activityId, activityId)))
         .limit(1);
-      
+
       if (!item.length) return {success: false, error: "Articolo non trovato"};
 
       const itemData = item[0];
@@ -919,7 +916,7 @@ export class DatabaseStorage implements IStorage {
       // Ripristina quota cassa se necessario
       if (amountToRestore > 0) {
         console.log(`🗑️ [PERMANENT DELETE] Restoring cassa coverage: ${amountToRestore}`);
-        
+
         // Inserisci il movimento nella financial_history all'interno della transazione
         await tx.insert(financialHistory).values({
           userId: itemData.userId,
@@ -954,7 +951,7 @@ export class DatabaseStorage implements IStorage {
 
       console.log(`🗑️ [PERMANENT DELETE] Complete rollback executed - item permanently removed`);
       console.log(`🗑️ [PERMANENT DELETE] Result: like it was never loaded`);
-      
+
       return {success: (result.rowCount ?? 0) > 0};
       });
     } catch (error) {
@@ -1619,7 +1616,7 @@ export class DatabaseStorage implements IStorage {
     const [expense] = await db
       .select()
       .from(spese)
-      .where(and(eq(spese.id, id), eq(spese.activityId, activityId)));
+      .where(and(eq(expense.id, id), eq(expense.activityId, activityId)));
 
     if (!expense) return false;
 
