@@ -37,7 +37,7 @@ import {
   type UpdateSpedizione
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, sum, sql, gte, lt, lte, or, like, ilike, inArray } from "drizzle-orm";
+import { eq, and, desc, sum, sql, gte, lt, lte, or, like, ilike, inArray, ne } from "drizzle-orm";
 
 export interface IStorage {
   // User methods
@@ -940,11 +940,12 @@ export class DatabaseStorage implements IStorage {
           eq(spese.categoria, "Inventario")
         ));
 
-      // 🗑️ ANNULLAMENTO CRONOLOGIA FINANZIARIA: Elimina record financial_history collegati
+      // 🗑️ ANNULLAMENTO CRONOLOGIA FINANZIARIA: Elimina SOLO record di costi iniziali, mantieni ripristini
       await tx.delete(financialHistory)
         .where(and(
           eq(financialHistory.activityId, activityId),
-          eq(financialHistory.itemId, id)
+          eq(financialHistory.itemId, id),
+          ne(financialHistory.azione, "DEPOSITO_CASSA") // Mantieni i ripristini cassa
         ));
 
       // 🗑️ RIMOZIONE DEFINITIVA dell'articolo
