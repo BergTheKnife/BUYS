@@ -1,7 +1,8 @@
 import { sql } from "drizzle-orm";
 import { pgTable, text, varchar, decimal, integer, timestamp, uuid, index, numeric } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
-import { createInsertSchema, InferInsertModel, InferSelectModel } from "drizzle-zod";
+import { createInsertSchema } from "drizzle-zod";
+import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import { z } from "zod";
 
 export const users = pgTable("users", {
@@ -89,6 +90,7 @@ export const inventario = pgTable("inventario", {
   altezza: decimal("altezza", { precision: 6, scale: 2 }), // cm
   cassaCoverage: numeric("cassa_coverage", { precision: 10, scale: 2 }).default("0"),
   immagineUrl: text("immagine_url"),
+  archiviato: integer("archiviato").default(0).notNull(), // 0 = attivo, 1 = archiviato (soft-deleted)
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -120,6 +122,7 @@ export const spese = pgTable("spese", {
   importo: decimal("importo", { precision: 10, scale: 2 }).notNull(),
   categoria: text("categoria").notNull(),
   data: timestamp("data").notNull(),
+  itemId: uuid("item_id").references(() => inventario.id), // Riferimento puntuale all'articolo (se applicabile)
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -145,6 +148,7 @@ export const financialHistory = pgTable("financial_history", {
   descrizione: text("descrizione").notNull(), // Descrizione dell'azione
   importo: decimal("importo", { precision: 10, scale: 2 }), // Importo coinvolto (opzionale)
   dettagli: text("dettagli"), // JSON stringificato con dettagli aggiuntivi
+  itemId: uuid("item_id").references(() => inventario.id), // Riferimento puntuale all'articolo (se applicabile)
   data: timestamp("data").defaultNow(),
 });
 

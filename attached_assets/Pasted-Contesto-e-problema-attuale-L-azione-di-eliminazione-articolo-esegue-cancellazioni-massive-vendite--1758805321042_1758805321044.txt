@@ -1,0 +1,41 @@
+Contesto e problema attuale
+L’azione di eliminazione articolo esegue cancellazioni massive (vendite, spese, movimenti di cassa) e si affida a confronti testuali sulle descrizioni. Questo distrugge lo storico contabile e può generare doppi movimenti di cassa.
+
+Obiettivi
+
+Non cancellare mai vendite, spese o movimenti finanziari pregressi quando “elimino” un articolo: lo storico deve rimanere integro.
+
+Effettuare un solo deposito in cassa reinvestimento pari alla sola quota di cassa effettivamente utilizzata per quell’articolo, con controllo di idempotenza per evitare doppi depositi.
+
+Sostituire l’eliminazione fisica dell’articolo con un’archiviazione (soft-delete): l’articolo sparisce dalle liste operative, ma resta visibile nei report storici.
+
+Non basarsi su confronti testuali nelle descrizioni per correlare movimenti; usare riferimenti puntuali (ID) salvati nei dettagli dei movimenti.
+
+Eseguire l’intera operazione in un’unica transazione per garantire coerenza.
+
+Modifiche richieste (operative, senza codice):
+
+Rimuovere qualsiasi logica che cancelli movimenti finanziari pregressi relativi all’articolo, che cancelli vendite collegate all’articolo, o che cancelli spese collegate all’articolo. Lo storico non si tocca.
+
+Calcolare la sola quota di cassa effettivamente usata per quell’articolo e registrare esclusivamente un deposito in cassa di pari importo al momento dell’eliminazione.
+
+Rendere il deposito idempotente: prima di registrarlo, verificare se esiste già un movimento di ripristino collegato a quello specifico articolo; se presente per l’intero importo non registrare nulla, se parziale registrare solo il residuo.
+
+Applicare il soft-delete all’articolo (archiviazione) invece dell’eliminazione fisica; aggiornare le liste e i selettori operativi per escludere gli articoli archiviati, mantenendo però la loro visibilità nelle viste storiche e nei report.
+
+Correlare tutti i movimenti finanziari e le operazioni di magazzino all’articolo tramite un riferimento univoco (ID) salvato nei dettagli dei movimenti, evitando qualsiasi logica basata su confronti testuali.
+
+Racchiudere verifica di idempotenza, eventuale deposito in cassa e archiviazione dell’articolo nella stessa transazione.
+
+Criteri di accettazione (test manuali):
+
+Caso A (deposito singolo): cassa con disponibilità positiva, articolo acquistato usando anche la cassa → eliminando l’articolo si registra un solo deposito pari alla quota di cassa usata; nessuna cancellazione di vendite/spese/storico; articolo archiviato e non più selezionabile nelle operazioni correnti.
+
+Caso B (nessun uso cassa): articolo pagato interamente con fondi personali → eliminandolo non avviene alcun deposito in cassa; storico integro; articolo archiviato.
+
+Caso C (idempotenza): ripetendo l’azione per errore non si creano doppi depositi; eventuale residuo viene gestito correttamente.
+
+Caso D (UI e report): l’articolo archiviato non compare in liste e selettori operativi, ma resta visibile nelle viste storiche e nei report; nessuna voce storica è stata rimossa.
+
+Consegna:
+Applicare le modifiche sopra, aggiornare le query operative per escludere gli archiviati, lasciare inalterate le viste storiche, documentare in breve i passaggi in una nota di QA con gli step dei casi di test.
