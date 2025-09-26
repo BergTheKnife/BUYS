@@ -209,6 +209,38 @@ export default function FinancialManagement() {
 
   const financialSummary = calculateFinancialSummary();
 
+  const handleComprehensiveExport = async () => {
+    try {
+      const response = await apiRequest("GET", "/api/export/financial-history/excel");
+
+      if (!response.ok) {
+        throw new Error("Errore nel download del file Excel");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `storico_completo_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "Successo",
+        description: "Storico completo scaricato con successo",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore nel download dello storico completo",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Handle transfer amount change
   const handleTransferChange = (member: string, account: string, value: string) => {
     const amount = Number(value) || 0;
@@ -492,8 +524,13 @@ export default function FinancialManagement() {
         </Card>
       </div>
 
-      {/* Riunisci Fondi Button */}
-      <div className="flex justify-center">
+      {/* Export and Actions */}
+      <div className="flex justify-center gap-4">
+        <Button onClick={handleComprehensiveExport} variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100">
+          <Download className="h-5 w-5 mr-2" />
+          Scarica Storico Completo
+        </Button>
+        
         <Dialog open={showTransferModal} onOpenChange={setShowTransferModal}>
           <DialogTrigger asChild>
             <Button size="lg" className="px-8">

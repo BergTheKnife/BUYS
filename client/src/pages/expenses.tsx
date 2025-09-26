@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Receipt, Plus, Filter, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Receipt, Plus, Filter, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -208,7 +208,31 @@ export default function Expenses() {
 
   const totalExpenses = filteredExpenses.reduce((sum: number, expense: Spesa) => sum + Number(expense.importo), 0);
 
-
+  const handleDownloadExcel = async () => {
+    try {
+      const response = await apiRequest("GET", "/api/spese/download-excel", {
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'spese.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      toast({
+        title: "Successo",
+        description: "File Excel delle spese scaricato con successo.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore durante il download del file Excel.",
+        variant: "destructive",
+      });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -233,10 +257,16 @@ export default function Expenses() {
             <Receipt className="h-8 w-8" />
             Spese
           </h1>
-          <Button onClick={() => setIsAddModalOpen(true)} className="bg-yellow-600">
-            <Plus className="h-4 w-4 mr-2" />
-            Aggiungi Spesa
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={handleDownloadExcel} className="bg-green-600 hover:bg-green-700">
+              <Download className="h-4 w-4 mr-2" />
+              Scarica Excel
+            </Button>
+            <Button onClick={() => setIsAddModalOpen(true)} className="bg-yellow-600">
+              <Plus className="h-4 w-4 mr-2" />
+              Aggiungi Spesa
+            </Button>
+          </div>
         </div>
 
         {/* Summary Card */}
