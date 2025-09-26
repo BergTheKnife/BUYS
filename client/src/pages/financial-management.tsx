@@ -135,10 +135,10 @@ export default function FinancialManagement() {
 
     // Process only sales that have been actually collected (incassato = 1)
     sales
-      .filter(sale => sale.incassato === 1)
+      .filter(sale => sale.incassato === 1 && sale.incassatoDa && sale.incassatoSu)
       .forEach(sale => {
-        const member = sale.incassatoDa;
-        const account = sale.incassatoSu;
+        const member = sale.incassatoDa!;
+        const account = sale.incassatoSu!;
         const amount = Number(sale.prezzoVendita);
 
         if (!memberBalances[member]) {
