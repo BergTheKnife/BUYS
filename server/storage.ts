@@ -1048,6 +1048,16 @@ export class DatabaseStorage implements IStorage {
   async calculateFIFOMargin(inventarioId: string, quantitaVenduta: number, prezzoVendita: number) {
     const { inventoryBatches } = await import('../migrations/schema');
 
+    // Always get current inventory item cost - this is the current price that should be used for margin calculation
+    const [inventoryItem] = await db
+      .select()
+      .from(inventario)
+      .where(eq(inventario.id, inventarioId));
+
+    if (!inventoryItem || inventoryItem.quantita < quantitaVenduta) {
+      throw new Error("Quantità insufficiente in magazzino per completare la vendita");
+    }
+
     // Get available batches ordered by date (FIFO)
     const batches = await db
       .select()
@@ -1063,18 +1073,12 @@ export class DatabaseStorage implements IStorage {
     // Calculate total available quantity from batches
     const totalAvailableFromBatches = batches.reduce((sum, batch) => sum + batch.quantitaRimanente, 0);
 
-    // If no batches exist, fall back to current inventory item cost
+    // Use current inventory item cost for ALL margin calculations to reflect updated prices
+    const currentCostPerUnit = Number(inventoryItem.costo);
+
+    // If no batches exist, use current inventory cost
     if (batches.length === 0 || totalAvailableFromBatches === 0) {
-      const [inventoryItem] = await db
-        .select()
-        .from(inventario)
-        .where(eq(inventario.id, inventarioId));
-
-      if (!inventoryItem || inventoryItem.quantita < quantitaVenduta) {
-        throw new Error("Quantità insufficiente in magazzino per completare la vendita");
-      }
-
-      const costoTotale = quantitaVenduta * Number(inventoryItem.costo);
+      const costoTotale = quantitaVenduta * currentCostPerUnit;
       const ricavoTotale = quantitaVenduta * prezzoVendita;
       const margine = ricavoTotale - costoTotale;
 
@@ -1083,7 +1087,7 @@ export class DatabaseStorage implements IStorage {
         batchesUsed: [],
         batchDetails: [{
           batchId: null,
-          costoUnitario: Number(inventoryItem.costo),
+          costoUnitario: currentCostPerUnit,
           quantitaUsata: quantitaVenduta,
           marginePartial: margine
         }]
@@ -1104,7 +1108,9 @@ export class DatabaseStorage implements IStorage {
       if (rimanenteVendita <= 0) break;
 
       const quantitaUsata = Math.min(rimanenteVendita, batch.quantitaRimanente);
-      const costoUnitario = Number(batch.costo);
+      // IMPORTANT: Use current inventory cost instead of original batch cost for margin calculation
+      // This ensures that when item price is updated, new sales use the updated price for margin calculation
+      const costoUnitario = currentCostPerUnit;
       const costoPartial = quantitaUsata * costoUnitario;
       const ricavoPartial = quantitaUsata * prezzoVendita;
       const marginePartial = ricavoPartial - costoPartial;
@@ -1113,7 +1119,7 @@ export class DatabaseStorage implements IStorage {
 
       batchesUsed.push({
         id: batch.id,
-        quantitaUsata
+        quantitaUsata: quantitaUsata
       });
 
       batchDetails.push({
