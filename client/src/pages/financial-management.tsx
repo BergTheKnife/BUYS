@@ -300,9 +300,19 @@ export default function FinancialManagement() {
   const transferFunds = useMutation({
     mutationFn: async () => {
       const transfers = [];
+      
+      // Validate that no transfer would result in negative balance
       for (const [member, accounts] of Object.entries(selectedTransfers)) {
         for (const [account, amount] of Object.entries(accounts)) {
           if (amount > 0) {
+            // Find the available balance for this member and account
+            const memberBalance = financialSummary.memberBalances.find(mb => mb.member === member);
+            const availableAmount = memberBalance?.accounts[account] || 0;
+            
+            if (amount > availableAmount) {
+              throw new Error(`Importo non valido per ${member} - ${account}: €${amount.toFixed(2)} supera il saldo disponibile di €${availableAmount.toFixed(2)}`);
+            }
+            
             transfers.push({
               fromMember: member,
               fromAccount: account,
@@ -520,8 +530,19 @@ export default function FinancialManagement() {
                             max={availableAmount}
                             step="0.01"
                             value={selectedTransfers[memberBalance.member]?.[account] || ''}
-                            onChange={(e) => 
-                              handleTransferChange(memberBalance.member, account, e.target.value)
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              const numValue = Number(value);
+                              
+                              // Prevent entering amounts higher than available balance
+                              if (value === '' || (numValue >= 0 && numValue <= availableAmount)) {
+                                handleTransferChange(memberBalance.member, account, value);
+                              }
+                            }}
+                            className={
+                              selectedTransfers[memberBalance.member]?.[account] > availableAmount 
+                                ? "border-red-500 focus:border-red-500" 
+                                : ""
                             }
                           />
                         </div>
@@ -537,6 +558,24 @@ export default function FinancialManagement() {
                     <span className="font-medium">Totale da trasferire:</span>
                     <span className="text-xl font-bold text-blue-600">
                       {formatCurrency(getTotalTransferAmount())}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Show warning if any amount exceeds available balance */}
+              {Object.entries(selectedTransfers).some(([member, accounts]) => 
+                Object.entries(accounts).some(([account, amount]) => {
+                  const memberBalance = financialSummary.memberBalances.find(mb => mb.member === member);
+                  const availableAmount = memberBalance?.accounts[account] || 0;
+                  return amount > availableAmount;
+                })
+              ) && (
+                <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                  <div className="flex items-center gap-2">
+                    <span className="text-red-600 font-medium">⚠️ Attenzione:</span>
+                    <span className="text-red-700 dark:text-red-300">
+                      Alcuni importi superano i saldi disponibili
                     </span>
                   </div>
                 </div>
@@ -562,7 +601,17 @@ export default function FinancialManagement() {
                 </Button>
                 <Button 
                   onClick={() => transferFunds.mutate()}
-                  disabled={getTotalTransferAmount() === 0 || transferFunds.isPending}
+                  disabled={
+                    getTotalTransferAmount() === 0 || 
+                    transferFunds.isPending ||
+                    Object.entries(selectedTransfers).some(([member, accounts]) => 
+                      Object.entries(accounts).some(([account, amount]) => {
+                        const memberBalance = financialSummary.memberBalances.find(mb => mb.member === member);
+                        const availableAmount = memberBalance?.accounts[account] || 0;
+                        return amount > availableAmount;
+                      })
+                    )
+                  }
                   className="flex-1"
                 >
                   {transferFunds.isPending ? "Trasferimento..." : "Conferma Trasferimento"}
