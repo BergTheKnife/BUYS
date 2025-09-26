@@ -210,25 +210,31 @@ export default function Expenses() {
 
   const handleDownloadExcel = async () => {
     try {
-      const response = await apiRequest("GET", "/api/spese/download-excel", {
-        responseType: 'blob',
-      });
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', 'spese.xlsx');
-      document.body.appendChild(link);
-      link.click();
-      link.parentNode?.removeChild(link);
+      const response = await apiRequest("GET", "/api/export/expenses/excel");
+
+      if (!response.ok) {
+        throw new Error("Errore nel download del file Excel");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `spese_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
       window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
       toast({
         title: "Successo",
-        description: "File Excel delle spese scaricato con successo.",
+        description: "File Excel scaricato con successo",
       });
     } catch (error: any) {
       toast({
         title: "Errore",
-        description: error.message || "Errore durante il download del file Excel.",
+        description: error.message || "Errore nel download del file Excel",
         variant: "destructive",
       });
     }
@@ -257,16 +263,10 @@ export default function Expenses() {
             <Receipt className="h-8 w-8" />
             Spese
           </h1>
-          <div className="flex gap-2">
-            <Button onClick={handleDownloadExcel} className="bg-green-600 hover:bg-green-700">
-              <Download className="h-4 w-4 mr-2" />
-              Scarica Excel
-            </Button>
-            <Button onClick={() => setIsAddModalOpen(true)} className="bg-yellow-600">
-              <Plus className="h-4 w-4 mr-2" />
-              Aggiungi Spesa
-            </Button>
-          </div>
+          <Button onClick={() => setIsAddModalOpen(true)} className="bg-yellow-600">
+            <Plus className="h-4 w-4 mr-2" />
+            Aggiungi Spesa
+          </Button>
         </div>
 
         {/* Summary Card */}
@@ -368,6 +368,16 @@ export default function Expenses() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Pulsante Excel sotto i filtri */}
+        {filteredExpenses.length > 0 && (
+          <div className="flex justify-end mb-4">
+            <Button onClick={handleDownloadExcel} variant="outline" className="bg-green-50 border-green-200 text-green-700 hover:bg-green-100">
+              <Download className="h-4 w-4 mr-2" />
+              Scarica Excel
+            </Button>
+          </div>
+        )}
 
         {/* Controlli undo/redo rimossi */}
 

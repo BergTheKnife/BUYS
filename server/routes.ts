@@ -2097,6 +2097,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Export expenses to Excel
+  app.get('/api/export/expenses/excel', requireActivity, async (req, res) => {
+    try {
+      const xlsx = await import('xlsx');
+      const activityId = req.session.activityId!;
+
+      // Get expenses data
+      const expenses = await storage.getExpensesByActivity(activityId);
+
+      // Prepare data for Excel export
+      const excelData = expenses.map(expense => {
+        return {
+          'Data': new Date(expense.data || '').toLocaleDateString('it-IT'),
+          'Voce': expense.voce,
+          'Importo (€)': Number(expense.importo).toFixed(2),
+          'Categoria': expense.categoria
+        };
+      });
+
+      // Create workbook and worksheet
+      const workbook = xlsx.utils.book_new();
+      const worksheet = xlsx.utils.json_to_sheet(excelData);
+
+      // Set column widths
+      worksheet['!cols'] = [
+        { wch: 12 }, // Data
+        { wch: 30 }, // Voce
+        { wch: 15 }, // Importo
+        { wch: 15 }  // Categoria
+      ];
+
+      // Add worksheet to workbook
+      xlsx.utils.book_append_sheet(workbook, worksheet, 'Spese');
+
+      // Generate Excel file buffer
+      const excelBuffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+      // Set response headers for file download
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="spese_${new Date().toISOString().split('T')[0]}.xlsx"`);
+      res.setHeader('Content-Length', excelBuffer.length);
+
+      // Send the Excel file
+      res.send(excelBuffer);
+    } catch (error: any) {
+      console.error('Expenses Excel export error:', error);
+      res.status(500).json({ message: error.message || "Errore nell'esportazione Excel delle spese" });
+    }
+  });
+
   // Export comprehensive financial history to Excel
   app.get('/api/export/financial-history/excel', requireActivity, async (req, res) => {
     try {

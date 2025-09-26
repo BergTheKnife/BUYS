@@ -34,7 +34,8 @@ import {
   Plus,
   ExternalLink,
   Package,
-  Receipt
+  Receipt,
+  Download
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import type { Vendita, Spesa } from "@shared/schema";
@@ -524,13 +525,16 @@ export default function FinancialManagement() {
         </Card>
       </div>
 
-      {/* Export and Actions */}
-      <div className="flex justify-center gap-4">
-        <Button onClick={handleComprehensiveExport} variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100">
-          <Download className="h-5 w-5 mr-2" />
+      {/* Pulsante Excel come in vendite */}
+      <div className="flex justify-end mb-4">
+        <Button onClick={handleComprehensiveExport} variant="outline" className="bg-green-50 border-green-200 text-green-700 hover:bg-green-100">
+          <Download className="h-4 w-4 mr-2" />
           Scarica Storico Completo
         </Button>
-        
+      </div>
+
+      {/* Export and Actions */}
+      <div className="flex justify-center gap-4">
         <Dialog open={showTransferModal} onOpenChange={setShowTransferModal}>
           <DialogTrigger asChild>
             <Button size="lg" className="px-8">
