@@ -457,6 +457,8 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
                     <SelectItem value="Bonifico">Bonifico</SelectItem>
                     <SelectItem value="PayPal">PayPal</SelectItem>
                     <SelectItem value="Vinted">Vinted</SelectItem>
+                    <SelectItem value="Revolut">Revolut</SelectItem>
+                    <SelectItem value="Subito">Subito</SelectItem>
                   </SelectContent>
                 </Select>
                 {form.formState.errors.incassatoSu && (
