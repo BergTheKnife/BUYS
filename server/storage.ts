@@ -870,6 +870,94 @@ export class DatabaseStorage implements IStorage {
           data: new Date(),
           itemId: updatedItem.id // 🎯 RIFERIMENTO PUNTUALE all'articolo per rifornimento
         });
+      } else if (totalCostDifference < 0) {
+        // RIDUZIONE QUANTITÀ - Logica per rimborsare cassa reinvestimento e fondi personali
+        const quantityReduction = Math.abs(quantityDifference);
+        const totalCostReduction = Math.abs(totalCostDifference);
+
+        console.log(`💰 [QUANTITY REDUCTION] Item: ${updatedItem.nomeArticolo} - ${updatedItem.taglia}`);
+        console.log(`💰 [QUANTITY REDUCTION] Reduced by ${quantityReduction} pz, cost reduction: ${totalCostReduction}€`);
+
+        // Ottieni la copertura attuale della cassa per questo articolo  
+        const [currentItemState] = await db
+          .select({ cassaCoverage: inventario.cassaCoverage })
+          .from(inventario)
+          .where(eq(inventario.id, updatedItem.id));
+
+        const currentCassaCoverage = Number(currentItemState?.cassaCoverage || 0);
+        console.log(`💰 [QUANTITY REDUCTION] Current cassa coverage: ${currentCassaCoverage}€`);
+
+        // CORREZIONE CRITICA: Usa sempre il costo ORIGINALE per calcolare il totale originale
+        // per evitare errori quando si cambiano simultaneamente quantità e costo
+        const originalCostPerUnit = Number(currentItem.costo);
+        const originalCostTotal = originalCostPerUnit * currentItem.quantita;
+        const newCostTotal = costPerUnit * updates.quantita;
+        
+        // Calcola quanto della cassa reinvestimento dovrebbe essere rimborsato
+        // La logica è: se avevo 7 pezzi con 60€ di copertura cassa, e ora ho 5 pezzi,
+        // dovrei rimborsare la quota proporzionale della cassa (2/7 * 60€)
+        const proportionalCassaCoverage = (currentCassaCoverage / originalCostTotal) * newCostTotal;
+        const amountToReturn = Math.max(0, currentCassaCoverage - proportionalCassaCoverage);
+
+        console.log(`💰 [QUANTITY REDUCTION] Original cost per unit: ${originalCostPerUnit}€, new cost per unit: ${costPerUnit}€`);
+        console.log(`💰 [QUANTITY REDUCTION] Original total cost: ${originalCostTotal}€, new total cost: ${newCostTotal}€`);
+        console.log(`💰 [QUANTITY REDUCTION] Proportional cassa coverage needed: ${proportionalCassaCoverage}€`);
+        console.log(`💰 [QUANTITY REDUCTION] Amount to return to cassa: ${amountToReturn}€`);
+
+        if (amountToReturn > 0) {
+          // Rimborsa la cassa reinvestimento
+          await this.updateCassaReinvestimento(
+            activityId,
+            amountToReturn,
+            `Riduzione inventario: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (-${quantityReduction} pz)`,
+            updatedItem.userId
+          );
+
+          // Aggiorna il cassaCoverage dell'articolo
+          const newCassaCoverage = currentCassaCoverage - amountToReturn;
+          await db.update(inventario)
+            .set({ cassaCoverage: newCassaCoverage.toString() })
+            .where(eq(inventario.id, updatedItem.id));
+
+          console.log(`💰 [QUANTITY REDUCTION] Updated cassa coverage from ${currentCassaCoverage}€ to ${newCassaCoverage}€`);
+        }
+
+        // Aggiorna la spesa originale dell'inventario per riflettere la nuova quantità
+        const existingExpense = await db
+          .select()
+          .from(spese)
+          .where(and(
+            eq(spese.activityId, activityId),
+            eq(spese.itemId, updatedItem.id),
+            eq(spese.categoria, "Inventario")
+          ))
+          .limit(1);
+
+        if (existingExpense.length > 0) {
+          console.log(`💰 [EXPENSE UPDATE] Updating original inventory expense from ${existingExpense[0].importo}€ to ${newCostTotal}€`);
+          await db.update(spese)
+            .set({ 
+              importo: newCostTotal.toString(),
+              voce: `${updatedItem.nomeArticolo}${updatedItem.taglia ? ` - ${updatedItem.taglia}` : ''} (${updates.quantita} pz) - Quantità ridotta`
+            })
+            .where(eq(spese.id, existingExpense[0].id));
+        }
+
+        // Crea entry nella timeline finanziaria per la riduzione
+        const fundingDetails = amountToReturn > 0 
+          ? `Riduzione inventario €${totalCostReduction.toFixed(2)} (€${amountToReturn.toFixed(2)} rimborsato alla cassa reinvestimento + €${(totalCostReduction - amountToReturn).toFixed(2)} ai fondi personali)`
+          : `Riduzione inventario €${totalCostReduction.toFixed(2)} (fondi personali)`;
+
+        // Registra come spesa negativa o come entrata per tracciare il movimento
+        await this.createExpense({
+          userId: updatedItem.userId,
+          activityId: activityId,
+          voce: `Riduzione inventario: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (-${quantityReduction} pz) - ${fundingDetails}`,
+          importo: (-totalCostReduction).toString(), // Importo negativo per indicare riduzione/rimborso
+          categoria: "Inventario",
+          data: new Date(),
+          itemId: updatedItem.id
+        });
       }
     }
 
