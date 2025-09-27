@@ -769,7 +769,7 @@ export class DatabaseStorage implements IStorage {
           } else if (costDifference < 0) {
             // Costo diminuito - calcolo corretto del rimborso cassa
             const costReduction = Math.abs(costDifference);
-            
+
             // LOGICA CORRETTA: Rimborsa la differenza tra quello che la cassa aveva coperto 
             // e quello che dovrebbe coprire ora (limitato al nuovo costo totale)
             const maxCassaCoverageNeeded = Math.min(newCostTotal, originalCassaCoverage);
@@ -881,23 +881,25 @@ export class DatabaseStorage implements IStorage {
         });
 
       } else if (quantityDifference < 0) {
-        // QUANTITÀ DIMINUITA - Rimborso proporzionale
+        // QUANTITÀ DIMINUITA - Logica diretta senza percentuali
         const quantityReduced = Math.abs(quantityDifference);
-        const totalCostToReturn = Math.abs(totalCostDifference);
-
-        // Calcola quanto della riduzione era coperto dalla cassa
         const currentCassaCoverage = Number(currentItem.cassaCoverage || 0);
-        const totalItemValue = Number(currentItem.costo) * currentItem.quantita;
-        const cassaCoveragePercentage = totalItemValue > 0 ? currentCassaCoverage / totalItemValue : 0;
-        
-        const amountToReturnToCassa = totalCostToReturn * cassaCoveragePercentage;
-        const amountFromPersonalFunds = totalCostToReturn - amountToReturnToCassa;
 
-        console.log(`💰 [QUANTITY DECREASE] Total cost to return: ${totalCostToReturn}€`);
-        console.log(`💰 [QUANTITY DECREASE] Cassa coverage: ${currentCassaCoverage}€ (${(cassaCoveragePercentage * 100).toFixed(1)}%)`);
-        console.log(`💰 [QUANTITY DECREASE] Return to cassa: ${amountToReturnToCassa}€, personal funds: ${amountFromPersonalFunds}€`);
+        // Calcola il nuovo costo totale dell'articolo con la nuova quantità
+        const newTotalCost = Number(updates.costo || currentItem.costo) * updates.quantita;
 
-        // Rimborsa alla cassa la parte proporzionale
+        // La cassa dovrebbe coprire al massimo il nuovo costo totale
+        const maxCassaCoverageNeeded = Math.min(newTotalCost, currentCassaCoverage);
+
+        // Calcola quanto restituire: differenza tra quello che la cassa aveva coperto e quello che dovrebbe coprire ora
+        const amountToReturnToCassa = currentCassaCoverage - maxCassaCoverageNeeded;
+
+        console.log(`💰 [QUANTITY DECREASE] Original cassa coverage: ${currentCassaCoverage}€`);
+        console.log(`💰 [QUANTITY DECREASE] New total item cost: ${newTotalCost}€`);
+        console.log(`💰 [QUANTITY DECREASE] Max cassa coverage needed: ${maxCassaCoverageNeeded}€`);
+        console.log(`💰 [QUANTITY DECREASE] Amount to return to cassa: ${amountToReturnToCassa}€`);
+
+        // Rimborsa alla cassa se c'è un eccesso
         if (amountToReturnToCassa > 0) {
           await this.updateCassaReinvestimento(
             activityId,
@@ -906,13 +908,12 @@ export class DatabaseStorage implements IStorage {
             updatedItem.userId
           );
 
-          // Aggiorna cassaCoverage riducendolo proporzionalmente
-          const newCassaCoverage = currentCassaCoverage - amountToReturnToCassa;
+          // Aggiorna la copertura cassa al nuovo valore corretto
           await db.update(inventario)
-            .set({ cassaCoverage: newCassaCoverage.toString() })
+            .set({ cassaCoverage: maxCassaCoverageNeeded.toString() })
             .where(eq(inventario.id, updatedItem.id));
 
-          console.log(`💰 [QUANTITY DECREASE] Updated cassaCoverage: ${currentCassaCoverage}€ → ${newCassaCoverage}€`);
+          console.log(`💰 [QUANTITY DECREASE] Updated cassaCoverage: ${currentCassaCoverage}€ → ${maxCassaCoverageNeeded}€`);
         }
 
         // Crea record di rimborso nella cronologia finanziaria
@@ -921,12 +922,12 @@ export class DatabaseStorage implements IStorage {
           activityId: activityId,
           azione: "Riduzione quantità",
           descrizione: `Riduzione quantità: ${updatedItem.nomeArticolo} - ${updatedItem.taglia} (${quantityReduced} pz)`,
-          importo: totalCostToReturn.toString(),
+          importo: totalCostDifference.toString(),
           dettagli: JSON.stringify({
             quantityChange: quantityDifference,
             costPerUnit: costPerUnit,
             cassaRefund: amountToReturnToCassa,
-            personalRefund: amountFromPersonalFunds
+            personalRefund: totalCostDifference - amountToReturnToCassa // calcola fondi personali basandosi sul totale da restituire
           }),
           itemId: updatedItem.id
         });
