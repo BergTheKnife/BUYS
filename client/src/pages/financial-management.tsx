@@ -185,20 +185,12 @@ export default function FinancialManagement() {
     // Use cassa reinvestimento balance from API
     const cassaReinvestimento = cassaBalance?.balance || 0;
 
-    // Clean up member balances - show members who have any positive account balance
+    // Include all member balances and accounts (positive and negative) for complete transparency
     const cleanedMemberBalances = Object.values(memberBalances)
-      .map(memberBalance => ({
-        ...memberBalance,
-        accounts: Object.fromEntries(
-          Object.entries(memberBalance.accounts).filter(([_, amount]) => amount > 0)
-        )
-      }))
-      .filter(mb => Object.keys(mb.accounts).length > 0) // Show any member with at least one positive account balance
+      .filter(mb => Object.keys(mb.accounts).length > 0); // Only filter out members with no accounts at all
 
-    // Clean up account totals to only show positive balances
-    const cleanedAccountTotals = Object.fromEntries(
-      Object.entries(accountTotals).filter(([_, amount]) => amount > 0)
-    );
+    // Include all account totals (positive and negative) for consistency
+    const cleanedAccountTotals = accountTotals;
 
     return {
       totalFunds: totalFundsInAccounts + cassaReinvestimento,
