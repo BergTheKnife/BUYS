@@ -1,503 +1,154 @@
-import React, { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+
+import React, { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { useToast } from "@/hooks/use-toast";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest } from "@/lib/queryClient";
-import { insertVenditaSchema } from "@shared/schema";
-import type { InsertVendita, Inventario, Vendita } from "@shared/schema";
-import { z } from "zod";
-import { capitalizeWords } from "@/lib/utils";
-import { Calculator } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
-interface AddSaleModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  editingSale?: Vendita | null;
-}
+type InventarioItem = { id: string; nomeArticolo: string; taglia?: string | null; quantita: number; costo: string };
+type ShowcaseItem = { id: string; nomeArticolo: string };
 
-const saleFormSchema = insertVenditaSchema.extend({
-  data: z.string().min(1, "Data richiesta"),
-});
-
-type SaleFormData = z.infer<typeof saleFormSchema>;
-
-interface BatchDetail {
-  batchId: string | null;
-  costoUnitario: number;
-  quantitaUsata: number;
-  marginePartial: number;
-  dataAcquisto?: string;
-}
-
-interface SalePreview {
-  margineTotal: number;
-  batchDetails: BatchDetail[];
-}
-
-export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps) {
+export function AddSaleModal({ open, onOpenChange, editingSale }: { open: boolean; onOpenChange: (v: boolean)=>void; editingSale?: any }) {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [salePreview, setSalePreview] = useState<SalePreview | null>(null);
-  const [isCalculatingPreview, setIsCalculatingPreview] = useState(false);
+  const qc = useQueryClient();
+  const [origine, setOrigine] = useState<"Magazzino" | "Vetrina">("Magazzino");
+  const [inventarioId, setInventarioId] = useState<string>("");
+  const [showcaseId, setShowcaseId] = useState<string>("");
+  const [quantita, setQuantita] = useState<number>(1);
+  const [prezzo, setPrezzo] = useState<string>("");
+  const [vendutoA, setVendutoA] = useState<string>("");
+  const [incassato, setIncassato] = useState<boolean>(false);
+  const [incassatoDa, setIncassatoDa] = useState<string>("");
+  const [incassatoSu, setIncassatoSu] = useState<string>("");
+  const [data, setData] = useState<string>(new Date().toISOString().slice(0,10));
 
-  const { data: inventory = [] } = useQuery<Inventario[]>({
+  const { data: inventario = [] } = useQuery({
     queryKey: ["/api/inventario"],
-    enabled: isOpen,
+    queryFn: async () => (await apiRequest("GET", "/api/inventario")).json() as Promise<InventarioItem[]>,
   });
 
-  // Fetch activity members for "incassato da" dropdown
-  const { data: activityMembers = [] } = useQuery<Array<{
-    id: string;
-    nome: string;
-    cognome: string;
-    displayName: string;
-  }>>({
-    queryKey: ["/api/activity-members"],
-    enabled: isOpen,
+  const { data: vetrina = [] } = useQuery({
+    queryKey: ["/api/produzione/vetrina"],
+    queryFn: async () => (await apiRequest("GET", "/api/produzione/vetrina")).json() as Promise<ShowcaseItem[]>,
   });
 
-  const form = useForm<SaleFormData>({
-    resolver: zodResolver(saleFormSchema),
-    defaultValues: {
-      inventarioId: "",
-      quantita: 1,
-      prezzoVendita: "0",
-      vendutoA: undefined,
-      incassato: 0,
-      incassatoDa: "",
-      incassatoSu: "",
-      data: new Date().toISOString().split('T')[0],
-    },
-  });
-
-  // Reset form when editingSale changes
-  React.useEffect(() => {
-    if (editingSale) {
-      form.reset({
-        inventarioId: editingSale.inventarioId,
-        quantita: editingSale.quantita,
-        prezzoVendita: editingSale.prezzoVendita.toString(),
-        vendutoA: editingSale.vendutoA ?? undefined,
-        incassato: editingSale.incassato ?? 0,
-        incassatoDa: editingSale.incassatoDa ?? undefined,
-        incassatoSu: editingSale.incassatoSu ?? undefined,
-        data: new Date(editingSale.data).toISOString().split('T')[0],
-      });
-    } else {
-      form.reset({
-        inventarioId: "",
-        quantita: 1,
-        prezzoVendita: "0",
-        vendutoA: undefined,
-        incassato: 0,
-        incassatoDa: "",
-        incassatoSu: "",
-        data: new Date().toISOString().split('T')[0],
-      });
-    }
-  }, [editingSale, form]);
-
-  const selectedItem = inventory.find((item: Inventario) => item.id === form.watch("inventarioId"));
-
-  // Watch form values for preview calculation
-  const watchedValues = form.watch();
-  const { inventarioId, quantita, prezzoVendita } = watchedValues;
-
-  // Calculate preview when relevant values change
   useEffect(() => {
-    const calculatePreview = async () => {
-      if (!inventarioId || !quantita || !prezzoVendita || quantita <= 0 || Number(prezzoVendita) <= 0 || editingSale) {
-        setSalePreview(null);
-        return;
-      }
-
-      setIsCalculatingPreview(true);
-      try {
-        const response = await apiRequest("POST", "/api/vendite/preview", {
-          inventarioId,
-          quantita: parseInt(quantita.toString()),
-          prezzoVendita: prezzoVendita
-        });
-        const previewData = await response.json();
-        setSalePreview(previewData);
-      } catch (error) {
-        console.error('Preview calculation failed:', error);
-        setSalePreview(null);
-      } finally {
-        setIsCalculatingPreview(false);
-      }
-    };
-
-    const timeoutId = setTimeout(calculatePreview, 500); // Debounce
-    return () => clearTimeout(timeoutId);
-  }, [inventarioId, quantita, prezzoVendita, editingSale]);
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("it-IT", {
-      style: "currency",
-      currency: "EUR",
-    }).format(amount);
-  };
+    if (inventario[0] && !inventarioId) setInventarioId(inventario[0].id);
+    if (vetrina[0] && !showcaseId) setShowcaseId(vetrina[0].id);
+  }, [inventario, vetrina]);
 
   const mutation = useMutation({
-    mutationFn: async (data: SaleFormData) => {
-      console.log('Sale form data being sent:', data);
-      const method = editingSale ? "PUT" : "POST";
-      const url = editingSale ? `/api/vendite/${editingSale.id}` : "/api/vendite";
-
-      const response = await apiRequest(method, url, {
-        inventarioId: data.inventarioId,
-        quantita: data.quantita,
-        prezzoVendita: data.prezzoVendita,
-        vendutoA: data.vendutoA,
-        incassato: data.incassato,
-        incassatoDa: data.incassatoDa,
-        incassatoSu: data.incassatoSu,
-        data: data.data,
-      });
-      return response.json();
+    mutationFn: async () => {
+      if (origine === "Magazzino") {
+        const res = await apiRequest("POST", "/api/vendite", {
+          inventarioId,
+          quantita,
+          prezzoVendita: prezzo,
+          vendutoA,
+          incassato: incassato ? 1 : 0,
+          incassatoDa: incassato ? (incassatoDa || "Cliente") : null,
+          incassatoSu: incassato ? (incassatoSu || "Cassa") : null,
+          data,
+        });
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+      } else {
+        const res = await apiRequest("POST", "/api/vendite/vetrina", {
+          showcaseId,
+          quantita,
+          prezzoVendita: prezzo,
+          vendutoA,
+          incassato: incassato ? 1 : 0,
+          incassatoDa: incassato ? (incassatoDa || "Cliente") : null,
+          incassatoSu: incassato ? (incassatoSu || "Cassa") : null,
+          data,
+        });
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+      }
     },
-    onSuccess: (result: any) => {
-      // Action history functionality removed
-
-      queryClient.invalidateQueries({ queryKey: ["/api/vendite"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
-      toast({
-        title: "Successo",
-        description: editingSale ? "Vendita aggiornata con successo" : "Vendita registrata con successo",
-      });
-      onClose();
-      form.reset({
-        inventarioId: "",
-        quantita: 1,
-        prezzoVendita: "0",
-        vendutoA: undefined,
-        incassato: 0,
-        incassatoDa: "",
-        incassatoSu: "",
-        data: new Date().toISOString().split('T')[0],
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Errore",
-        description: error.message || "Errore nella registrazione della vendita",
-        variant: "destructive",
-      });
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/vendite"] });
+      qc.invalidateQueries({ queryKey: ["/api/inventario"] });
+      qc.invalidateQueries({ queryKey: ["/api/stats"] });
+      toast({ title: "Successo", description: "Vendita registrata con successo" });
+      onOpenChange(false);
+      // reset basic fields
+      setPrezzo(""); setQuantita(1); setVendutoA(""); setIncassato(false); setIncassatoDa(""); setIncassatoSu("");
     },
   });
 
-  const onSubmit = (data: SaleFormData) => {
-    console.log('Sale form submitted with data:', data);
-    console.log('Sale form errors:', form.formState.errors);
-    mutation.mutate(data);
-  };
-
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{editingSale ? "Modifica Vendita" : "Registra Vendita"}</DialogTitle>
-          <DialogDescription>
-            {editingSale 
-              ? "Modifica i dettagli della vendita selezionata."
-              : "Seleziona un articolo e inserisci i dettagli della vendita."
-            }
-          </DialogDescription>
-        </DialogHeader>
-
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="inventarioId">Articolo</Label>
-            <Select 
-              value={form.watch("inventarioId")} 
-              onValueChange={(value) => form.setValue("inventarioId", value)}
-            >
-              <SelectTrigger data-testid="select-articolo">
-                <SelectValue placeholder="Seleziona articolo" />
-              </SelectTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader><DialogTitle>Nuova Vendita</DialogTitle></DialogHeader>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-2">
+            <Label>Origine articolo</Label>
+            <Select value={origine} onValueChange={(v)=>setOrigine(v as any)}>
+              <SelectTrigger><SelectValue placeholder="Seleziona origine" /></SelectTrigger>
               <SelectContent>
-                {inventory
-                  .filter((item: Inventario) => {
-                    // For editing, include the currently selected item even if quantity is 0
-                    if (editingSale && editingSale.inventarioId === item.id) {
-                      return true;
-                    }
-                    // For new sales, only show items with quantity > 0
-                    return item.quantita > 0;
-                  })
-                  .map((item: Inventario) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.nomeArticolo} - {item.taglia} (Qta: {item.quantita})
-                    {editingSale && editingSale.inventarioId === item.id && item.quantita === 0 ? ' - ESAURITO' : ''}
-                  </SelectItem>
-                ))}
+                <SelectItem value="Magazzino">Magazzino</SelectItem>
+                <SelectItem value="Vetrina">Vetrina</SelectItem>
               </SelectContent>
             </Select>
-            {form.formState.errors.inventarioId && (
-              <p className="text-sm text-destructive">
-                {form.formState.errors.inventarioId.message}
-              </p>
-            )}
           </div>
 
-          {selectedItem && (
-            <div className="p-4 bg-muted rounded-lg">
-              <p className="text-sm">
-                <strong>Costo medio articolo:</strong> {formatCurrency(Number(selectedItem.costo))}
-              </p>
-              <p className="text-sm">
-                <strong>Quantità disponibile:</strong> {selectedItem.quantita}
-                {editingSale && (
-                  <span className="text-muted-foreground ml-1">
-                    (+ {editingSale.quantita} dalla vendita corrente)
-                  </span>
-                )}
-              </p>
+          {origine === "Magazzino" ? (
+            <div className="grid grid-cols-1 gap-2">
+              <Label>Articolo (magazzino)</Label>
+              <Select value={inventarioId} onValueChange={setInventarioId}>
+                <SelectTrigger><SelectValue placeholder="Seleziona articolo" /></SelectTrigger>
+                <SelectContent>
+                  {inventario.map(it => (
+                    <SelectItem key={it.id} value={it.id}>{it.nomeArticolo}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-2">
+              <Label>Articolo (vetrina)</Label>
+              <Select value={showcaseId} onValueChange={setShowcaseId}>
+                <SelectTrigger><SelectValue placeholder="Seleziona articolo" /></SelectTrigger>
+                <SelectContent>
+                  {vetrina.map(it => (
+                    <SelectItem key={it.id} value={it.id}>{it.nomeArticolo}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="quantita">Quantità Venduta</Label>
-            <Input
-              id="quantita"
-              data-testid="input-quantita-venduta"
-              type="number"
-              min="1"
-              max={editingSale ? undefined : (selectedItem?.quantita || 1)}
-              {...form.register("quantita", { valueAsNumber: true })}
-            />
-            {form.formState.errors.quantita && (
-              <p className="text-sm text-destructive">
-                {form.formState.errors.quantita.message}
-              </p>
-            )}
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Quantità</Label><Input type="number" min="1" value={quantita} onChange={e=>setQuantita(parseInt(e.target.value || "1"))} /></div>
+            <div><Label>Prezzo (€)</Label><Input type="number" step="0.01" value={prezzo} onChange={e=>setPrezzo(e.target.value)} /></div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="prezzoVendita">Prezzo Vendita (€)</Label>
-            <Input
-              id="prezzoVendita"
-              data-testid="input-prezzo-vendita"
-              type="number"
-              step="0.01"
-              placeholder="25.00"
-              {...form.register("prezzoVendita")}
-            />
-            {form.formState.errors.prezzoVendita && (
-              <p className="text-sm text-destructive">
-                {form.formState.errors.prezzoVendita.message}
-              </p>
-            )}
-          </div>
+          <div><Label>Venduto a (facoltativo)</Label><Input value={vendutoA} onChange={e=>setVendutoA(e.target.value)} /></div>
 
-          <div className="space-y-2">
-            <Label htmlFor="vendutoA">Venduto A (Cliente)</Label>
-            <Input
-              id="vendutoA"
-              data-testid="input-venduto-a"
-              type="text"
-              placeholder="Es. Mario Rossi, Cliente online, etc."
-              {...form.register("vendutoA")}
-              onChange={(e) => {
-                const capitalizedValue = capitalizeWords(e.target.value);
-                form.setValue("vendutoA", capitalizedValue);
-              }}
-            />
-            {form.formState.errors.vendutoA && (
-              <p className="text-sm text-destructive">
-                {form.formState.errors.vendutoA.message}
-              </p>
-            )}
-          </div>
-
-          {/* Sale Preview */}
-          {!editingSale && salePreview && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-sm">
-                  <Calculator className="h-4 w-4" />
-                  Calcolo Margine FIFO
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="text-xs text-muted-foreground">
-                  Questo calcolo mostra esattamente quali lotti verranno utilizzati per questa vendita
-                </div>
-                
-                {salePreview.batchDetails.map((batch, index) => (
-                  <div key={index} className="flex justify-between items-center py-2 border-b last:border-b-0">
-                    <div className="space-y-1">
-                      <div className="text-sm font-medium">
-                        Lotto {index + 1} {batch.batchId ? `(ID: ${batch.batchId.slice(-8)})` : '(Costo medio)'}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {batch.quantitaUsata} pz × {formatCurrency(batch.costoUnitario)}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className={`text-sm font-medium ${batch.marginePartial >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {formatCurrency(batch.marginePartial)}
-                      </div>
-                      <div className="text-xs text-muted-foreground">margine</div>
-                    </div>
-                  </div>
-                ))}
-                
-                <Separator />
-                
-                <div className="flex justify-between items-center font-medium">
-                  <span>Margine Totale:</span>
-                  <span className={`text-lg ${salePreview.margineTotal >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {formatCurrency(salePreview.margineTotal)}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {isCalculatingPreview && !editingSale && (
-            <div className="p-4 bg-muted rounded-lg">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Calculator className="h-4 w-4 animate-pulse" />
-                Calcolo margine in corso...
-              </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-1 flex items-center gap-2">
+              <input id="incassato" type="checkbox" checked={incassato} onChange={e=>setIncassato(e.target.checked)} />
+              <Label htmlFor="incassato">Incassato</Label>
             </div>
-          )}
-
-          <div className="space-y-2">
-            <Label htmlFor="incassato">Incassato</Label>
-            <Select 
-              value={form.watch("incassato")?.toString() || "0"} 
-              onValueChange={(value) => {
-                const numValue = parseInt(value);
-                form.setValue("incassato", numValue);
-                // Clear conditional fields when setting to NO
-                if (numValue === 0) {
-                  form.setValue("incassatoDa", "");
-                  form.setValue("incassatoSu", "");
-                }
-              }}
-            >
-              <SelectTrigger data-testid="select-incassato">
-                <SelectValue placeholder="Seleziona stato" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="0">NO</SelectItem>
-                <SelectItem value="1">SI</SelectItem>
-              </SelectContent>
-            </Select>
-            {form.formState.errors.incassato && (
-              <p className="text-sm text-destructive">
-                {form.formState.errors.incassato.message}
-              </p>
-            )}
+            <div><Label>Incassato da</Label><Input value={incassatoDa} disabled={!incassato} onChange={e=>setIncassatoDa(e.target.value)} /></div>
+            <div><Label>Incassato su</Label><Input value={incassatoSu} disabled={!incassato} onChange={e=>setIncassatoSu(e.target.value)} /></div>
           </div>
 
-          {/* Conditional fields - only show when incassato = 1 (SI) */}
-          {form.watch("incassato") === 1 && (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="incassatoDa">Incassato Da</Label>
-                <Select 
-                  value={form.watch("incassatoDa")} 
-                  onValueChange={(value) => form.setValue("incassatoDa", value)}
-                >
-                  <SelectTrigger data-testid="select-incassato-da">
-                    <SelectValue placeholder="Seleziona persona" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {activityMembers.map((member) => (
-                      <SelectItem key={member.id} value={member.displayName}>
-                        {member.displayName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {form.formState.errors.incassatoDa && (
-                  <p className="text-sm text-destructive">
-                    {form.formState.errors.incassatoDa.message}
-                  </p>
-                )}
-              </div>
+          <div><Label>Data</Label><Input type="date" value={data} onChange={e=>setData(e.target.value)} /></div>
 
-              <div className="space-y-2">
-                <Label htmlFor="incassatoSu">Incassato Su</Label>
-                <Select 
-                  value={form.watch("incassatoSu")} 
-                  onValueChange={(value) => form.setValue("incassatoSu", value)}
-                >
-                  <SelectTrigger data-testid="select-incassato-su">
-                    <SelectValue placeholder="Seleziona metodo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Contanti">Contanti</SelectItem>
-                    <SelectItem value="Carta">Carta</SelectItem>
-                    <SelectItem value="Bonifico">Bonifico</SelectItem>
-                    <SelectItem value="PayPal">PayPal</SelectItem>
-                    <SelectItem value="Vinted">Vinted</SelectItem>
-                    <SelectItem value="Revolut">Revolut</SelectItem>
-                    <SelectItem value="Subito">Subito</SelectItem>
-                  </SelectContent>
-                </Select>
-                {form.formState.errors.incassatoSu && (
-                  <p className="text-sm text-destructive">
-                    {form.formState.errors.incassatoSu.message}
-                  </p>
-                )}
-              </div>
-            </>
-          )}
-
-          <div className="space-y-2">
-            <Label htmlFor="data">Data</Label>
-            <Input
-              id="data"
-              data-testid="input-data"
-              type="date"
-              {...form.register("data")}
-            />
-            {form.formState.errors.data && (
-              <p className="text-sm text-destructive">
-                {form.formState.errors.data.message}
-              </p>
-            )}
-          </div>
-
-          <div className="flex justify-end space-x-2">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Annulla
-            </Button>
-            <Button 
-              type="submit" 
-              disabled={mutation.isPending}
-              className="bg-green-600 hover:bg-green-700"
-            >
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={()=>onOpenChange(false)}>Annulla</Button>
+            <Button className="bg-green-600 hover:bg-green-700" onClick={()=>mutation.mutate()} disabled={!prezzo || quantita<1}>
               {mutation.isPending ? "Registrando..." : "Registra Vendita"}
             </Button>
           </div>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -9,8 +9,13 @@ import {
   activityUsers,
   emailVerificationTokens,
   passwordResetTokens,
-  rememberTokens, // Import remember tokens table
-  spedizioni, // Import spedizioni table
+  rememberTokens,
+  spedizioni,
+  storeConfig,
+  productionMaterials,
+  materialBatches,
+  productShowcase,
+  showcaseMaterialLinks,
   type User,
   type InsertUser,
   type Inventario,
@@ -33,7 +38,17 @@ import {
   type InsertPasswordResetToken,
   type Spedizione,
   type InsertSpedizione,
-  type UpdateSpedizione
+  type UpdateSpedizione,
+  type StoreConfig,
+  type InsertStoreConfig,
+  type ProductionMaterial,
+  type InsertProductionMaterial,
+  type MaterialBatch,
+  type InsertMaterialBatch,
+  type ProductShowcase,
+  type InsertProductShowcase,
+  type ShowcaseMaterialLink,
+  type InsertShowcaseMaterialLink
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sum, sql, gte, lt, lte, or, like, ilike, inArray, ne } from "drizzle-orm";
