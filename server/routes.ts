@@ -2173,7 +2173,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'Quantità': item.quantita,
         'Costo Unitario (€)': Number(item.costo).toFixed(2),
         'Valore Totale (€)': (Number(item.costo) * item.quantita).toFixed(2),
-        'Stato': item.archiviato === 0 ? 'Attivo' : 'Archiviato'
+        'Stato': item.isActive ? 'Attivo' : 'Archiviato'
       }));
 
       // Sales worksheet
@@ -2633,7 +2633,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId: req.session.userId!,
         activityId: req.session.activityId!,
         nomeArticolo: inventoryItem.nomeArticolo,
-        taglia: inventoryItem.taglia || '',
+        taglia: inventoryItem.taglia,
         margine: "0" // Will be calculated internally by createSale
       });
 
@@ -2975,3 +2975,134 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
   return httpServer;
 }
+
+  /* PRODUZIONE & VETRINA API */
+  app.get('/api/production/materials', requireActivity, async (req, res) => {
+    try {
+      const svc = await import('./production');
+      const mats = await svc.listProductionMaterials(req.session.activityId!);
+      res.json(mats);
+    } catch (e: any) { res.status(400).json({ message: e.message || 'Errore elenco materiali' }); }
+  });
+
+  app.post('/api/production/materials', requireActivity, async (req, res) => {
+    try {
+      const { nome, unita, colore, quantitaTotale, costoTotale } = req.body;
+      const svc = await import('./production');
+      const out = await svc.createProductionMaterial({
+        userId: req.session.userId!, activityId: req.session.activityId!,
+        nome, unita, colore, quantitaTotale: Number(quantitaTotale), costoTotale: Number(costoTotale)
+      });
+      res.json(out.material);
+    } catch (e: any) { res.status(400).json({ message: e.message || 'Errore creazione materiale' }); }
+  });
+
+  app.post('/api/production/materials/:id/refill', requireActivity, async (req, res) => {
+    try {
+      const { id } = req.params; const { quantita, costoTotale } = req.body;
+      const svc = await import('./production');
+      const out = await svc.refillProductionMaterial({
+        userId: req.session.userId!, activityId: req.session.activityId!,
+        materialId: id, quantita: Number(quantita), costoTotale: Number(costoTotale)
+      });
+      res.json(out);
+    } catch (e: any) { res.status(400).json({ message: e.message || 'Errore rifornimento materiale' }); }
+  });
+
+  app.post('/api/production/materials/:id/archive', requireActivity, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const svc = await import('./production');
+      await svc.archiveMaterial(id, req.session.activityId!);
+      res.json({ ok: true });
+    } catch (e: any) { res.status(400).json({ message: e.message || 'Errore archiviazione' }); }
+  });
+
+  app.delete('/api/production/materials/:id', requireActivity, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const svc = await import('./production');
+      const out = await svc.deleteMaterialIfUnused(id, req.session.activityId!, req.session.userId!);
+      if (!out.success) return res.status(409).json({ message: 'Materiale già utilizzato: archiviare invece.' });
+      res.json({ ok: true });
+    } catch (e: any) { res.status(400).json({ message: e.message || 'Errore eliminazione' }); }
+  });
+
+  // Vetrina
+  app.get('/api/production/vetrina', requireActivity, async (req, res) => {
+    try {
+      const svc = await import('./production');
+      const out = await svc.listProductionProducts(req.session.activityId!);
+      res.json(out);
+    } catch (e: any) { res.status(400).json({ message: e.message || 'Errore elenco vetrina' }); }
+  });
+
+  app.post('/api/production/vetrina', requireActivity, async (req, res) => {
+    try {
+      const { nome, categoria, altezza, larghezza, lunghezza, costoOverride, bom } = req.body;
+      const svc = await import('./production');
+      const out = await svc.createProductionProduct({
+        userId: req.session.userId!, activityId: req.session.activityId!,
+        nome, categoria: categoria || null,
+        altezza: altezza ? Number(altezza) : null,
+        larghezza: larghezza ? Number(larghezza) : null,
+        lunghezza: lunghezza ? Number(lunghezza) : null,
+        costoOverride: costoOverride ? Number(costoOverride) : null,
+        bom: (bom || []).map((r:any)=>({ materialId: r.materialId, quantita: Number(r.quantita) }))
+      });
+      res.json(out);
+    } catch (e: any) { res.status(400).json({ message: e.message || 'Errore creazione scheda vetrina' }); }
+  });
+
+  app.post('/api/production/vetrina/:id/archive', requireActivity, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const svc = await import('./production');
+      await svc.archiveProductionProduct(id, req.session.activityId!);
+      res.json({ ok: true });
+    } catch (e: any) { res.status(400).json({ message: e.message || 'Errore archiviazione vetrina' }); }
+  });
+
+  app.delete('/api/production/vetrina/:id', requireActivity, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const svc = await import('./production');
+      const out = await svc.deleteProductionProductIfUnused(id, req.session.activityId!);
+      if (!out.success) return res.status(409).json({ message: 'Scheda già utilizzata: archiviare invece.' });
+      res.json({ ok: true });
+    } catch (e: any) { res.status(400).json({ message: e.message || 'Errore eliminazione vetrina' }); }
+  });
+
+  // Preparazione vendita da Vetrina: consuma FIFO e crea item inventario sintetico (non crea vendita)
+  app.post('/api/production/prepare-from-vetrina', requireActivity, async (req, res) => {
+    try {
+      const { productId, quantita } = req.body;
+      const svc = await import('./production');
+      const out = await svc.prepareInventoryFromVetrina({
+        userId: req.session.userId!, activityId: req.session.activityId!, productId, quantita: Number(quantita||1)
+      });
+      res.json(out);
+    } catch (e: any) { res.status(400).json({ message: e.message || 'Errore preparazione vendita' }); }
+  });
+
+  // === STORE PROFILE ===
+  app.get('/api/store/profile', requireActivity, async (req, res) => {
+    try {
+      const svc = await import('./store');
+      const out = await svc.getStoreProfile(req.session.activityId!);
+      res.json(out || {});
+    } catch (e:any) { res.status(400).json({ message: e.message || 'Errore profilo store' }); }
+  });
+
+  app.post('/api/store/profile', requireActivity, async (req, res) => {
+    try {
+      const { storeType, currency, country, defaultVat, featureFlags } = req.body;
+      const svc = await import('./store');
+      const out = await svc.upsertStoreProfile({
+        userId: req.session.userId!, activityId: req.session.activityId!,
+        storeType, currency, country, defaultVat: defaultVat ? Number(defaultVat) : null,
+        featureFlags: featureFlags || null
+      });
+      res.json(out);
+    } catch (e:any) { res.status(400).json({ message: e.message || 'Errore salvataggio profilo store' }); }
+  });

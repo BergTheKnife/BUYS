@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useStoreProfile } from "@/contexts/store-profile";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -78,6 +79,8 @@ type CreateActivityForm = z.infer<typeof createActivitySchema>;
 type JoinActivityForm = z.infer<typeof joinActivitySchema>;
 
 export function Navbar() {
+  const profile = useStoreProfile();
+
   const { user, currentActivity, hasActivity, logout, switchActivity } = useAuth();
   const [location, setLocation] = useLocation();
   const { toast } = useToast();
@@ -517,6 +520,12 @@ export function Navbar() {
         </DialogContent>
       </Dialog>
     
-  </nav>
+  <div className="flex items-center gap-2 ml-2">
+    {!profile?.id && <a href="/setup/store"><button className="btn btn-outline">Completa setup store</button></a>}
+    {profile?.featureFlags?.production && <a href="/produzione/materiali"><button className="btn btn-outline">Produzione • Materiali</button></a>}
+    {profile?.featureFlags?.vetrina && <a href="/vetrina"><button className="btn btn-outline">Vetrina</button></a>}
+    {profile?.featureFlags?.vetrina && <a href="/vendite/vetrina"><button className="btn btn-outline">Vendi da Vetrina</button></a>}
+  </div>
+</nav>
   );
 }
