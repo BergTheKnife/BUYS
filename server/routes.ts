@@ -2173,7 +2173,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'Quantità': item.quantita,
         'Costo Unitario (€)': Number(item.costo).toFixed(2),
         'Valore Totale (€)': (Number(item.costo) * item.quantita).toFixed(2),
-        'Stato': item.isActive ? 'Attivo' : 'Archiviato'
+        'Stato': item.archiviato === 0 ? 'Attivo' : 'Archiviato'
       }));
 
       // Sales worksheet
@@ -2633,7 +2633,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId: req.session.userId!,
         activityId: req.session.activityId!,
         nomeArticolo: inventoryItem.nomeArticolo,
-        taglia: inventoryItem.taglia,
+        taglia: inventoryItem.taglia || '',
         margine: "0" // Will be calculated internally by createSale
       });
 
@@ -2972,10 +2972,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  const httpServer = createServer(app);
-  return httpServer;
-}
-
   /* PRODUZIONE & VETRINA API */
   app.get('/api/production/materials', requireActivity, async (req, res) => {
     try {
@@ -3106,3 +3102,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(out);
     } catch (e:any) { res.status(400).json({ message: e.message || 'Errore salvataggio profilo store' }); }
   });
+
+  const httpServer = createServer(app);
+  return httpServer;
+}

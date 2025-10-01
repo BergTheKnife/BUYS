@@ -73,13 +73,12 @@ function AppContent() {
           <Route path="/profilo" component={() => <UserOnlyRoute><Profile /></UserOnlyRoute>} />
           <Route path="/impostazioni-attivita" component={() => <ProtectedRoute><ActivitySettings /></ProtectedRoute>} />
           <Route path="/admin" component={() => <UserOnlyRoute><AdminPage /></UserOnlyRoute>} />
+          <Route path="/setup/store" component={() => <ProtectedRoute><StoreSetup /></ProtectedRoute>} />
+          <Route path="/produzione/materiali" component={() => <ProtectedRoute><ProductionMaterials /></ProtectedRoute>} />
+          <Route path="/vetrina" component={() => <ProtectedRoute><Vetrina /></ProtectedRoute>} />
+          <Route path="/vendite/vetrina" component={() => <ProtectedRoute><SellFromVetrinaPage /></ProtectedRoute>} />
           <Route path="*" component={NotFound} />
-        
-      <ProtectedRoute path="/setup/store" component={StoreSetup} />
-      <ProtectedRoute path="/produzione/materiali" component={ProductionMaterials} />
-      <ProtectedRoute path="/vetrina" component={Vetrina} />
-      <ProtectedRoute path="/vendite/vetrina" component={SellFromVetrinaPage} />
-    </Switch>
+        </Switch>
       </div>
     </>
   );
