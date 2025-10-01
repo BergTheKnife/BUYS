@@ -1,0 +1,245 @@
+La contabilità attuale non deve essere alterata (nessun doppio addebito, nessuna retroattività indesiderata). Voglio due integrazioni:
+
+Tipologia di Store: una pagina di configurazione che mi fa scegliere “che tipo di store sto aprendo” e, in base alla scelta, attiva/disattiva alcuni menu e attributi.
+
+Produzione: un unico menu chiamato “Produzione” che contiene due sottomenu:
+• “Materiali” (gestione materiali con lotti, scadenze, rifornimenti e contabilità corretta)
+• “Vetrina” (schede dei prodotti che so produrre, con elenco materiali necessari).
+Non deve esistere la pagina “Vendita da Vetrina”: le vendite si registrano esclusivamente dal menu “Vendite”.
+
+Importantissimo: tutte le voci UI devono essere in italiano e semplici.
+
+Vincoli generali
+– Non modificare la logica contabile esistente per vendite, spese e cassa: integrala senza rompere nulla.
+– Ogni azione deve avere storico coerente.
+– “Archiviazione” ≠ “Eliminazione definitiva”:
+• Se un elemento è stato usato almeno una volta, può essere solo archiviato (nessun ripristino cassa, nessuna cancellazione spese, solo cambia stato).
+• Se non è mai stato usato, si può eliminare definitivamente con rollback contabile (vedi sotto).
+– Etichette e testi UI: solo italiano. Niente “BOM”: usa “Materiali necessari”.
+
+A) Tipologia di Store (Configurazione iniziale)
+
+Aggiungi una voce nel NAV bar superiore (non nel menu laterale blu) chiamata: “Imposta Store”.
+– Visibile finché lo store non è configurato. Dopo la configurazione resta sempre disponibile come voce nel NAV per modifiche future.
+
+Pagina “Imposta Store”:
+Campi:
+– “Tipologia di store” (menu a tendina)
+– “Valuta” (default EUR)
+– “Paese” (default IT)
+– “IVA predefinita (%)” (default 22,00)
+– Box “Funzionalità attive” con check (impostati automaticamente in base alla tipologia; posso ritoccarli):
+• “Produzione” (mostra menu Produzione)
+• “Vetrina” (mostra sottomenu Vetrina dentro Produzione)
+• “Varianti (taglie, colori…)”
+• “Seriali / IMEI”
+• “Lotti e Scadenze”
+• “Spedizioni”
+• “Servizi”
+• “Digitale / Download”
+
+Salvataggio: creando/aggiornando il profilo Store, attiva/disattiva i menu.
+– La voce “Imposta Store” resta nel NAV, ma il menu laterale si aggiorna in base ai flag.
+– Per alcune tipologie, crea automaticamente attributi di prodotto (es. Taglia, Colore) per aiutare i form.
+
+Tipologie di Store (italiano, semplice) con menu attivi di default e attributi suggeriti:
+• Abbigliamento & Accessori
+– Menu attivi: Magazzino, Vendite, Spese, Finanze, Spedizioni
+– Produzione: OFF, Vetrina: OFF
+– Attributi: Taglia (XS–XL), Colore
+• Calzature
+– Menu: Magazzino, Vendite, Spese, Finanze, Spedizioni
+– Produzione OFF, Vetrina OFF
+– Attributi: Numero EU, Colore
+• Gioielli & Orologi
+– Menu: Magazzino, Vendite, Spese, Finanze, Spedizioni
+– Produzione OFF, Vetrina OFF
+– Attributi: Materiale, Colore
+• Elettronica / Telefonia
+– Menu: Magazzino, Vendite, Spese, Finanze, Spedizioni
+– Seriali/IMEI ON
+– Produzione OFF, Vetrina OFF
+– Attributi: Seriale/IMEI (obbl.), Garanzia (mesi)
+• Informatica & Periferiche
+– Menu: Magazzino, Vendite, Spese, Finanze, Spedizioni
+– Seriali ON
+– Produzione OFF, Vetrina OFF
+– Attributi: Seriale, Garanzia (mesi)
+• Casa & Arredo
+– Menu: Magazzino, Vendite, Spese, Finanze, Spedizioni
+– Produzione OFF, Vetrina OFF
+– Attributi: Colore, Dimensioni
+• Sport & Outdoor
+– Menu: Magazzino, Vendite, Spese, Finanze, Spedizioni
+– Varianti ON
+– Produzione OFF, Vetrina OFF
+– Attributi: Taglia, Colore
+• Cosmetici & Benessere
+– Menu: Magazzino, Vendite, Spese, Finanze, Spedizioni
+– “Lotti e Scadenze” ON
+– Produzione OFF, Vetrina OFF
+– Attributi: Lotto, Scadenza, PAO (mesi)
+• Alimentari & Bevande
+– Menu: Magazzino, Vendite, Spese, Finanze, Spedizioni
+– “Lotti e Scadenze” ON
+– Produzione OFF, Vetrina OFF
+– Attributi: Lotto, Scadenza, Allergeni
+• Libri & Media
+– Menu: Magazzino, Vendite, Spese, Finanze, Spedizioni
+– Produzione OFF, Vetrina OFF
+– Attributi: ISBN/Identificativo
+• Ricambi Auto/Moto
+– Menu: Magazzino, Vendite, Spese, Finanze, Spedizioni
+– Seriali ON
+– Produzione OFF, Vetrina OFF
+– Attributi: Codice ricambio, Compatibilità
+• Artigianato / Maker / Stampa 3D
+– Menu: Magazzino, Vendite, Spese, Finanze, Spedizioni, Produzione (ON) con Materiali e Vetrina
+– Attributi: (facoltativo) “Scheda vetrina” testuale
+• Stampa & Personalizzazioni
+– Menu: Magazzino, Vendite, Spese, Finanze, Spedizioni, Produzione (ON) con Materiali e Vetrina
+– Attributi: (facoltativo) “Scheda vetrina”
+• Digitale / Download
+– Menu: Magazzino, Vendite, Spese, Finanze
+– Spedizioni OFF, Produzione OFF, Vetrina OFF
+– Attributi: Licenza, Formato
+• Servizi
+– Menu: Vendite, Spese, Finanze
+– Produzione OFF, Vetrina OFF
+– Attributi: Tipo servizio, Durata
+
+B) Produzione (menu unico con due sottomenu)
+Abilita il menu “Produzione” solo se il flag “Produzione” è attivo nel profilo Store. Dentro “Produzione” mostra due voci:
+
+Produzione → “Materiali”
+Obiettivo: gestire i materiali che uso per produrre articoli (es. bobine plastica 3D, carta, inchiostri…), con lotti, scadenze dove serve, rifornimenti e contabilità corretta.
+
+Campi per “Aggiungi materiale”:
+– Nome materiale (es. “Bobina PLA Nero”)
+– Unità: “grammi (g)”, “metri (m)” o “pezzi (pz)”
+– Colore (facoltativo)
+– Quantità totale acquistata
+– Costo totale pagato
+– Lotto (facoltativo)
+– Scadenza (facoltativa; obbligatoria se la tipologia di store ha “Lotti e Scadenze” attivo)
+
+Regole contabili all’inserimento:
+– Genera una spesa non eliminabile con causale: “acquisto materiale produzione: [nome]”.
+– Effettua un PRELIEVO dalla cassa reinvestimento fino a capienza; se il costo supera la cassa, la differenza è “fondi personali”.
+– Registra sul lotto la quotaCassa realmente usata; servirà per eventuale rollback in eliminazione.
+
+Lista Materiali:
+– Mostra righe con: Nome, Unità, Colore, Quantità residua (somma sui lotti), Costo medio per unità, eventuale Scadenza più vicina.
+– Pulsanti per ciascun materiale:
+• “Rifornisci” → apre form con Quantità, Costo totale, Lotto (facoltativo), Scadenza (facoltativa/obbligatoria secondo store). Crea nuovo lotto con stessa contabilità dell’acquisto: spesa non eliminabile + prelievo cassa fino a capienza.
+• “Archivia” → se il materiale è stato usato almeno una volta, si archivia (niente movimenti contabili). Il materiale archiviato scompare dalla vista principale ma resta nello storico.
+• “Elimina (solo se mai usato)” → se non è mai stato usato:
+– Esegui DEPOSITO in cassa della sola somma quotaCassa registrata sui lotti.
+– Cancella le spese collegate ai lotti.
+– Cancella lotti e materiale. Se anche un solo consumo esiste, blocca e invita ad “Archivia”.
+
+Consumo lotti e scadenze:
+– Consumo per produzione avviene alla vendita di un prodotto di Vetrina (vedi sotto).
+– Algoritmo consumo: prima per scadenza (FEFO), dal lotto con scadenza più vicina; a parità o senza scadenze, FIFO per data di acquisto.
+– Se lo store non ha “Lotti e Scadenze”, applica solo FIFO classico.
+
+Produzione → “Vetrina”
+Obiettivo: creare la vetrina degli articoli che so produrre, con la lista dei materiali necessari.
+
+“Aggiungi articolo in vetrina”:
+– Nome articolo
+– Categoria (facoltativa)
+– Dimensioni (altezza, larghezza, lunghezza) facoltative
+– Materiali necessari: elenco selezionabile dai “Materiali” con, accanto a ciascuno, “Quantità per pezzo” (nelle stesse unità del materiale).
+– “Costo previsto” calcolato in automatico dalla somma dei costi per unità dei materiali × quantità per pezzo. Deve essere modificabile manualmente (override), ma il costo effettivo della vendita userà comunque il consumo dai lotti (quindi il margine reale riflette i costi reali dei lotti consumati).
+
+Gestione vetrina:
+– Mostra schede con nome, eventuale categoria, numero di materiali collegati.
+– Pulsanti:
+• “Modifica” (aggiorna materiali necessari e/o costo previsto)
+• “Archivia” (se usato almeno una volta)
+• “Elimina (solo se mai usato)”
+
+C) Vendite (nessuna pagina separata per la vetrina)
+– Nel form di registrazione vendita aggiungi il campo “Origine articolo”: scelte “Magazzino” oppure “Vetrina”.
+• Se scelgo “Magazzino”: tutto rimane come oggi.
+• Se scelgo “Vetrina”: seleziono l’articolo della Vetrina e la quantità venduta.
+
+Comportamento quando “Origine articolo = Vetrina”:
+
+Al salvataggio della vendita:
+– Consuma i materiali dai lotti seguendo Scadenza (FEFO) → FIFO finché copri la quantità venduta × materiali necessari.
+– Calcola il costo complessivo reale dalla somma dei consumi dei lotti.
+– Crea un “articolo inventario sintetico” per la vendita con costo unitario = costo complessivo / quantità venduta.
+– Registra la vendita usando il flusso standard che già calcola il margine: Prezzo vendita – Costo (COGS).
+– Non generare una nuova “uscita” nelle spese (le uscite sono già avvenute quando ho acquistato i materiali).
+– Non toccare la cassa reinvestimento in fase di vendita.
+
+Se elimino la vendita:
+– Reversa soltanto l’entrata/movimenti collegati alla vendita come già fai oggi.
+– Non ripristinare i materiali consumati. L’articolo “non venduto” diventa una giacenza di magazzino: cioè, crea o incrementa in Magazzino un articolo con quel costo unitario (così non perdo il valore del lavoro fatto).
+– Niente movimenti su cassa/spese in questa fase.
+
+D) Regole contabili (riassunto chiaro)
+– Acquisto/rifornimento Materiali:
+• Crea Spesa non eliminabile “acquisto materiale produzione: [nome]”.
+• Prelievo cassa reinvestimento fino a capienza; salva la quotaCassa a livello di lotto.
+– Eliminazione definitiva Materiale (solo se mai usato):
+• Deposita in cassa solo la somma delle quoteCassa dei lotti.
+• Cancella le spese collegate ai lotti, poi cancella i lotti e il materiale.
+– Vendita da Vetrina:
+• Niente spese nuove; consumi materiali → calcoli costo → margine; cassa non coinvolta.
+– Archiviazione (Materiale o Vetrina):
+• Nessun movimento contabile; solo stato; storico integro.
+
+E) UX e testi (italiano semplice)
+– Menu laterale:
+• “Dashboard”, “Magazzino”, “Vendite”, “Spese”, “Finanze” (o “Gestione finanziaria”), “Spedizioni” (se attiva), “Produzione”
+• Sotto “Produzione”: “Materiali” e “Vetrina”
+– NAV bar (in alto): “Imposta Store”
+– Pulsanti standard: “Aggiungi”, “Rifornisci”, “Archivia”, “Elimina (solo se mai usato)”, “Salva”
+– Etichette: “Materiali necessari” (non usare “BOM”), “Costo previsto”, “Quantità per pezzo”, “Lotto”, “Scadenza”, “Unità”, “Quantità residua”
+
+F) Lotti e Scadenze (semplice ma rigoroso)
+– Ogni rifornimento crea un lotto con: Quantità totale, Quantità residua, Costo totale, Costo per unità, Lotto (testo), Scadenza (data, obbligatoria se lo store ha “Lotti e Scadenze”).
+– Consumo:
+
+Se esiste Scadenza → ordina per Scadenza crescente e consuma da lì.
+
+Se Scadenza uguale o assente → ordina per Data di acquisto (FIFO).
+– Se i materiali non bastano, errore chiaro: “Materiale insufficiente”.
+
+G) Accettazione tecnica (cosa deve funzionare)
+
+Creazione materiale (es. 10.000 g, 20 €): crea spesa non eliminabile + prelievo cassa fino a capienza, lotto creato correttamente con costo per g.
+
+Rifornimento: come sopra, nuovo lotto indipendente.
+
+Eliminazione materiale mai usato: deposito della sola quotaCassa dei lotti; cancellazione spese lotti; materiale rimosso.
+
+Archiviazione materiale usato: nessun movimento contabile, resta nello storico.
+
+Vetrina: costo previsto calcolato; modificabile manualmente.
+
+Vendita con Origine = Vetrina: consumo materiali FEFO→FIFO, costo reale attribuito alla vendita, nessuna spesa nuova, margine corretto.
+
+Eliminazione vendita vetrina: entrata stornata, materiali non ripristinati; creo/incremento un articolo in magazzino con quel costo unitario.
+
+“Imposta Store” nel NAV, non nel menu laterale. Dopo salvataggio, i menu si adeguano ai flag e alla tipologia.
+
+Tutti i testi/etichette in italiano semplice.
+
+H) Test numerico rapido (per evitare sorprese)
+– Cassa reinvestimento: 60 €
+– Aggiungo materiale “Bobina PLA Nero”: 7.000 g a 70 € → prelievo cassa 60 €, fondi personali 10 €.
+– In Vetrina creo “Cover 3D”: Materiali necessari → 300 g Nero per pezzo.
+– Registro una vendita: Origine = Vetrina, Quantità 1, Prezzo 9,90 € → consuma 300 g a costo reale (70/7000 = 0,01 €/g → costo 3,00 €), margine ~6,90 €, nessuna nuova spesa.
+– Elimino la vendita: storno entrata; i 300 g non tornano. Creo in magazzino 1 pezzo al costo 3,00 €.
+– Elimino materiale “Bobina PLA Nero” (non si può: è “usato”, quindi solo “Archivia”).
+– Rifornisco 3.000 g a 45 €, scadenza più vicina: alla prossima vendita consuma prima questo lotto (FEFO).
+
+Note finali
+– Mantieni il tracciamento “non eliminabile” per le spese materiali.
+– Mantieni l’audit dei movimenti cassa (PRELIEVO/DEPOSITO) come già impostato.
+– UI responsive, mobile-friendly, con testi brevi.
+– Non introdurre la pagina “Vendita da Vetrina”: tutto passa da “Vendite” con il nuovo campo “Origine articolo”.
