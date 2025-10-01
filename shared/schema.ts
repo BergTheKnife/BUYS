@@ -194,6 +194,9 @@ export const usersRelations = relations(users, ({ many }) => ({
   ownedActivities: many(activities),
   activityMemberships: many(activityUsers),
   emailVerificationTokens: many(emailVerificationTokens),
+  productionMaterials: many(productionMaterials),
+  materialBatches: many(materialBatches),
+  productShowcase: many(productShowcase),
 }));
 
 export const activitiesRelations = relations(activities, ({ one, many }) => ({
@@ -208,6 +211,10 @@ export const activitiesRelations = relations(activities, ({ one, many }) => ({
   fundTransfers: many(fundTransfers),
   financialHistory: many(financialHistory),
   spedizioni: many(spedizioni),
+  storeConfig: one(storeConfig),
+  productionMaterials: many(productionMaterials),
+  materialBatches: many(materialBatches),
+  productShowcase: many(productShowcase),
 }));
 
 export const activityUsersRelations = relations(activityUsers, ({ one }) => ({
@@ -297,6 +304,151 @@ export const spedizioniRelations = relations(spedizioni, ({ one }) => ({
   vendita: one(vendite, {
     fields: [spedizioni.venditaId],
     references: [vendite.id],
+  }),
+}));
+
+// Store Configuration table - configurazione tipologia di store per activity
+export const storeConfig = pgTable("store_config", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  activityId: uuid("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }).unique(),
+  tipologiaStore: text("tipologia_store").notNull(), // Es. "Abbigliamento & Accessori"
+  valuta: text("valuta").notNull().default("EUR"),
+  paese: text("paese").notNull().default("IT"),
+  ivaPredefinita: decimal("iva_predefinita", { precision: 5, scale: 2 }).notNull().default("22.00"),
+  // Funzionalità attive (flag booleani come integer 0/1)
+  produzione: integer("produzione").notNull().default(0),
+  vetrina: integer("vetrina").notNull().default(0),
+  varianti: integer("varianti").notNull().default(0),
+  serialiImei: integer("seriali_imei").notNull().default(0),
+  lottiScadenze: integer("lotti_scadenze").notNull().default(0),
+  spedizioni: integer("spedizioni").notNull().default(1),
+  servizi: integer("servizi").notNull().default(0),
+  digitale: integer("digitale").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Production Materials table - materiali per produzione
+export const productionMaterials = pgTable("production_materials", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  activityId: uuid("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  nomeMateriale: text("nome_materiale").notNull(),
+  unita: text("unita").notNull(), // "grammi (g)", "metri (m)", "pezzi (pz)"
+  colore: text("colore"),
+  archiviato: integer("archiviato").default(0).notNull(), // 0 = attivo, 1 = archiviato
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("production_materials_activity_idx").on(table.activityId),
+]);
+
+// Material Batches table - lotti materiali con FIFO/FEFO
+export const materialBatches = pgTable("material_batches", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  materialId: uuid("material_id").notNull().references(() => productionMaterials.id, { onDelete: "cascade" }),
+  activityId: uuid("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  quantitaTotale: decimal("quantita_totale", { precision: 12, scale: 3 }).notNull(), // Supporta decimali per grammi/metri
+  quantitaResidua: decimal("quantita_residua", { precision: 12, scale: 3 }).notNull(),
+  costoTotale: decimal("costo_totale", { precision: 10, scale: 2 }).notNull(),
+  costoPerUnita: decimal("costo_per_unita", { precision: 10, scale: 6 }).notNull(), // Più precisione per piccole unità
+  lotto: text("lotto"), // Codice lotto opzionale
+  scadenza: timestamp("scadenza"), // Data scadenza opzionale (obbligatoria se store ha lottiScadenze)
+  cassaCoverage: numeric("cassa_coverage", { precision: 10, scale: 2 }).default("0"), // Quota coperta dalla cassa reinvestimento
+  dataAcquisto: timestamp("data_acquisto").notNull().defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("material_batches_material_idx").on(table.materialId),
+  index("material_batches_activity_idx").on(table.activityId),
+]);
+
+// Product Showcase table - vetrina prodotti che so produrre
+export const productShowcase = pgTable("product_showcase", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  activityId: uuid("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  nomeArticolo: text("nome_articolo").notNull(),
+  categoria: text("categoria"),
+  // Dimensioni opzionali in cm
+  altezza: decimal("altezza", { precision: 6, scale: 2 }),
+  larghezza: decimal("larghezza", { precision: 6, scale: 2 }),
+  lunghezza: decimal("lunghezza", { precision: 6, scale: 2 }),
+  costoPrevisto: decimal("costo_previsto", { precision: 10, scale: 2 }).notNull(), // Calcolato automaticamente, modificabile
+  archiviato: integer("archiviato").default(0).notNull(), // 0 = attivo, 1 = archiviato
+  usatoAlmenoUnaVolta: integer("usato_almeno_una_volta").default(0).notNull(), // 0 = mai usato, 1 = usato
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("product_showcase_activity_idx").on(table.activityId),
+]);
+
+// Showcase-Material Links table - relazione tra prodotti vetrina e materiali necessari
+export const showcaseMaterialLinks = pgTable("showcase_material_links", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  showcaseId: uuid("showcase_id").notNull().references(() => productShowcase.id, { onDelete: "cascade" }),
+  materialId: uuid("material_id").notNull().references(() => productionMaterials.id, { onDelete: "restrict" }), // Prevent deletion if used
+  quantitaPerPezzo: decimal("quantita_per_pezzo", { precision: 12, scale: 3 }).notNull(), // Quantità materiale necessaria per 1 pezzo
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("showcase_material_links_showcase_idx").on(table.showcaseId),
+  index("showcase_material_links_material_idx").on(table.materialId),
+]);
+
+// Relations for new production tables
+export const storeConfigRelations = relations(storeConfig, ({ one }) => ({
+  activity: one(activities, {
+    fields: [storeConfig.activityId],
+    references: [activities.id],
+  }),
+}));
+
+export const productionMaterialsRelations = relations(productionMaterials, ({ one, many }) => ({
+  activity: one(activities, {
+    fields: [productionMaterials.activityId],
+    references: [activities.id],
+  }),
+  user: one(users, {
+    fields: [productionMaterials.userId],
+    references: [users.id],
+  }),
+  batches: many(materialBatches),
+  showcaseLinks: many(showcaseMaterialLinks),
+}));
+
+export const materialBatchesRelations = relations(materialBatches, ({ one }) => ({
+  material: one(productionMaterials, {
+    fields: [materialBatches.materialId],
+    references: [productionMaterials.id],
+  }),
+  activity: one(activities, {
+    fields: [materialBatches.activityId],
+    references: [activities.id],
+  }),
+  user: one(users, {
+    fields: [materialBatches.userId],
+    references: [users.id],
+  }),
+}));
+
+export const productShowcaseRelations = relations(productShowcase, ({ one, many }) => ({
+  activity: one(activities, {
+    fields: [productShowcase.activityId],
+    references: [activities.id],
+  }),
+  user: one(users, {
+    fields: [productShowcase.userId],
+    references: [users.id],
+  }),
+  materialLinks: many(showcaseMaterialLinks),
+}));
+
+export const showcaseMaterialLinksRelations = relations(showcaseMaterialLinks, ({ one }) => ({
+  showcase: one(productShowcase, {
+    fields: [showcaseMaterialLinks.showcaseId],
+    references: [productShowcase.id],
+  }),
+  material: one(productionMaterials, {
+    fields: [showcaseMaterialLinks.materialId],
+    references: [productionMaterials.id],
   }),
 }));
 
@@ -480,3 +632,80 @@ export const getInventarioFilteredSchema = z.object({
 });
 
 export type GetInventarioFiltered = z.infer<typeof getInventarioFilteredSchema>;
+
+// Production schemas
+export const insertStoreConfigSchema = createInsertSchema(storeConfig, {
+  tipologiaStore: z.string().min(1, "Tipologia store richiesta"),
+  valuta: z.string().default("EUR"),
+  paese: z.string().default("IT"),
+  ivaPredefinita: z.string().default("22.00"),
+}).omit({
+  id: true,
+  activityId: true, // Added server-side
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertProductionMaterialSchema = createInsertSchema(productionMaterials, {
+  nomeMateriale: z.string().min(1, "Nome materiale richiesto"),
+  unita: z.enum(["grammi (g)", "metri (m)", "pezzi (pz)"], { 
+    errorMap: () => ({ message: "Unità non valida" }) 
+  }),
+  colore: z.string().optional(),
+}).omit({
+  id: true,
+  userId: true,
+  activityId: true,
+  archiviato: true,
+  createdAt: true,
+});
+
+export const insertMaterialBatchSchema = createInsertSchema(materialBatches, {
+  lotto: z.string().optional(),
+  scadenza: z.string().optional(), // Will be converted to timestamp
+}).omit({
+  id: true,
+  materialId: true,
+  userId: true,
+  activityId: true,
+  costoPerUnita: true, // Calculated
+  cassaCoverage: true, // Calculated
+  dataAcquisto: true,
+  createdAt: true,
+});
+
+export const insertProductShowcaseSchema = createInsertSchema(productShowcase, {
+  nomeArticolo: z.string().min(1, "Nome articolo richiesto"),
+  categoria: z.string().optional(),
+  altezza: z.string().optional(),
+  larghezza: z.string().optional(),
+  lunghezza: z.string().optional(),
+}).omit({
+  id: true,
+  userId: true,
+  activityId: true,
+  archiviato: true,
+  usatoAlmenoUnaVolta: true,
+  createdAt: true,
+});
+
+export const insertShowcaseMaterialLinkSchema = createInsertSchema(showcaseMaterialLinks).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types for production
+export type StoreConfig = typeof storeConfig.$inferSelect;
+export type InsertStoreConfig = z.infer<typeof insertStoreConfigSchema>;
+
+export type ProductionMaterial = typeof productionMaterials.$inferSelect;
+export type InsertProductionMaterial = z.infer<typeof insertProductionMaterialSchema>;
+
+export type MaterialBatch = typeof materialBatches.$inferSelect;
+export type InsertMaterialBatch = z.infer<typeof insertMaterialBatchSchema>;
+
+export type ProductShowcase = typeof productShowcase.$inferSelect;
+export type InsertProductShowcase = z.infer<typeof insertProductShowcaseSchema>;
+
+export type ShowcaseMaterialLink = typeof showcaseMaterialLinks.$inferSelect;
+export type InsertShowcaseMaterialLink = z.infer<typeof insertShowcaseMaterialLinkSchema>;
