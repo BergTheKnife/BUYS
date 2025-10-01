@@ -21,6 +21,11 @@ import { AdminPage } from "@/pages/admin";
 import ForgotPassword from "@/pages/forgot-password";
 import ResetPassword from "@/pages/reset-password";
 import NotFound from "@/pages/not-found";
+import { StoreProfileProvider } from "@/contexts/store-profile";
+import StoreSetup from "@/pages/store-setup";
+import ProductionMaterials from "@/pages/production-materials";
+import Vetrina from "@/pages/vetrina";
+import SellFromVetrinaPage from "@/pages/sell-from-vetrina";
 import { useEffect } from "react";
 import { Navbar } from "@/components/layout/navbar";
 
@@ -69,7 +74,12 @@ function AppContent() {
           <Route path="/impostazioni-attivita" component={() => <ProtectedRoute><ActivitySettings /></ProtectedRoute>} />
           <Route path="/admin" component={() => <UserOnlyRoute><AdminPage /></UserOnlyRoute>} />
           <Route path="*" component={NotFound} />
-        </Switch>
+        
+      <ProtectedRoute path="/setup/store" component={StoreSetup} />
+      <ProtectedRoute path="/produzione/materiali" component={ProductionMaterials} />
+      <ProtectedRoute path="/vetrina" component={Vetrina} />
+      <ProtectedRoute path="/vendite/vetrina" component={SellFromVetrinaPage} />
+    </Switch>
       </div>
     </>
   );
