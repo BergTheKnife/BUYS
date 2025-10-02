@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Edit, Trash2, Package } from "lucide-react";
+import { Edit, Trash2, Package, Search } from "lucide-react";
 import { useState, useMemo } from "react";
 
 type MaterialRow = { id: string; nome: string; unita: string; costo_unit_medio: string; q_residua: string };
@@ -22,8 +22,19 @@ export default function Vetrina() {
   const { data: materials = [] } = useQuery<MaterialRow[]>({ queryKey: ["/api/production/materials"] });
   const { data: products = [] } = useQuery<VetrinaProduct[]>({ queryKey: ["/api/production/vetrina"] });
 
+  const [searchQuery, setSearchQuery] = useState("");
   const [openAdd, setOpenAdd] = useState(false);
   const [editingProduct, setEditingProduct] = useState<VetrinaProduct | null>(null);
+
+  // Filter products based on search query
+  const filteredProducts = useMemo(() => {
+    if (!searchQuery.trim()) return products;
+    const query = searchQuery.toLowerCase();
+    return products.filter(p => 
+      p.nome.toLowerCase().includes(query) ||
+      (p.categoria?.toLowerCase().includes(query))
+    );
+  }, [products, searchQuery]);
 
   const addMutation = useMutation({
     mutationFn: async (formData: FormData) => { 
@@ -62,13 +73,13 @@ export default function Vetrina() {
 
   const groupedProducts = useMemo(() => {
     const groups: Record<string, VetrinaProduct[]> = {};
-    products.forEach(p => {
+    filteredProducts.forEach(p => {
       const cat = p.categoria || "Senza categoria";
       if (!groups[cat]) groups[cat] = [];
       groups[cat].push(p);
     });
     return groups;
-  }, [products]);
+  }, [filteredProducts]);
 
   return (
     <div className="p-4 space-y-4">
@@ -80,6 +91,19 @@ export default function Vetrina() {
         <Button data-testid="button-add-vetrina" onClick={() => setOpenAdd(true)}>
           Aggiungi Articolo
         </Button>
+      </div>
+
+      {/* Search filter */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+        <Input
+          type="text"
+          placeholder="Cerca articolo per nome o categoria..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10"
+          data-testid="input-search-vetrina"
+        />
       </div>
 
       {Object.entries(groupedProducts).map(([categoria, items]) => (
