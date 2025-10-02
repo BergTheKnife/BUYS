@@ -101,6 +101,16 @@ export async function refillProductionMaterial(p: {
   });
 }
 
+export async function updateMaterial(materialId: string, activityId: string, data: { nome?: string; colore?: string | null }) {
+  await db.update(productionMaterials)
+    .set({
+      ...(data.nome !== undefined && { nome: data.nome }),
+      ...(data.colore !== undefined && { colore: data.colore })
+    })
+    .where(and(eq(productionMaterials.id, materialId), eq(productionMaterials.activityId, activityId)));
+  return true;
+}
+
 export async function archiveMaterial(materialId: string, activityId: string) {
   await db.update(productionMaterials).set({ archiviato: "1" }).where(and(eq(productionMaterials.id, materialId), eq(productionMaterials.activityId, activityId)));
   return true;

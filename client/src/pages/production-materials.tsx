@@ -3,7 +3,9 @@ import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import { PackagePlus, Edit, Trash2, FolderArchive } from "lucide-react";
 import { useState } from "react";
 
 type MaterialRow = {
@@ -13,31 +15,62 @@ type MaterialRow = {
 
 export default function ProductionMaterials() {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const { data: materials = [] } = useQuery<MaterialRow[]>({
     queryKey: ["/api/production/materials"],
   });
 
   const [openAdd, setOpenAdd] = useState(false);
+  const [editingMaterial, setEditingMaterial] = useState<MaterialRow | null>(null);
+  const [refillMaterial, setRefillMaterial] = useState<MaterialRow | null>(null);
+  const [materialToDelete, setMaterialToDelete] = useState<MaterialRow | null>(null);
+  const [deleteMode, setDeleteMode] = useState<'archive' | 'permanent' | null>(null);
+
   const addMutation = useMutation({
     mutationFn: async (payload: any) => { await apiRequest("POST", "/api/production/materials", payload); },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/production/materials"] }); setOpenAdd(false); }
+    onSuccess: () => { 
+      qc.invalidateQueries({ queryKey: ["/api/production/materials"] }); 
+      setOpenAdd(false);
+      toast({ title: "Materiale aggiunto", description: "Il materiale è stato creato e la spesa registrata." });
+    }
   });
 
   const refillMutation = useMutation({
     mutationFn: async ({ id, quantita, costoTotale }: any) => {
       await apiRequest("POST", `/api/production/materials/${id}/refill`, { quantita, costoTotale });
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/production/materials"] })
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/production/materials"] });
+      setRefillMaterial(null);
+      toast({ title: "Rifornimento effettuato", description: "Il materiale è stato rifornito e la spesa registrata." });
+    }
   });
 
   const archiveMutation = useMutation({
     mutationFn: async (id: string) => { await apiRequest("POST", `/api/production/materials/${id}/archive`); },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/production/materials"] })
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/production/materials"] });
+      setMaterialToDelete(null);
+      setDeleteMode(null);
+      toast({ title: "Materiale archiviato", description: "Il materiale è stato archiviato preservando i dati storici." });
+    }
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => { await apiRequest("DELETE", `/api/production/materials/${id}`); },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/production/materials"] })
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/production/materials"] });
+      setMaterialToDelete(null);
+      setDeleteMode(null);
+      toast({ title: "Materiale eliminato", description: "Il materiale non usato è stato eliminato con ripristino contabile." });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Impossibile eliminare",
+        description: error.message || "Il materiale è già stato usato. Puoi solo archiviarlo.",
+        variant: "destructive"
+      });
+    }
   });
 
   return (
@@ -53,53 +86,187 @@ export default function ProductionMaterials() {
             <div>
               <div className="font-medium">{m.nome} {m.colore ? `• ${m.colore}` : ""}</div>
               <div className="text-sm text-muted-foreground">
-                Totale: {m.q_totale} {m.unita} • Residuo: {m.q_residua} {m.unita} • Costo medio/unità: {Number(m.costo_unit_medio || 0).toFixed(4)}
+                Totale: {m.q_totale} {m.unita} • Residuo: {m.q_residua} {m.unita} • Costo medio/unità: €{Number(m.costo_unit_medio || 0).toFixed(4)}
               </div>
             </div>
             <div className="flex gap-2">
-              <RefillButton onSubmit={(q, c) => refillMutation.mutate({ id: m.id, quantita: q, costoTotale: c })} />
-              <Button variant="secondary" onClick={() => archiveMutation.mutate(m.id)}>Archivia</Button>
-              <Button variant="destructive" onClick={() => deleteMutation.mutate(m.id)}>Elimina (se mai usato)</Button>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={() => setRefillMaterial(m)}
+                title="Rifornisci"
+                data-testid={`button-refill-${m.id}`}
+              >
+                <PackagePlus className="h-6 w-6 text-blue-600" />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={() => setEditingMaterial(m)}
+                title="Modifica"
+                data-testid={`button-edit-${m.id}`}
+              >
+                <Edit className="h-6 w-6 text-green-600" />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={() => {
+                  setMaterialToDelete(m);
+                  setDeleteMode(null);
+                }}
+                title="Elimina"
+                data-testid={`button-delete-${m.id}`}
+              >
+                <Trash2 className="h-6 w-6 text-red-600" />
+              </Button>
             </div>
           </div>
         ))}
       </div>
 
+      {/* Dialog Aggiungi Materiale */}
       <Dialog open={openAdd} onOpenChange={setOpenAdd}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle>Nuovo materiale</DialogTitle></DialogHeader>
           <AddMaterialForm onSubmit={(payload) => addMutation.mutate(payload)} />
         </DialogContent>
       </Dialog>
+
+      {/* Dialog Modifica Materiale */}
+      <Dialog open={!!editingMaterial} onOpenChange={(open) => !open && setEditingMaterial(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>Modifica materiale</DialogTitle></DialogHeader>
+          {editingMaterial && <EditMaterialForm material={editingMaterial} onClose={() => setEditingMaterial(null)} />}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Rifornimento */}
+      <Dialog open={!!refillMaterial} onOpenChange={(open) => !open && setRefillMaterial(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Rifornisci materiale</DialogTitle>
+            <DialogDescription>
+              {refillMaterial?.nome} {refillMaterial?.colore && `• ${refillMaterial.colore}`}
+            </DialogDescription>
+          </DialogHeader>
+          <RefillForm onSubmit={(q, c) => {
+            refillMutation.mutate({ id: refillMaterial!.id, quantita: q, costoTotale: c });
+          }} />
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Conferma Eliminazione */}
+      <Dialog open={!!materialToDelete && deleteMode === null} onOpenChange={(open) => {
+        if (!open) {
+          setMaterialToDelete(null);
+          setDeleteMode(null);
+        }
+      }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Elimina o Archivia Materiale</DialogTitle>
+            <DialogDescription>
+              Scegli come gestire "{materialToDelete?.nome}"
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <button
+              onClick={() => {
+                if (materialToDelete) archiveMutation.mutate(materialToDelete.id);
+              }}
+              className="w-full border rounded-lg p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex gap-3"
+            >
+              <FolderArchive className="h-5 w-5 text-blue-600 mt-1" />
+              <div>
+                <div className="font-medium">Archivia</div>
+                <div className="text-sm text-muted-foreground">
+                  Il materiale viene nascosto ma i dati storici rimangono. La spesa rimane registrata.
+                </div>
+              </div>
+            </button>
+            
+            <button
+              onClick={() => {
+                if (materialToDelete) deleteMutation.mutate(materialToDelete.id);
+              }}
+              className="w-full border rounded-lg p-4 text-left hover:bg-red-50 dark:hover:bg-red-950 transition-colors flex gap-3"
+            >
+              <Trash2 className="h-5 w-5 text-red-600 mt-1" />
+              <div>
+                <div className="font-medium text-red-600">Elimina Definitivamente</div>
+                <div className="text-sm text-muted-foreground">
+                  Solo se MAI usato. Ripristina automaticamente la contabilità eliminando la spesa e restituendo i fondi.
+                </div>
+              </div>
+            </button>
+          </div>
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={() => {
+              setMaterialToDelete(null);
+              setDeleteMode(null);
+            }}>
+              Annulla
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function RefillButton({ onSubmit }: { onSubmit: (q: number, c: number) => void }) {
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState(""); const [c, setC] = useState("");
+function RefillForm({ onSubmit }: { onSubmit: (q: number, c: number) => void }) {
+  const [q, setQ] = useState(""); 
+  const [c, setC] = useState("");
+  
   return (
-    <>
-      <Button onClick={() => setOpen(true)}>Rifornisci</Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader><DialogTitle>Rifornisci materiale</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div><Label>Quantità</Label><Input value={q} onChange={e=>setQ(e.target.value)} placeholder="es. 1000" /></div>
-            <div><Label>Costo totale</Label><Input value={c} onChange={e=>setC(e.target.value)} placeholder="es. 25.00" /></div>
-            <div className="flex justify-end">
-              <Button onClick={()=>{ onSubmit(Number(q||0), Number(c||0)); setOpen(false); }}>Conferma</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
+    <div className="space-y-3">
+      <div><Label>Quantità</Label><Input type="number" value={q} onChange={e=>setQ(e.target.value)} placeholder="es. 1000" /></div>
+      <div><Label>Costo totale</Label><Input type="number" step="0.01" value={c} onChange={e=>setC(e.target.value)} placeholder="es. 25.00" /></div>
+      <div className="flex justify-end">
+        <Button onClick={()=>{ onSubmit(Number(q||0), Number(c||0)); }}>Conferma</Button>
+      </div>
+    </div>
+  );
+}
+
+function EditMaterialForm({ material, onClose }: { material: MaterialRow; onClose: () => void }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [nome, setNome] = useState(material.nome);
+  const [colore, setColore] = useState(material.colore || "");
+
+  const editMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      await apiRequest("PATCH", `/api/production/materials/${material.id}`, payload);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/production/materials"] });
+      toast({ title: "Materiale aggiornato" });
+      onClose();
+    }
+  });
+
+  return (
+    <div className="space-y-3">
+      <div><Label>Nome</Label><Input value={nome} onChange={e=>setNome(e.target.value)} /></div>
+      <div><Label>Colore (facoltativo)</Label><Input value={colore} onChange={e=>setColore(e.target.value)} /></div>
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={onClose}>Annulla</Button>
+        <Button onClick={() => editMutation.mutate({ nome: nome.trim(), colore: colore.trim() || null })}>
+          Salva
+        </Button>
+      </div>
+    </div>
   );
 }
 
 function AddMaterialForm({ onSubmit }: { onSubmit: (payload: any) => void }) {
-  const [nome, setNome] = useState(""); const [unita, setUnita] = useState("g");
-  const [colore, setColore] = useState(""); const [q, setQ] = useState(""); const [c, setC] = useState("");
+  const [nome, setNome] = useState(""); 
+  const [unita, setUnita] = useState("g");
+  const [colore, setColore] = useState(""); 
+  const [q, setQ] = useState(""); 
+  const [c, setC] = useState("");
   
   const handleSubmit = () => {
     if (!nome.trim()) return;

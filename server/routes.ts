@@ -3008,6 +3008,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (e: any) { res.status(400).json({ message: e.message || 'Errore rifornimento materiale' }); }
   });
 
+  app.patch('/api/production/materials/:id', requireActivity, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { nome, colore } = req.body;
+      const svc = await import('./production');
+      await svc.updateMaterial(id, req.session.activityId!, { nome, colore });
+      res.json({ ok: true });
+    } catch (e: any) { res.status(400).json({ message: e.message || 'Errore modifica materiale' }); }
+  });
+
   app.post('/api/production/materials/:id/archive', requireActivity, async (req, res) => {
     try {
       const { id } = req.params;
