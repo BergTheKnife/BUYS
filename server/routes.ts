@@ -3046,9 +3046,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (e: any) { res.status(400).json({ message: e.message || 'Errore elenco vetrina' }); }
   });
 
-  app.post('/api/production/vetrina', requireActivity, async (req, res) => {
+  app.post('/api/production/vetrina', requireActivity, upload.single('immagine'), async (req, res) => {
     try {
       const { nome, categoria, altezza, larghezza, lunghezza, costoOverride, bom } = req.body;
+      let imageUrl = null;
+      
+      if (req.file) {
+        const ext = path.extname(req.file.originalname);
+        const newFileName = `${Date.now()}-${Math.random().toString(36).substring(7)}${ext}`;
+        const newPath = path.join(uploadDir, newFileName);
+        fs.renameSync(req.file.path, newPath);
+        imageUrl = `/uploads/${newFileName}`;
+      }
+
       const svc = await import('./production');
       const out = await svc.createProductionProduct({
         userId: req.session.userId!, activityId: req.session.activityId!,
@@ -3057,10 +3067,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         larghezza: larghezza ? Number(larghezza) : null,
         lunghezza: lunghezza ? Number(lunghezza) : null,
         costoOverride: costoOverride ? Number(costoOverride) : null,
-        bom: (bom || []).map((r:any)=>({ materialId: r.materialId, quantita: Number(r.quantita) }))
+        imageUrl,
+        bom: bom ? JSON.parse(bom).map((r:any)=>({ materialId: r.materialId, quantita: Number(r.quantita) })) : []
       });
       res.json(out);
     } catch (e: any) { res.status(400).json({ message: e.message || 'Errore creazione scheda vetrina' }); }
+  });
+
+  app.patch('/api/production/vetrina/:id', requireActivity, upload.single('immagine'), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { nome, categoria, altezza, larghezza, lunghezza, costoOverride, bom } = req.body;
+      let imageUrl = undefined;
+
+      if (req.file) {
+        const ext = path.extname(req.file.originalname);
+        const newFileName = `${Date.now()}-${Math.random().toString(36).substring(7)}${ext}`;
+        const newPath = path.join(uploadDir, newFileName);
+        fs.renameSync(req.file.path, newPath);
+        imageUrl = `/uploads/${newFileName}`;
+      }
+
+      const svc = await import('./production');
+      await svc.updateProductionProduct(id, req.session.activityId!, {
+        nome, categoria: categoria || null,
+        altezza: altezza ? Number(altezza) : null,
+        larghezza: larghezza ? Number(larghezza) : null,
+        lunghezza: lunghezza ? Number(lunghezza) : null,
+        costoOverride: costoOverride ? Number(costoOverride) : null,
+        imageUrl,
+        bom: bom ? JSON.parse(bom).map((r:any)=>({ materialId: r.materialId, quantita: Number(r.quantita) })) : []
+      });
+      res.json({ ok: true });
+    } catch (e: any) { res.status(400).json({ message: e.message || 'Errore modifica scheda vetrina' }); }
   });
 
   app.post('/api/production/vetrina/:id/archive', requireActivity, async (req, res) => {

@@ -148,6 +148,7 @@ export async function deleteMaterialIfUnused(materialId: string, activityId: str
 export async function createProductionProduct(p: {
   userId: string; activityId: string; nome: string; categoria?: string|null;
   altezza?: number|null; larghezza?: number|null; lunghezza?: number|null; costoOverride?: number|null;
+  imageUrl?: string|null;
   bom: { materialId: string; quantita: number; }[];
 }) {
   return await db.transaction(async (trx) => {
@@ -156,13 +157,43 @@ export async function createProductionProduct(p: {
       altezza: p.altezza != null ? String(p.altezza) : null,
       larghezza: p.larghezza != null ? String(p.larghezza) : null,
       lunghezza: p.lunghezza != null ? String(p.lunghezza) : null,
-      costoOverride: p.costoOverride != null ? String(p.costoOverride) : null
+      costoOverride: p.costoOverride != null ? String(p.costoOverride) : null,
+      imageUrl: p.imageUrl || null
     }).returning())[0];
 
     for (const r of p.bom) {
       await trx.insert(productionProductBom).values({ productId: prod.id, materialId: r.materialId, quantita: String(r.quantita) });
     }
     return prod;
+  });
+}
+
+export async function updateProductionProduct(id: string, activityId: string, data: {
+  nome?: string; categoria?: string|null;
+  altezza?: number|null; larghezza?: number|null; lunghezza?: number|null; costoOverride?: number|null;
+  imageUrl?: string|null;
+  bom?: { materialId: string; quantita: number; }[];
+}) {
+  return await db.transaction(async (trx) => {
+    const updateData: any = {};
+    if (data.nome !== undefined) updateData.nome = data.nome;
+    if (data.categoria !== undefined) updateData.categoria = data.categoria;
+    if (data.altezza !== undefined) updateData.altezza = data.altezza != null ? String(data.altezza) : null;
+    if (data.larghezza !== undefined) updateData.larghezza = data.larghezza != null ? String(data.larghezza) : null;
+    if (data.lunghezza !== undefined) updateData.lunghezza = data.lunghezza != null ? String(data.lunghezza) : null;
+    if (data.costoOverride !== undefined) updateData.costoOverride = data.costoOverride != null ? String(data.costoOverride) : null;
+    if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
+
+    await trx.update(productionProducts).set(updateData).where(and(eq(productionProducts.id, id), eq(productionProducts.activityId, activityId)));
+
+    if (data.bom) {
+      await trx.delete(productionProductBom).where(eq(productionProductBom.productId, id));
+      for (const r of data.bom) {
+        await trx.insert(productionProductBom).values({ productId: id, materialId: r.materialId, quantita: String(r.quantita) });
+      }
+    }
+
+    return true;
   });
 }
 
