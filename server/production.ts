@@ -28,19 +28,29 @@ export async function createProductionMaterial(p: {
       userId: p.userId, activityId: p.activityId, nome: p.nome, unita: p.unita, colore: p.colore || null
     }).returning())[0];
 
-    const expense = (await trx.insert(spese).values({
-      userId: p.userId, activityId: p.activityId, voce: `acquisto materiale produzione: ${p.nome}`,
-      importo: String(p.costoTotale), categoria: "produzione", nonEliminabile: 1, data: new Date()
-    }).returning())[0];
-
+    // Calcola copertura dalla cassa reinvestimento
     const balance = await getCassaReinvestimentoBalance(p.activityId);
     const fromCassa = Math.min(balance, p.costoTotale);
+    const fromPersonal = p.costoTotale - fromCassa;
+
+    // Preleva dalla cassa se disponibile
     if (fromCassa > 0) {
       await trx.insert(financialHistory).values({
         userId: p.userId, activityId: p.activityId, azione: "PRELIEVO_CASSA",
         importo: String(fromCassa), descrizione: `Acquisto materiali produzione: ${p.nome}`, createdAt: new Date()
       });
     }
+
+    // Crea spesa con dettaglio finanziamento (come inventario)
+    const fundingDetails = fromCassa > 0 
+      ? `Costo totale €${p.costoTotale.toFixed(2)} (€${fromCassa.toFixed(2)} da cassa reinvestimento + €${fromPersonal.toFixed(2)} fondi personali)`
+      : `Costo totale €${p.costoTotale.toFixed(2)} (fondi personali)`;
+
+    const expense = (await trx.insert(spese).values({
+      userId: p.userId, activityId: p.activityId, 
+      voce: `Acquisto materiale produzione: ${p.nome} - ${fundingDetails}`,
+      importo: String(p.costoTotale), categoria: "produzione", nonEliminabile: 1, data: new Date()
+    }).returning())[0];
 
     const cpu = p.quantitaTotale > 0 ? (p.costoTotale / p.quantitaTotale) : 0;
     const batch = (await trx.insert(productionBatches).values({
@@ -72,22 +82,32 @@ export async function listProductionMaterials(activityId: string) {
 }
 
 export async function refillProductionMaterial(p: {
-  userId: string; activityId: string; materialId: string; quantita: number; costoTotale: number;
+  userId: string; activityId: string; materialId: string; materialName: string; quantita: number; costoTotale: number;
 }) {
   return await db.transaction(async (trx) => {
-    const expense = (await trx.insert(spese).values({
-      userId: p.userId, activityId: p.activityId, voce: `acquisto materiale produzione (rifornimento)`,
-      importo: String(p.costoTotale), categoria: "produzione", nonEliminabile: 1, data: new Date()
-    }).returning())[0];
-
+    // Calcola copertura dalla cassa reinvestimento
     const balance = await getCassaReinvestimentoBalance(p.activityId);
     const fromCassa = Math.min(balance, p.costoTotale);
+    const fromPersonal = p.costoTotale - fromCassa;
+
+    // Preleva dalla cassa se disponibile
     if (fromCassa > 0) {
       await trx.insert(financialHistory).values({
         userId: p.userId, activityId: p.activityId, azione: "PRELIEVO_CASSA",
-        importo: String(fromCassa), descrizione: `Rifornimento materiali produzione`, createdAt: new Date()
+        importo: String(fromCassa), descrizione: `Rifornimento materiali produzione: ${p.materialName}`, createdAt: new Date()
       });
     }
+
+    // Crea spesa con dettaglio finanziamento (come inventario)
+    const fundingDetails = fromCassa > 0 
+      ? `Costo totale €${p.costoTotale.toFixed(2)} (€${fromCassa.toFixed(2)} da cassa reinvestimento + €${fromPersonal.toFixed(2)} fondi personali)`
+      : `Costo totale €${p.costoTotale.toFixed(2)} (fondi personali)`;
+
+    const expense = (await trx.insert(spese).values({
+      userId: p.userId, activityId: p.activityId, 
+      voce: `Rifornimento materiale produzione: ${p.materialName} - ${fundingDetails}`,
+      importo: String(p.costoTotale), categoria: "produzione", nonEliminabile: 1, data: new Date()
+    }).returning())[0];
 
     const cpu = p.quantita > 0 ? (p.costoTotale / p.quantita) : 0;
     const batch = (await trx.insert(productionBatches).values({

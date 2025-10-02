@@ -3095,9 +3095,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params; const { quantita, costoTotale } = req.body;
       const svc = await import('./production');
+      
+      // Get material name for expense description
+      const materials = await svc.listProductionMaterials(req.session.activityId!);
+      const material = materials.find((m: any) => m.id === id);
+      const materialName = material?.nome || 'Materiale';
+      
       const out = await svc.refillProductionMaterial({
         userId: req.session.userId!, activityId: req.session.activityId!,
-        materialId: id, quantita: Number(quantita), costoTotale: Number(costoTotale)
+        materialId: id, materialName, quantita: Number(quantita), costoTotale: Number(costoTotale)
       });
       res.json(out);
     } catch (e: any) { res.status(400).json({ message: e.message || 'Errore rifornimento materiale' }); }

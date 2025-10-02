@@ -1749,6 +1749,11 @@ export class DatabaseStorage implements IStorage {
       throw new Error("Non è possibile eliminare manualmente le spese relative all'inventario. Gestisci l'inventario dalla sezione Magazzino per aggiornare automaticamente le spese correlate.");
     }
 
+    // Prevent deletion of production-related expenses (materials)
+    if (expense.categoria === "produzione" || expense.nonEliminabile === 1) {
+      throw new Error("Non è possibile eliminare manualmente le spese relative ai materiali di produzione. Gestisci i materiali dalla sezione Produzione per aggiornare automaticamente le spese correlate.");
+    }
+
     // Controlla se la spesa era stata coperta dalla cassa reinvestimento
     const coverage = await db
       .select()
