@@ -3117,7 +3117,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const out = await svc.upsertStoreProfile({
         userId: req.session.userId!, activityId: req.session.activityId!,
         storeType, currency, country, defaultVat: defaultVat ? Number(defaultVat) : null,
-        featureFlags: normalizedFlags || null
+        featureFlags: normalizedFlags
       });
       res.json(out);
     } catch (e:any) { res.status(400).json({ message: e.message || 'Errore salvataggio profilo store' }); }

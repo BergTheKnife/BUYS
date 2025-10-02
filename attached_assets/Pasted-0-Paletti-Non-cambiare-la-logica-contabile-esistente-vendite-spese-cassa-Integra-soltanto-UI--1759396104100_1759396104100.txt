@@ -1,0 +1,189 @@
+0) Paletti
+
+Non cambiare la logica contabile esistente (vendite/spese/cassa). Integra soltanto.
+
+UI in italiano.
+
+“Produzione” è un unico menu con 2 sottomenu: Materiali e Vetrina.
+
+Le vendite sempre dal menu Vendite (niente pagina “Vendita da Vetrina”).
+
+1) Ripara i file corrotti (bloccano pulsanti e salvataggi)
+
+Nel mio ZIP ci sono “…” letterali dentro il codice che spezzano funzioni/chiavi. Fai una ricerca testuale globale e correggi:
+
+Client (frontend)
+
+client/src/pages/production-materials.tsx → rimuovi/ricostruisci i punti inseriti dentro identificatori (es. onC...hange deve tornare onChange; data-testid="but...-create-material" deve essere integro).
+
+client/src/pages/vetrina.tsx → stessi fix (es. apiReques... → apiRequest, valori dei campi, submit).
+
+client/src/pages/store-setup.tsx → ripristina integralmente handleSubmit, mapping dei flag e submit verso /api/store/profile.
+
+Server (backend)
+
+server/routes.ts → in blocchi /api/store/profile e produzione ci sono righe troncate con .... Ripristina le linee complete.
+
+server/production.ts → rimuovi i ... dentro query/insert (es. in insert su productionProductBom, in listaggi/archiviazioni).
+
+server/store.ts → rimuovi ... dentro oggetti di default; chiavi devono essere leggibili (es. variants, lots_expiry ecc.).
+
+Accettazione: progetto compila senza errori TypeScript/TSX; la console non mostra eccezioni al click dei bottoni in Materiali/Vetrina.
+
+2) Persistenza Store che “sparisce” ad ogni login
+
+Causa: la GET di /api/store/profile parte anche quando non c’è ancora activityId in sessione; in quel momento risponde vuoto, e la UI sembra “perdere” la configurazione.
+
+Fix lato client
+
+In client/src/contexts/store-profile.tsx modifica il useQuery perché sia abilitato solo quando c’è l’attività corrente:
+
+Recupera currentActivity da /api/me (se già presente in un contesto auth, usalo).
+
+Usa enabled: !!currentActivity?.id sul useQuery({ queryKey: ['/api/store/profile'] ... }).
+
+Aggiungi staleTime: Infinity e refetchOnWindowFocus: false per evitare flicker a ogni focus.
+
+Fix lato server
+
+In server/routes.ts, nel POST /api/store/profile, usa davvero i flag normalizzati: al momento crei normalizedFlags ma poi passi featureFlags grezzi all’upsert. Passa invece normalizedFlags.
+
+In server/store.ts:
+
+Assicurati che upsertStoreProfile usi DEFAULT_FLAGS_BY_TYPE[p.storeType] solo se non arrivano flag; altrimenti prendi quelli del client.
+
+Aggiungi/controlla unique index su store_profiles(activityId) per garantire un profilo per attività.
+
+Verifica che su login/restoro sessione in server/routes.ts venga impostato req.session.activityId = user.lastActivityId prima che il client faccia la prima GET del profilo (la rotta /api/me già lo fa; la UI deve attendere quell’esito prima di interrogare /api/store/profile).
+
+Accettazione:
+
+Configuro lo Store, esco e rientro: “Produzione/Materiali/Vetrina” restano correttamente visibili secondo i flag salvati.
+
+/api/store/profile restituisce i dati anche dopo login nuovo.
+
+3) Produzione → Materiali: bottone “Aggiungi” non funziona
+
+Causa probabile: file TSX corrotto + rotta server con righe troncate.
+
+Fix
+
+Riparati i file (punto 1), verifica l’intera catena:
+
+Frontend POST /api/production/materials invia: nome, unita (g/m/pcs), colore?, quantitaTotale, costoTotale, lotto?, scadenza?.
+
+Server server/production.ts:
+
+Crea spesa non eliminabile con voce: acquisto materiale produzione: <nome>.
+
+Prelievo cassa reinvestimento fino a capienza; salva in lotto la quotaCassa usata.
+
+Calcola costoPerUnita = costoTotale / quantitaTotale.
+
+Crea riga in production_batches con quantitaTotale = quantitaRimanente iniziale.
+
+“Rifornisci”: rotta POST /api/production/materials/:id/refill con stessa contabilità di cui sopra (nuovo lotto, nuova spesa non eliminabile, nuova quotaCassa).
+
+Accettazione:
+
+Aggiungo un materiale: appare in lista con residuo e costo medio; vedo la spesa nelle uscite e il prelievo cassa coerente.
+
+Rifornisco: nuovo lotto presente, totale/residuo aggiornati.
+
+4) Produzione → Vetrina: verifica creazione/modifica schede
+
+Fix
+
+Riparati i file (punto 1), la rotta POST /api/production/vetrina deve:
+
+Salvare “Nome”, “Categoria” (facolt.), “Dimensioni” (facolt.).
+
+Salvare l’elenco Materiali necessari con “Quantità per pezzo”.
+
+Calcolare Costo previsto (sommatoria costi unitari correnti × quantità) ma accettare override manuale (campo opzionale).
+
+Elenco: GET /api/production/vetrina restituisce schede con materiali collegati.
+
+“Archivia/Elimina”:
+
+Archivia se è stata usata in almeno una vendita.
+
+Elimina solo se mai usata (nessun consumo collegato).
+
+Accettazione:
+
+Creo scheda vetrina con 1–2 materiali: appare in lista; posso modificarla, archiviarla o eliminarla (se mai usata).
+
+5) Vendite: Origine articolo = Vetrina (nessuna pagina extra)
+
+Nel form Vendite: campo “Origine articolo” (Magazzino | Vetrina).
+
+Se “Vetrina”:
+
+Calcola fabbisogno = quantità venduta × “quantità per pezzo” per ciascun materiale.
+
+Consuma lotti secondo:
+
+Se flag “Lotti e Scadenze” attivo → FEFO (prima scadenza più vicina; a parità, FIFO per data acquisto).
+
+Se non attivo → FIFO puro.
+
+Somma i costi dei lotti consumati → costoTotaleProduzione; ricava costoUnitario.
+
+Crea un articolo inventario sintetico per quella vendita con quel costo.
+
+Registra la vendita col flusso già esistente (il margine = prezzo – costo).
+
+Nessuna nuova Spesa e nessun movimento Cassa qui.
+
+Storno vendita: si stornano solo le entrate; i materiali non si ripristinano. L’articolo diventa giacenza in Magazzino al costo calcolato.
+
+Accettazione: margine coerente, niente spese duplicate, niente movimenti cassa alla vendita/storno.
+
+6) “Lotti/Scadenze”: cosa sono e come vanno mostrati
+
+Non sono un menu a parte. Sono una funzionalità (flag) che abilita due cose:
+
+Nei form di Materiali (aggiunta/rifornimento) compare il campo “Scadenza” (obbligatorio se lo store ha il flag attivo).
+
+In fase di consumo materiali (vendita da Vetrina) l’algoritmo usa FEFO (First-Expired-First-Out).
+
+Se attualmente compare una voce di menu “Lotti/Scadenze”, rimuovila dal menu laterale.
+
+Nella tabella Materiali, mostra “Scadenza più vicina” come informazione, non come sezione distinta.
+
+7) Controlli DB e vincoli
+
+Verifica l’esistenza (o crea):
+
+production_materials, production_batches (campi: quotaCassa, spesaId, scadenza opzionale), production_consumptions, production_products, production_product_materials.
+
+store_profiles con unique su activityId.
+
+Indici utili:
+
+production_batches(activityId, materialId, scadenza, dataAcquisto)
+
+production_consumptions(activityId, venditaId)
+
+8) Test di accettazione (rapidi e numerici)
+
+Persistenza store: imposto tipologia (es. “Artigianato / Maker / Stampa 3D”), Produzione/Vetrina ON → logout/login → menu resta attivo, /api/store/profile restituisce i dati.
+
+Materiale: cassa=60€. Aggiungo “Bobina PLA Nero”: 7.000 g a 70€ → spesa non eliminabile + prelievo cassa 60€ + quotaCassa=60, costo unità 0,01€/g.
+
+Vetrina: “Cover 3D” con Materiali necessari: PLA Nero 300 g/pezzo → costo previsto 3,00€ (lasciarlo default).
+
+Vendita: Origine=Vetrina, quantità 1, prezzo 9,90€ → consuma 300 g a 0,01€/g, costo 3,00€, nessuna spesa nuova, margine ≈ 6,90€.
+
+Storno: elimino la vendita → entrata stornata; materiali non tornano; in Magazzino 1 pezzo costo 3,00€.
+
+Rifornimento con scadenza: aggiungo lotto 3.000 g a 45€ con scadenza più vicina → alla vendita successiva consuma prima questo lotto (FEFO).
+
+9) Extra robustezza UX
+
+useQuery per /api/store/profile: enabled legato a currentActivity, staleTime: Infinity, refetchOnWindowFocus: false.
+
+Messaggi chiari sugli errori: “Materiale insufficiente”, “Nessuna attività selezionata”.
+
+Bottoni con data-testid coerenti: button-add-material, button-create-material, ecc.
