@@ -2984,13 +2984,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/production/materials', requireActivity, async (req, res) => {
     try {
       const { nome, unita, colore, quantitaTotale, costoTotale } = req.body;
+      console.log('[DEBUG] Material creation request:', { nome, unita, colore, quantitaTotale, costoTotale, userId: req.session.userId, activityId: req.session.activityId });
       const svc = await import('./production');
       const out = await svc.createProductionMaterial({
         userId: req.session.userId!, activityId: req.session.activityId!,
         nome, unita, colore, quantitaTotale: Number(quantitaTotale), costoTotale: Number(costoTotale)
       });
       res.json(out.material);
-    } catch (e: any) { res.status(400).json({ message: e.message || 'Errore creazione materiale' }); }
+    } catch (e: any) { 
+      console.error('[DEBUG] Material creation error:', e.message, e.stack);
+      res.status(400).json({ message: e.message || 'Errore creazione materiale' }); 
+    }
   });
 
   app.post('/api/production/materials/:id/refill', requireActivity, async (req, res) => {
