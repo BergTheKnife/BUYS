@@ -584,6 +584,7 @@ export const productionProducts = pgTable("production_products", {
   larghezza: numeric("larghezza", { precision: 8, scale: 2 }),
   lunghezza: numeric("lunghezza", { precision: 8, scale: 2 }),
   costoOverride: numeric("costo_override", { precision: 12, scale: 2 }),
+  imageUrl: text("image_url"),
   archiviato: numeric("archiviato", { precision: 1, scale: 0 }).default("0").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => [index("prod_products_activity_idx").on(t.activityId)]);
