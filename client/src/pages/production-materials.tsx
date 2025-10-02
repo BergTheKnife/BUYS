@@ -258,6 +258,7 @@ function EditMaterialForm({ material, onClose }: { material: MaterialRow; onClos
   const qc = useQueryClient();
   const { toast } = useToast();
   const [nome, setNome] = useState(material.nome);
+  const [unita, setUnita] = useState(material.unita);
   const [colore, setColore] = useState(material.colore || "");
 
   const editMutation = useMutation({
@@ -274,10 +275,22 @@ function EditMaterialForm({ material, onClose }: { material: MaterialRow; onClos
   return (
     <div className="space-y-3">
       <div><Label>Nome</Label><Input value={nome} onChange={e=>setNome(e.target.value)} /></div>
+      <div>
+        <Label>Unità di misura</Label>
+        <select 
+          value={unita} 
+          onChange={e=>setUnita(e.target.value)}
+          className="w-full border rounded-md px-3 py-2 bg-background"
+        >
+          <option value="g">Grammi (g)</option>
+          <option value="m">Metri (m)</option>
+          <option value="pcs">Pezzi (pcs)</option>
+        </select>
+      </div>
       <div><Label>Colore (facoltativo)</Label><Input value={colore} onChange={e=>setColore(e.target.value)} /></div>
       <div className="flex justify-end gap-2">
         <Button variant="outline" onClick={onClose}>Annulla</Button>
-        <Button onClick={() => editMutation.mutate({ nome: nome.trim(), colore: colore.trim() || null })}>
+        <Button onClick={() => editMutation.mutate({ nome: nome.trim(), unita, colore: colore.trim() || null })}>
           Salva
         </Button>
       </div>

@@ -121,10 +121,11 @@ export async function refillProductionMaterial(p: {
   });
 }
 
-export async function updateMaterial(materialId: string, activityId: string, data: { nome?: string; colore?: string | null }) {
+export async function updateMaterial(materialId: string, activityId: string, data: { nome?: string; unita?: string; colore?: string | null }) {
   await db.update(productionMaterials)
     .set({
       ...(data.nome !== undefined && { nome: data.nome }),
+      ...(data.unita !== undefined && { unita: data.unita }),
       ...(data.colore !== undefined && { colore: data.colore })
     })
     .where(and(eq(productionMaterials.id, materialId), eq(productionMaterials.activityId, activityId)));
