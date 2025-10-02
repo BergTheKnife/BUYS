@@ -2601,9 +2601,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/vendite', requireActivity, async (req, res) => {
     try {
+      const origine = req.body.origine || "magazzino";
+      let inventarioId = req.body.inventarioId;
+      let productionProductId = req.body.productionProductId;
+      
+      // If selling from vetrina, prepare inventory first
+      if (origine === "vetrina") {
+        if (!productionProductId) {
+          return res.status(400).json({ message: "productionProductId richiesto per vendita da vetrina" });
+        }
+        const prodSvc = await import('./production');
+        const prepared = await prodSvc.prepareInventoryFromVetrina({
+          userId: req.session.userId!,
+          activityId: req.session.activityId!,
+          productId: productionProductId,
+          quantita: parseInt(req.body.quantita) || 1
+        });
+        inventarioId = prepared.inventarioId;
+      }
+
       // Convert form data types
       const formData = {
-        inventarioId: req.body.inventarioId,
+        inventarioId,
         quantita: parseInt(req.body.quantita) || 1,
         prezzoVendita: req.body.prezzoVendita,
         vendutoA: req.body.vendutoA,
@@ -2634,7 +2653,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         activityId: req.session.activityId!,
         nomeArticolo: inventoryItem.nomeArticolo,
         taglia: inventoryItem.taglia || '',
-        margine: "0" // Will be calculated internally by createSale
+        margine: "0", // Will be calculated internally by createSale
+        origine,
+        productionProductId: origine === "vetrina" ? productionProductId : null
       });
 
       res.json(sale);

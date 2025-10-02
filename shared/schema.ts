@@ -600,6 +600,7 @@ export const productionConsumptions = pgTable("production_consumptions", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   activityId: uuid("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
   venditaId: uuid("vendita_id"),
+  inventoryId: uuid("inventory_id").references(() => inventario.id, { onDelete: "cascade" }),
   productId: uuid("product_id").references(() => productionProducts.id, { onDelete: "set null" }),
   materialId: uuid("material_id").references(() => productionMaterials.id, { onDelete: "set null" }),
   batchId: uuid("batch_id").references(() => productionBatches.id, { onDelete: "set null" }),

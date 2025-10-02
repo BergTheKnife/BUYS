@@ -97,7 +97,7 @@ export interface IStorage {
 
   // Sales methods (now with activity context)
   getSalesByActivity(activityId: string): Promise<Vendita[]>;
-  createSale(sale: InsertVendita & { userId: string; activityId: string; nomeArticolo: string; taglia: string; margine: string }): Promise<Vendita>;
+  createSale(sale: InsertVendita & { userId: string; activityId: string; nomeArticolo: string; taglia: string; margine: string; origine?: string; productionProductId?: string | null }): Promise<Vendita>;
   getSaleById(id: string, activityId: string): Promise<Vendita | null>;
   updateSale(id: string, activityId: string, updates: Partial<InsertVendita> & { nomeArticolo?: string; taglia?: string | null; margine?: string }): Promise<Vendita | null>;
   deleteSale(id: string, activityId: string): Promise<boolean>;
@@ -1310,7 +1310,7 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(vendite).where(eq(vendite.activityId, activityId)).orderBy(desc(vendite.data));
   }
 
-  async createSale(saleData: InsertVendita & { userId: string; activityId: string; nomeArticolo: string; taglia: string; margine: string }): Promise<Vendita> {
+  async createSale(saleData: InsertVendita & { userId: string; activityId: string; nomeArticolo: string; taglia: string; margine: string; origine?: string; productionProductId?: string | null }): Promise<Vendita> {
     // Verify inventory item exists and has sufficient quantity
     const [inventoryItem] = await db
       .select()
@@ -1351,7 +1351,9 @@ export class DatabaseStorage implements IStorage {
         incassato: saleData.incassato || 0,
         incassatoDa: (saleData.incassato === 1) ? saleData.incassatoDa : null,
         incassatoSu: (saleData.incassato === 1) ? saleData.incassatoSu : null,
-        margine: margine.toString()
+        margine: margine.toString(),
+        origine: saleData.origine || "magazzino",
+        productionProductId: saleData.productionProductId || null
       })
       .returning();
 
@@ -1543,16 +1545,23 @@ export class DatabaseStorage implements IStorage {
 
       if (!saleToDelete) return false;
 
-      // Restore inventory quantity
-      await db
-        .update(inventario)
-        .set({
-          quantita: sql`${inventario.quantita} + ${saleToDelete.quantita}`
-        })
-        .where(eq(inventario.id, saleToDelete.inventarioId));
+      // Check if sale is from vetrina
+      if (saleToDelete.origine === "vetrina") {
+        // For vetrina sales, rollback materials and delete auto-created inventory
+        const prodSvc = await import('../server/production');
+        await prodSvc.rollbackVetrinaSale(saleToDelete.inventarioId, activityId);
+      } else {
+        // For regular sales, restore inventory quantity and batches
+        await db
+          .update(inventario)
+          .set({
+            quantita: sql`${inventario.quantita} + ${saleToDelete.quantita}`
+          })
+          .where(eq(inventario.id, saleToDelete.inventarioId));
 
-      // Restore inventory batches using FIFO logic (reverse the sale)
-      await this.restoreBatchesAfterSaleDelete(saleToDelete.inventarioId, saleToDelete.quantita, Number(saleToDelete.prezzoVendita));
+        // Restore inventory batches using FIFO logic (reverse the sale)
+        await this.restoreBatchesAfterSaleDelete(saleToDelete.inventarioId, saleToDelete.quantita, Number(saleToDelete.prezzoVendita));
+      }
 
       // Delete related financial history if sale was incassato - simplified query
       if (saleToDelete.incassato === 1) {

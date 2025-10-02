@@ -228,10 +228,24 @@ export async function prepareInventoryFromVetrina(p: { userId: string; activityI
     if (!prod) throw new Error("Scheda Vetrina non trovata");
     const bom = await trx.select().from(productionProductBom).where(eq(productionProductBom.productId, prod.id));
 
+    // First, create the inventory item to get its ID
+    const costoUnit = 0; // Will be calculated after consumption
+    const item = (await trx.insert(inventario).values({
+      userId: p.userId, activityId: p.activityId,
+      nomeArticolo: prod.nome, taglia: null,
+      costo: String(costoUnit), quantita: p.quantita,
+      lunghezza: prod.lunghezza, larghezza: prod.larghezza, altezza: prod.altezza,
+      cassaCoverage: "0", immagineUrl: null, archiviato: 0,
+      vetrinaId: prod.id
+    }).returning())[0];
+
+    // Now consume materials and link to inventory item
     let costoTot = 0;
     for (const r of bom) {
       let toConsume = Number(r.quantita) * p.quantita;
       const batches = await trx.select().from(productionBatches).where(and(eq(productionBatches.materialId, r.materialId), eq(productionBatches.activityId, p.activityId), sql`${productionBatches.quantitaRimanente} > 0`)).orderBy(asc(productionBatches.dataAcquisto));
+      
+      let consumed = 0;
       for (const b of batches) {
         if (toConsume <= 0) break;
         const rem = Number(b.quantitaRimanente);
@@ -239,25 +253,56 @@ export async function prepareInventoryFromVetrina(p: { userId: string; activityI
         const cost = take * Number(b.costoPerUnita);
         await trx.update(productionBatches).set({ quantitaRimanente: String(rem - take) }).where(eq(productionBatches.id, b.id));
         await trx.insert(productionConsumptions).values({
-          activityId: p.activityId, productId: prod.id, materialId: b.materialId, batchId: b.id,
+          activityId: p.activityId, inventoryId: item.id, productId: prod.id, 
+          materialId: b.materialId, batchId: b.id,
           quantita: String(take), costoImputato: String(cost)
         });
         costoTot += cost;
         toConsume -= take;
+        consumed += take;
       }
-      if (toConsume > 0) throw new Error("Materiale insufficiente per la BOM selezionata");
+      
+      if (toConsume > 0) {
+        throw new Error(`Materiale insufficiente: ${r.materialId} richiede ${Number(r.quantita) * p.quantita}, disponibili ${consumed}`);
+      }
     }
 
-    const costoUnit = p.quantita > 0 ? (costoTot / p.quantita) : costoTot;
+    // Update inventory cost with actual calculated cost
+    const finalCostoUnit = p.quantita > 0 ? (costoTot / p.quantita) : costoTot;
+    await trx.update(inventario).set({ costo: String(finalCostoUnit) }).where(eq(inventario.id, item.id));
 
-    const item = (await trx.insert(inventario).values({
-      userId: p.userId, activityId: p.activityId,
-      nomeArticolo: prod.nome, taglia: null,
-      costo: String(costoUnit), quantita: p.quantita,
-      lunghezza: prod.lunghezza, larghezza: prod.larghezza, altezza: prod.altezza,
-      cassaCoverage: "0", immagineUrl: null, archiviato: 0
-    }).returning())[0];
+    return { inventarioId: item.id, costoUnit: finalCostoUnit, costoTot };
+  });
+}
 
-    return { inventarioId: item.id, costoUnit, costoTot };
+export async function rollbackVetrinaSale(inventarioId: string, activityId: string) {
+  return await db.transaction(async (trx) => {
+    // Get the inventory item (auto-created from vetrina)
+    const [item] = await trx.select().from(inventario).where(and(eq(inventario.id, inventarioId), eq(inventario.activityId, activityId)));
+    if (!item || !item.vetrinaId) throw new Error("Item non trovato o non da vetrina");
+
+    // Get ONLY consumptions for this specific inventory item
+    const consumptions = await trx.select().from(productionConsumptions).where(and(
+      eq(productionConsumptions.activityId, activityId),
+      eq(productionConsumptions.inventoryId, inventarioId)
+    ));
+
+    // Restore materials to batches (FIFO reverse)
+    for (const c of consumptions) {
+      const batch = (await trx.select().from(productionBatches).where(eq(productionBatches.id, c.batchId)))[0];
+      if (batch) {
+        await trx.update(productionBatches).set({
+          quantitaRimanente: String(Number(batch.quantitaRimanente) + Number(c.quantita))
+        }).where(eq(productionBatches.id, batch.id));
+      }
+    }
+
+    // Delete consumption records for this specific inventory item
+    await trx.delete(productionConsumptions).where(eq(productionConsumptions.inventoryId, inventarioId));
+
+    // Delete the auto-created inventory item
+    await trx.delete(inventario).where(eq(inventario.id, inventarioId));
+
+    return true;
   });
 }
