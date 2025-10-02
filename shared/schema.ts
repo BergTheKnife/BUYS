@@ -80,6 +80,86 @@ export const activityUsers = pgTable("activity_users", {
   index("activity_users_user_idx").on(table.userId),
 ]);
 
+// Store Profile - Configurazione tipologia store
+export const storeProfiles = pgTable("store_profiles", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  activityId: uuid("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }).unique(),
+  tipologiaStore: text("tipologia_store").notNull(),
+  valuta: text("valuta").notNull().default("EUR"),
+  paese: text("paese").notNull().default("IT"),
+  ivaPredefinita: decimal("iva_predefinita", { precision: 5, scale: 2 }).notNull().default("22.00"),
+  // Funzionalità attive (boolean flags)
+  hasProduzione: integer("has_produzione").default(0).notNull(),
+  hasVetrina: integer("has_vetrina").default(0).notNull(),
+  hasVarianti: integer("has_varianti").default(0).notNull(),
+  hasSeriali: integer("has_seriali").default(0).notNull(),
+  hasLottiScadenze: integer("has_lotti_scadenze").default(0).notNull(),
+  hasSpedizioni: integer("has_spedizioni").default(1).notNull(),
+  hasServizi: integer("has_servizi").default(0).notNull(),
+  hasDigitale: integer("has_digitale").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Materiali Produzione
+export const materialiProduzione = pgTable("materiali_produzione", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  activityId: uuid("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
+  nomeMateriale: text("nome_materiale").notNull(),
+  unita: text("unita").notNull(), // g, m, pz
+  colore: text("colore"),
+  archiviato: integer("archiviato").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Lotti Materiali
+export const lottiMateriali = pgTable("lotti_materiali", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  materialeId: uuid("materiale_id").notNull().references(() => materialiProduzione.id, { onDelete: "cascade" }),
+  activityId: uuid("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
+  quantitaTotale: decimal("quantita_totale", { precision: 10, scale: 2 }).notNull(),
+  quantitaResidua: decimal("quantita_residua", { precision: 10, scale: 2 }).notNull(),
+  costoTotale: decimal("costo_totale", { precision: 10, scale: 2 }).notNull(),
+  costoPerUnita: decimal("costo_per_unita", { precision: 10, scale: 4 }).notNull(),
+  lotto: text("lotto"),
+  scadenza: timestamp("scadenza"),
+  quotaCassa: decimal("quota_cassa", { precision: 10, scale: 2 }).default("0").notNull(),
+  spesaId: uuid("spesa_id").references(() => spese.id), // Collegamento alla spesa
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Vetrina - Articoli producibili
+export const vetrina = pgTable("vetrina", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  activityId: uuid("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
+  nomeArticolo: text("nome_articolo").notNull(),
+  categoria: text("categoria"),
+  lunghezza: decimal("lunghezza", { precision: 6, scale: 2 }),
+  larghezza: decimal("larghezza", { precision: 6, scale: 2 }),
+  altezza: decimal("altezza", { precision: 6, scale: 2 }),
+  costoPrevisto: decimal("costo_previsto", { precision: 10, scale: 2 }),
+  archiviato: integer("archiviato").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Materiali necessari per vetrina (BOM)
+export const vetrinaMateriali = pgTable("vetrina_materiali", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  vetrinaId: uuid("vetrina_id").notNull().references(() => vetrina.id, { onDelete: "cascade" }),
+  materialeId: uuid("materiale_id").notNull().references(() => materialiProduzione.id, { onDelete: "cascade" }),
+  quantitaPerPezzo: decimal("quantita_per_pezzo", { precision: 10, scale: 2 }).notNull(),
+});
+
+// Consumo materiali (tracking)
+export const consumiMateriali = pgTable("consumi_materiali", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  lottoId: uuid("lotto_id").notNull().references(() => lottiMateriali.id),
+  venditaId: uuid("vendita_id").references(() => vendite.id),
+  quantitaConsumata: decimal("quantita_consumata", { precision: 10, scale: 2 }).notNull(),
+  costoConsumo: decimal("costo_consumo", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const inventario = pgTable("inventario", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -95,6 +175,8 @@ export const inventario = pgTable("inventario", {
   cassaCoverage: numeric("cassa_coverage", { precision: 10, scale: 2 }).default("0"),
   immagineUrl: text("immagine_url"),
   archiviato: integer("archiviato").default(0).notNull(), // 0 = attivo, 1 = archiviato (soft-deleted)
+  // Nuovo campo per vendite da vetrina
+  vetrinaId: uuid("vetrina_id").references(() => vetrina.id),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -115,6 +197,9 @@ export const vendite = pgTable("vendite", {
   incassatoSu: text("incassato_su"), // Ora condizionale
   data: timestamp("data").notNull(),
   margine: decimal("margine", { precision: 10, scale: 2 }).notNull(),
+  // Nuovo: origine vendita (magazzino o vetrina)
+  origine: text("origine").default("magazzino").notNull(), // magazzino | vetrina
+  vetrinaId: uuid("vetrina_id").references(() => vetrina.id),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
