@@ -80,26 +80,7 @@ export const activityUsers = pgTable("activity_users", {
   index("activity_users_user_idx").on(table.userId),
 ]);
 
-// Store Profile - Configurazione tipologia store
-export const storeProfiles = pgTable("store_profiles", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  activityId: uuid("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }).unique(),
-  tipologiaStore: text("tipologia_store").notNull(),
-  valuta: text("valuta").notNull().default("EUR"),
-  paese: text("paese").notNull().default("IT"),
-  ivaPredefinita: decimal("iva_predefinita", { precision: 5, scale: 2 }).notNull().default("22.00"),
-  // Funzionalità attive (boolean flags)
-  hasProduzione: integer("has_produzione").default(0).notNull(),
-  hasVetrina: integer("has_vetrina").default(0).notNull(),
-  hasVarianti: integer("has_varianti").default(0).notNull(),
-  hasSeriali: integer("has_seriali").default(0).notNull(),
-  hasLottiScadenze: integer("has_lotti_scadenze").default(0).notNull(),
-  hasSpedizioni: integer("has_spedizioni").default(1).notNull(),
-  hasServizi: integer("has_servizi").default(0).notNull(),
-  hasDigitale: integer("has_digitale").default(0).notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+
 
 // Materiali Produzione
 export const materialiProduzione = pgTable("materiali_produzione", {
