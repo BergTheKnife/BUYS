@@ -77,7 +77,7 @@ export async function upsertStoreProfile(p: {
       await db.insert(productAttributeDefs).values({
         activityId: p.activityId,
         key: a.key, label: a.label, type: a.type, unit: a.unit || null,
-        required: a.required ? 1 : 0, options: a.options ? (a.options as any) : null
+        required: a.required ? "1" : "0", options: a.options ? (a.options as any) : null
       });
     }
     return ins;
