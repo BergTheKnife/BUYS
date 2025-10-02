@@ -3093,11 +3093,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/store/profile', requireActivity, async (req, res) => {
     try {
       const { storeType, currency, country, defaultVat, featureFlags } = req.body;
+      
+      // Normalize feature flags to English keys if provided
+      let normalizedFlags = featureFlags;
+      if (featureFlags && typeof featureFlags === 'object') {
+        normalizedFlags = {
+          production: featureFlags.production ?? featureFlags.produzione ?? false,
+          vetrina: featureFlags.vetrina ?? false,
+          variants: featureFlags.variants ?? featureFlags.varianti ?? false,
+          serials: featureFlags.serials ?? featureFlags.seriali ?? false,
+          lots_expiry: featureFlags.lots_expiry ?? featureFlags.lotti_scadenza ?? false,
+          shipping: featureFlags.shipping ?? featureFlags.spedizioni ?? false,
+          services: featureFlags.services ?? featureFlags.servizi ?? false,
+          digital: featureFlags.digital ?? featureFlags.digitale ?? false,
+        };
+      }
+      
       const svc = await import('./store');
       const out = await svc.upsertStoreProfile({
         userId: req.session.userId!, activityId: req.session.activityId!,
         storeType, currency, country, defaultVat: defaultVat ? Number(defaultVat) : null,
-        featureFlags: featureFlags || null
+        featureFlags: normalizedFlags || null
       });
       res.json(out);
     } catch (e:any) { res.status(400).json({ message: e.message || 'Errore salvataggio profilo store' }); }
