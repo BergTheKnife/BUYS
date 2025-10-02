@@ -253,19 +253,20 @@ export default function StoreSetup() {
   useEffect(() => {
     if (profile && typeof profile === 'object') {
       const p = profile as any;
+      const flags = p.featureFlags || {};
       setFormData({
-        tipologiaStore: p.tipologiaStore || "",
-        valuta: p.valuta || "EUR",
-        paese: p.paese || "IT",
-        ivaPredefinita: p.ivaPredefinita || "22.00",
-        hasProduzione: !!p.hasProduzione,
-        hasVetrina: !!p.hasVetrina,
-        hasVarianti: !!p.hasVarianti,
-        hasSeriali: !!p.hasSeriali,
-        hasLottiScadenze: !!p.hasLottiScadenze,
-        hasSpedizioni: !!p.hasSpedizioni,
-        hasServizi: !!p.hasServizi,
-        hasDigitale: !!p.hasDigitale,
+        tipologiaStore: p.storeType || "",
+        valuta: p.currency || "EUR",
+        paese: p.country || "IT",
+        ivaPredefinita: p.defaultVat || "22.00",
+        hasProduzione: !!flags.production,
+        hasVetrina: !!flags.vetrina,
+        hasVarianti: !!flags.variants,
+        hasSeriali: !!flags.serials,
+        hasLottiScadenze: !!flags.lots_expiry,
+        hasSpedizioni: !!flags.shipping,
+        hasServizi: !!flags.services,
+        hasDigitale: !!flags.digital,
       });
     }
   }, [profile]);
@@ -319,7 +320,26 @@ export default function StoreSetup() {
       });
       return;
     }
-    mutation.mutate(formData);
+    
+    // Prepara i feature flags per il backend
+    const featureFlags = {
+      production: formData.hasProduzione,
+      vetrina: formData.hasVetrina,
+      variants: formData.hasVarianti,
+      serials: formData.hasSeriali,
+      lots_expiry: formData.hasLottiScadenze,
+      shipping: formData.hasSpedizioni,
+      services: formData.hasServizi,
+      digital: formData.hasDigitale,
+    };
+    
+    mutation.mutate({
+      storeType: formData.tipologiaStore,
+      currency: formData.valuta,
+      country: formData.paese,
+      defaultVat: formData.ivaPredefinita,
+      featureFlags,
+    });
   };
 
   return (

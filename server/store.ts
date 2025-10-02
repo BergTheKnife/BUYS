@@ -5,50 +5,50 @@ import { storeProfiles, productAttributeDefs } from "@shared/schema";
 type FeatureFlags = Record<string, boolean>;
 
 const DEFAULT_FLAGS_BY_TYPE: Record<string, FeatureFlags> = {
-  "Abbigliamento & Accessori": { production: false, vetrina: false, variants: true, serials: false, lots_expiry: false, shipping: true, services: false, digital: false },
-  "Calzature": { production: false, vetrina: false, variants: true, serials: false, lots_expiry: false, shipping: true, services: false, digital: false },
-  "Gioielli & Orologi": { production: false, vetrina: false, variants: false, serials: false, lots_expiry: false, shipping: true, services: false, digital: false },
-  "Elettronica / Telefonia": { production: false, vetrina: false, variants: false, serials: true, lots_expiry: false, shipping: true, services: false, digital: false },
-  "Informatica & Periferiche": { production: false, vetrina: false, variants: false, serials: true, lots_expiry: false, shipping: true, services: false, digital: false },
-  "Casa & Arredo": { production: false, vetrina: false, variants: false, serials: false, lots_expiry: false, shipping: true, services: false, digital: false },
-  "Sport & Outdoor": { production: false, vetrina: false, variants: true, serials: false, lots_expiry: false, shipping: true, services: false, digital: false },
-  "Cosmetici & Benessere": { production: false, vetrina: false, variants: false, serials: false, lots_expiry: true, shipping: true, services: false, digital: false },
-  "Alimentari & Bevande": { production: false, vetrina: false, variants: false, serials: false, lots_expiry: true, shipping: true, services: false, digital: false },
-  "Libri & Media": { production: false, vetrina: false, variants: false, serials: false, lots_expiry: false, shipping: true, services: false, digital: false },
-  "Ricambi Auto/Moto": { production: false, vetrina: false, variants: false, serials: true, lots_expiry: false, shipping: true, services: false, digital: false },
-  "Artigianato / Maker / 3D Printing": { production: true, vetrina: true, variants: false, serials: false, lots_expiry: false, shipping: true, services: false, digital: false },
-  "Stampa & Personalizzazioni": { production: true, vetrina: true, variants: false, serials: false, lots_expiry: false, shipping: true, services: false, digital: false },
-  "Digitale / Download": { production: false, vetrina: false, variants: false, serials: false, lots_expiry: false, shipping: false, services: false, digital: true },
-  "Servizi": { production: false, vetrina: false, variants: false, serials: false, lots_expiry: false, shipping: false, services: true, digital: false }
+  "abbigliamento": { production: false, vetrina: false, variants: true, serials: false, lots_expiry: false, shipping: true, services: false, digital: false },
+  "calzature": { production: false, vetrina: false, variants: true, serials: false, lots_expiry: false, shipping: true, services: false, digital: false },
+  "gioielli": { production: false, vetrina: false, variants: false, serials: false, lots_expiry: false, shipping: true, services: false, digital: false },
+  "elettronica": { production: false, vetrina: false, variants: false, serials: true, lots_expiry: false, shipping: true, services: false, digital: false },
+  "informatica": { production: false, vetrina: false, variants: false, serials: true, lots_expiry: false, shipping: true, services: false, digital: false },
+  "casa": { production: false, vetrina: false, variants: false, serials: false, lots_expiry: false, shipping: true, services: false, digital: false },
+  "sport": { production: false, vetrina: false, variants: true, serials: false, lots_expiry: false, shipping: true, services: false, digital: false },
+  "cosmetici": { production: false, vetrina: false, variants: false, serials: false, lots_expiry: true, shipping: true, services: false, digital: false },
+  "alimentari": { production: false, vetrina: false, variants: false, serials: false, lots_expiry: true, shipping: true, services: false, digital: false },
+  "libri": { production: false, vetrina: false, variants: false, serials: false, lots_expiry: false, shipping: true, services: false, digital: false },
+  "ricambi": { production: false, vetrina: false, variants: false, serials: true, lots_expiry: false, shipping: true, services: false, digital: false },
+  "artigianato": { production: true, vetrina: true, variants: false, serials: false, lots_expiry: false, shipping: true, services: false, digital: false },
+  "stampa": { production: true, vetrina: true, variants: false, serials: false, lots_expiry: false, shipping: true, services: false, digital: false },
+  "digitale": { production: false, vetrina: false, variants: false, serials: false, lots_expiry: false, shipping: false, services: false, digital: true },
+  "servizi": { production: false, vetrina: false, variants: false, serials: false, lots_expiry: false, shipping: false, services: true, digital: false }
 };
 
 const DEFAULT_ATTRS_BY_TYPE: Record<string, Array<{key:string,label:string,type:string,unit?:string,required?:boolean,options?:any}>> = {
-  "Abbigliamento & Accessori": [
+  "abbigliamento": [
     { key: "taglia", label: "Taglia", type: "select", options: ["XS","S","M","L","XL"] },
     { key: "colore", label: "Colore", type: "text" }
   ],
-  "Calzature": [
+  "calzature": [
     { key: "numeroEU", label: "Numero EU", type: "select", options: ["36","37","38","39","40","41","42","43","44","45"] },
     { key: "colore", label: "Colore", type: "text" }
   ],
-  "Elettronica / Telefonia": [
+  "elettronica": [
     { key: "seriale", label: "Seriale/IMEI", type: "text", required: true },
     { key: "garanziaMesi", label: "Garanzia (mesi)", type: "number" }
   ],
-  "Cosmetici & Benessere": [
+  "cosmetici": [
     { key: "lotto", label: "Lotto", type: "text" },
     { key: "scadenza", label: "Scadenza", type: "date" },
     { key: "pao", label: "PAO", type: "number", unit: "mesi" }
   ],
-  "Alimentari & Bevande": [
+  "alimentari": [
     { key: "lotto", label: "Lotto", type: "text" },
     { key: "scadenza", label: "Scadenza", type: "date" },
     { key: "allergeni", label: "Allergeni", type: "text" }
   ],
-  "Artigianato / Maker / 3D Printing": [
+  "artigianato": [
     { key: "schedaVetrina", label: "Scheda Vetrina", type: "text" }
   ],
-  "Stampa & Personalizzazioni": [
+  "stampa": [
     { key: "schedaVetrina", label: "Scheda Vetrina", type: "text" }
   ]
 };
