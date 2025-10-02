@@ -3085,6 +3085,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // === STORE PROFILE ===
+  app.get('/api/store/profile/:activityId', async (req, res) => {
+    try {
+      const { activityId } = req.params;
+      const svc = await import('./store');
+      const out = await svc.getStoreProfile(activityId);
+      res.json(out || {});
+    } catch (e:any) { res.status(400).json({ message: e.message || 'Errore profilo store' }); }
+  });
+
   app.get('/api/store/profile', requireActivity, async (req, res) => {
     try {
       const svc = await import('./store');
