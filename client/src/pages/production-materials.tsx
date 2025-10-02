@@ -5,8 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { PackagePlus, Edit, Trash2, FolderArchive } from "lucide-react";
-import { useState } from "react";
+import { PackagePlus, Edit, Trash2, FolderArchive, Search } from "lucide-react";
+import { useState, useMemo } from "react";
 
 type MaterialRow = {
   id: string; nome: string; unita: string; colore?: string|null; archiviato: number;
@@ -20,11 +20,22 @@ export default function ProductionMaterials() {
     queryKey: ["/api/production/materials"],
   });
 
+  const [searchQuery, setSearchQuery] = useState("");
   const [openAdd, setOpenAdd] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<MaterialRow | null>(null);
   const [refillMaterial, setRefillMaterial] = useState<MaterialRow | null>(null);
   const [materialToDelete, setMaterialToDelete] = useState<MaterialRow | null>(null);
   const [deleteMode, setDeleteMode] = useState<'archive' | 'permanent' | null>(null);
+
+  // Filter materials based on search query
+  const filteredMaterials = useMemo(() => {
+    if (!searchQuery.trim()) return materials;
+    const query = searchQuery.toLowerCase();
+    return materials.filter(m => 
+      m.nome.toLowerCase().includes(query) ||
+      (m.colore?.toLowerCase().includes(query))
+    );
+  }, [materials, searchQuery]);
 
   const addMutation = useMutation({
     mutationFn: async (payload: any) => { await apiRequest("POST", "/api/production/materials", payload); },
@@ -80,8 +91,21 @@ export default function ProductionMaterials() {
         <Button onClick={() => setOpenAdd(true)} data-testid="button-add-material">Aggiungi materiale</Button>
       </div>
 
+      {/* Search filter */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+        <Input
+          type="text"
+          placeholder="Cerca materiale per nome o colore..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10"
+          data-testid="input-search-materials"
+        />
+      </div>
+
       <div className="grid gap-3">
-        {materials.map((m) => (
+        {filteredMaterials.map((m) => (
           <div key={m.id} className="border rounded-md p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>
               <div className="font-medium">{m.nome} {m.colore ? `• ${m.colore}` : ""}</div>
