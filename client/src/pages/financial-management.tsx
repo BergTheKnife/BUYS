@@ -78,10 +78,14 @@ export default function FinancialManagement() {
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
   const [showTransferModal, setShowTransferModal] = useState(false);
+  const [showAddFundsModal, setShowAddFundsModal] = useState(false);
   const [selectedTransfers, setSelectedTransfers] = useState<{
     [member: string]: { [account: string]: number }
   }>({});
   const [transferDescription, setTransferDescription] = useState("");
+  const [addFundsAmount, setAddFundsAmount] = useState("");
+  const [addFundsMember, setAddFundsMember] = useState("");
+  const [addFundsDescription, setAddFundsDescription] = useState("");
 
   // Fetch sales data to calculate balances
   const { data: sales = [], isLoading: salesLoading } = useQuery<Vendita[]>({
@@ -378,6 +382,53 @@ export default function FinancialManagement() {
     },
   });
 
+  // Add personal funds mutation
+  const addPersonalFunds = useMutation({
+    mutationFn: async () => {
+      const amount = Number(addFundsAmount);
+      
+      if (!addFundsMember.trim()) {
+        throw new Error("Inserisci il nome del membro");
+      }
+      
+      if (isNaN(amount) || amount <= 0) {
+        throw new Error("Inserisci un importo valido");
+      }
+
+      const transfers = [{
+        fromMember: addFundsMember,
+        fromAccount: "Fondi Personali",
+        toAccount: "Cassa Reinvestimento",
+        importo: amount.toString(),
+        descrizione: addFundsDescription || "Aggiunta fondi personali"
+      }];
+
+      return await apiRequest("POST", "/api/fund-transfers", { transfers });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Fondi aggiunti con successo",
+        description: `Aggiunti ${formatCurrency(Number(addFundsAmount))} alla Cassa Reinvestimento`,
+      });
+      setShowAddFundsModal(false);
+      setAddFundsAmount("");
+      setAddFundsMember("");
+      setAddFundsDescription("");
+      // Invalida tutte le query necessarie per aggiornamento automatico
+      queryClient.invalidateQueries({ queryKey: ["/api/vendite"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/fund-transfers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/financial-history"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cassa-reinvestimento-balance"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Errore",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   if (salesLoading || transfersLoading) {
     return (
       <div className="container mx-auto p-6">
@@ -648,6 +699,80 @@ export default function FinancialManagement() {
                   className="flex-1"
                 >
                   {transferFunds.isPending ? "Trasferimento..." : "Conferma Trasferimento"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showAddFundsModal} onOpenChange={setShowAddFundsModal}>
+          <DialogTrigger asChild>
+            <Button size="lg" className="px-8" variant="outline">
+              <Plus className="h-5 w-5 mr-2" />
+              Aggiungi Fondi Personali
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Aggiungi Fondi Personali</DialogTitle>
+              <DialogDescription>
+                Aggiungi fondi personali direttamente alla Cassa Reinvestimento
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="member">Membro</Label>
+                <Input
+                  id="member"
+                  type="text"
+                  placeholder="Nome del membro..."
+                  value={addFundsMember}
+                  onChange={(e) => setAddFundsMember(e.target.value)}
+                  data-testid="input-add-funds-member"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="amount">Importo (€)</Label>
+                <Input
+                  id="amount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  value={addFundsAmount}
+                  onChange={(e) => setAddFundsAmount(e.target.value)}
+                  data-testid="input-add-funds-amount"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="funds-description">Descrizione (opzionale)</Label>
+                <Textarea
+                  id="funds-description"
+                  placeholder="Aggiungi una nota..."
+                  value={addFundsDescription}
+                  onChange={(e) => setAddFundsDescription(e.target.value)}
+                  data-testid="input-add-funds-description"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowAddFundsModal(false)}
+                  className="flex-1"
+                >
+                  Annulla
+                </Button>
+                <Button 
+                  onClick={() => addPersonalFunds.mutate()}
+                  disabled={addPersonalFunds.isPending || !addFundsMember.trim() || !addFundsAmount || Number(addFundsAmount) <= 0}
+                  className="flex-1"
+                  data-testid="button-confirm-add-funds"
+                >
+                  {addPersonalFunds.isPending ? "Aggiunta..." : "Aggiungi Fondi"}
                 </Button>
               </div>
             </div>
