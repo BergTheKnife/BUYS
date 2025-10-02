@@ -369,7 +369,7 @@ export default function StoreSetup() {
                 value={formData.tipologiaStore}
                 onValueChange={handleStoreTypeChange}
               >
-                <SelectTrigger>
+                <SelectTrigger data-testid="select-store-type">
                   <SelectValue placeholder="Seleziona tipologia..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -388,6 +388,7 @@ export default function StoreSetup() {
                 <Label htmlFor="valuta">Valuta</Label>
                 <Input
                   id="valuta"
+                  data-testid="input-currency"
                   value={formData.valuta}
                   onChange={e => setFormData(prev => ({ ...prev, valuta: e.target.value }))}
                 />
@@ -396,6 +397,7 @@ export default function StoreSetup() {
                 <Label htmlFor="paese">Paese</Label>
                 <Input
                   id="paese"
+                  data-testid="input-country"
                   value={formData.paese}
                   onChange={e => setFormData(prev => ({ ...prev, paese: e.target.value }))}
                 />
@@ -407,6 +409,7 @@ export default function StoreSetup() {
               <Label htmlFor="iva">IVA Predefinita (%)</Label>
               <Input
                 id="iva"
+                data-testid="input-vat"
                 type="number"
                 step="0.01"
                 value={formData.ivaPredefinita}
@@ -421,6 +424,7 @@ export default function StoreSetup() {
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="produzione"
+                    data-testid="checkbox-production"
                     checked={formData.hasProduzione}
                     onCheckedChange={(checked) => setFormData(prev => ({ ...prev, hasProduzione: !!checked }))}
                   />
@@ -431,6 +435,7 @@ export default function StoreSetup() {
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="vetrina"
+                    data-testid="checkbox-vetrina"
                     checked={formData.hasVetrina}
                     onCheckedChange={(checked) => setFormData(prev => ({ ...prev, hasVetrina: !!checked }))}
                   />
@@ -441,6 +446,7 @@ export default function StoreSetup() {
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="varianti"
+                    data-testid="checkbox-variants"
                     checked={formData.hasVarianti}
                     onCheckedChange={(checked) => setFormData(prev => ({ ...prev, hasVarianti: !!checked }))}
                   />
@@ -451,6 +457,7 @@ export default function StoreSetup() {
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="seriali"
+                    data-testid="checkbox-serials"
                     checked={formData.hasSeriali}
                     onCheckedChange={(checked) => setFormData(prev => ({ ...prev, hasSeriali: !!checked }))}
                   />
@@ -461,6 +468,7 @@ export default function StoreSetup() {
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="lotti"
+                    data-testid="checkbox-lots"
                     checked={formData.hasLottiScadenze}
                     onCheckedChange={(checked) => setFormData(prev => ({ ...prev, hasLottiScadenze: !!checked }))}
                   />
@@ -471,6 +479,7 @@ export default function StoreSetup() {
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="spedizioni"
+                    data-testid="checkbox-shipping"
                     checked={formData.hasSpedizioni}
                     onCheckedChange={(checked) => setFormData(prev => ({ ...prev, hasSpedizioni: !!checked }))}
                   />
@@ -481,6 +490,7 @@ export default function StoreSetup() {
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="servizi"
+                    data-testid="checkbox-services"
                     checked={formData.hasServizi}
                     onCheckedChange={(checked) => setFormData(prev => ({ ...prev, hasServizi: !!checked }))}
                   />
@@ -491,6 +501,7 @@ export default function StoreSetup() {
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="digitale"
+                    data-testid="checkbox-digital"
                     checked={formData.hasDigitale}
                     onCheckedChange={(checked) => setFormData(prev => ({ ...prev, hasDigitale: !!checked }))}
                   />
@@ -501,7 +512,7 @@ export default function StoreSetup() {
               </div>
             </div>
 
-            <Button type="submit" className="w-full" disabled={mutation.isPending}>
+            <Button type="submit" className="w-full" data-testid="button-save-config" disabled={mutation.isPending}>
               <Save className="mr-2 h-4 w-4" />
               {mutation.isPending ? "Salvataggio..." : "Salva Configurazione"}
             </Button>

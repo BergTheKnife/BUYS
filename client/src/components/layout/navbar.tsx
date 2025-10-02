@@ -301,6 +301,10 @@ export function Navbar() {
                   <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
                     Gestione Attività
                   </div>
+                  <DropdownMenuItem onClick={() => setLocation("/setup/store")} data-testid="menu-store-config">
+                    <Store className="h-4 w-4 mr-2" />
+                    Configurazione Store
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setLocation("/impostazioni-attivita")}>
                     <Settings className="h-4 w-4 mr-2" />
                     Impostazioni
