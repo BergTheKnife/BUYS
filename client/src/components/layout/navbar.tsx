@@ -56,11 +56,26 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import buysLogoWhitePath from "@assets/Buys bianco_1754472538088.png";
 import buysLogoColorPath from "@assets/Buys colore_1754472538088.png";
 
-const navigation = [
+type NavItem = {
+  name: string;
+  href?: string;
+  icon: any;
+  requiredFlag?: string;
+  submenu?: NavItem[];
+};
+
+const navigation: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
   { name: "Magazzino", href: "/inventario", icon: Package },
-  { name: "Produzione", href: "/produzione/materiali", icon: Factory, requiredFlag: "production" },
-  { name: "Vetrina", href: "/vetrina", icon: ShoppingBag, requiredFlag: "vetrina" },
+  {
+    name: "Produzione",
+    icon: Factory,
+    requiredFlag: "production",
+    submenu: [
+      { name: "Materiali", href: "/produzione/materiali", icon: Package },
+      { name: "Vetrina", href: "/vetrina", icon: ShoppingBag, requiredFlag: "vetrina" },
+    ]
+  },
   { name: "Vendite", href: "/vendite", icon: ShoppingCart },
   { name: "Spedizioni", href: "/spedizioni", icon: Truck, requiredFlag: "shipping" },
   { name: "Spese", href: "/spese", icon: Receipt },
@@ -192,6 +207,66 @@ export function Navbar() {
       <>
         {visibleNavigation.map((item) => {
           const Icon = item.icon;
+          
+          // Item con submenu
+          if (item.submenu && item.submenu.length > 0) {
+            const visibleSubmenu = item.submenu.filter(sub => {
+              if (!sub.requiredFlag) return true;
+              return profile?.featureFlags?.[sub.requiredFlag] === true;
+            });
+            
+            if (visibleSubmenu.length === 0) return null;
+            
+            const isActive = visibleSubmenu.some(sub => location === sub.href);
+            
+            return (
+              <DropdownMenu key={item.name}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant={isActive ? "secondary" : "ghost"}
+                    className={`${mobile ? "w-full justify-start py-4" : "py-3 px-4 text-base"} ${
+                      mobile
+                        ? isActive
+                          ? "bg-blue-100 text-blue-900 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-100 dark:hover:bg-blue-800"
+                          : "text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800"
+                        : isActive
+                          ? "bg-white/20 text-white"
+                          : "text-white/90 hover:text-white hover:bg-white/10"
+                    }`}
+                    data-testid={`nav-${item.name.toLowerCase().replace(/\s+/g, '-')}`}
+                  >
+                    <Icon className={`${mobile ? "h-4 w-4" : "h-5 w-5"} mr-2`} />
+                    {item.name}
+                    <ChevronDown className="h-3 w-3 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className={mobile ? "bg-white dark:bg-gray-900" : ""}>
+                  {visibleSubmenu.map(subItem => {
+                    const SubIcon = subItem.icon;
+                    const subIsActive = location === subItem.href;
+                    return (
+                      <DropdownMenuItem
+                        key={subItem.name}
+                        onClick={() => {
+                          if (subItem.href) {
+                            setLocation(subItem.href);
+                            onItemClick?.();
+                          }
+                        }}
+                        className={subIsActive ? "bg-blue-50 dark:bg-blue-900" : ""}
+                        data-testid={`nav-${item.name.toLowerCase()}-${subItem.name.toLowerCase().replace(/\s+/g, '-')}`}
+                      >
+                        <SubIcon className="h-4 w-4 mr-2" />
+                        {subItem.name}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            );
+          }
+          
+          // Item senza submenu
           const isActive = location === item.href;
           return (
             <Button
@@ -207,8 +282,10 @@ export function Navbar() {
                     : "text-white/90 hover:text-white hover:bg-white/10"
               }`}
               onClick={() => {
-                setLocation(item.href);
-                onItemClick?.();
+                if (item.href) {
+                  setLocation(item.href);
+                  onItemClick?.();
+                }
               }}
               data-testid={`nav-${item.name.toLowerCase().replace(/\s+/g, '-')}`}
             >

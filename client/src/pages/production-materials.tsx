@@ -44,7 +44,7 @@ export default function ProductionMaterials() {
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Materiali di produzione</h1>
-        <Button onClick={() => setOpenAdd(true)}>Aggiungi materiale</Button>
+        <Button onClick={() => setOpenAdd(true)} data-testid="button-add-material">Aggiungi materiale</Button>
       </div>
 
       <div className="grid gap-3">
@@ -102,18 +102,18 @@ function AddMaterialForm({ onSubmit }: { onSubmit: (payload: any) => void }) {
   const [colore, setColore] = useState(""); const [q, setQ] = useState(""); const [c, setC] = useState("");
   return (
     <div className="space-y-3">
-      <div><Label>Nome</Label><Input value={nome} onChange={e=>setNome(e.target.value)} /></div>
+      <div><Label>Nome</Label><Input data-testid="input-material-name" value={nome} onChange={e=>setNome(e.target.value)} /></div>
       <div><Label>Unità</Label>
-        <select value={unita} onChange={e=>setUnita(e.target.value)} className="border rounded-md px-3 py-2 w-full">
+        <select data-testid="select-material-unit" value={unita} onChange={e=>setUnita(e.target.value)} className="border rounded-md px-3 py-2 w-full">
           <option value="g">grammi (g)</option>
           <option value="m">metri (m)</option>
           <option value="pcs">pezzi (pcs)</option>
         </select>
       </div>
-      <div><Label>Colore (facoltativo)</Label><Input value={colore} onChange={e=>setColore(e.target.value)} /></div>
-      <div><Label>Quantità totale</Label><Input value={q} onChange={e=>setQ(e.target.value)} placeholder="es. 10000" /></div>
-      <div><Label>Costo totale</Label><Input value={c} onChange={e=>setC(e.target.value)} placeholder="es. 20.00" /></div>
-      <div className="flex justify-end"><Button onClick={()=>onSubmit({ nome, unita, colore, quantitaTotale: q, costoTotale: c })}>Crea</Button></div>
+      <div><Label>Colore (facoltativo)</Label><Input data-testid="input-material-color" value={colore} onChange={e=>setColore(e.target.value)} /></div>
+      <div><Label>Quantità totale</Label><Input data-testid="input-material-quantity" value={q} onChange={e=>setQ(e.target.value)} placeholder="es. 10000" /></div>
+      <div><Label>Costo totale</Label><Input data-testid="input-material-cost" value={c} onChange={e=>setC(e.target.value)} placeholder="es. 20.00" /></div>
+      <div className="flex justify-end"><Button data-testid="button-create-material" onClick={()=>onSubmit({ nome, unita, colore, quantitaTotale: q, costoTotale: c })}>Crea</Button></div>
     </div>
   );
 }
