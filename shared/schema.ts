@@ -180,7 +180,7 @@ export const vendite = pgTable("vendite", {
   margine: decimal("margine", { precision: 10, scale: 2 }).notNull(),
   // Nuovo: origine vendita (magazzino o vetrina)
   origine: text("origine").default("magazzino").notNull(), // magazzino | vetrina
-  vetrinaId: uuid("vetrina_id").references(() => vetrina.id),
+  productionProductId: uuid("production_product_id").references(() => productionProducts.id),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

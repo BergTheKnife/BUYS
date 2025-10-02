@@ -1,7 +1,7 @@
 # BUYS - Build Up Your Store
 
 ## Overview
-BUYS (Build Up Your Store) is a comprehensive business management system designed for small clothing retailers. It provides a complete solution for managing inventory, sales, expenses, and financial tracking. Key capabilities include product tracking with sizes and images, sales transaction recording with quantity control, expense monitoring with automatic inventory cost tracking, and financial performance analysis through an intuitive dashboard. The application features secure multi-activity support, a robust email verification system, and a "remember me" auto-login function. Its core purpose is to provide an all-in-one platform for business owners to efficiently manage and track their retail operations.
+BUYS (Build Up Your Store) is a comprehensive business management system designed for small retailers and makers. It provides a complete solution for managing inventory, production, sales, expenses, and financial tracking. Key capabilities include product tracking with sizes and images, production material management with batch tracking, showcase products (Vetrina) with BOM (Bill of Materials), sales from both inventory and production (Vetrina), expense monitoring with automatic inventory cost tracking, and financial performance analysis. The application features secure multi-activity support, a robust email verification system, "remember me" auto-login, and configurable store profiles with feature flags (production, vetrina, variants, serials, lots_expiry, shipping, services, digital).
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
