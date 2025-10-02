@@ -1,9 +1,5 @@
-import { sql } from 'drizzle-orm';
-import { jsonb } from 'drizzle-orm/pg-core';
-import { z } from 'zod';
-import { createInsertSchema } from 'drizzle-zod';
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, decimal, integer, timestamp, uuid, index, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, decimal, integer, timestamp, uuid, index, numeric, jsonb } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import type { InferInsertModel, InferSelectModel } from "drizzle-orm";

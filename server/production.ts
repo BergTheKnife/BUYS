@@ -118,7 +118,7 @@ export async function deleteMaterialIfUnused(materialId: string, activityId: str
     const batches = (await trx.select().from(productionBatches).where(and(eq(productionBatches.materialId, materialId), eq(productionBatches.activityId, activityId))));
     for (const b of batches) {
       const quota = Number(b.quotaCassa || 0);
-      if (quota > 0) {
+      if (quota > 0 && userId) {
         await trx.insert(financialHistory).values({
           userId, activityId, azione: "DEPOSITO_CASSA", importo: String(quota),
           descrizione: "Rollback eliminazione materiale (mai usato)", createdAt: new Date()
