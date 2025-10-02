@@ -260,6 +260,7 @@ function EditMaterialForm({ material, onClose }: { material: MaterialRow; onClos
   const [nome, setNome] = useState(material.nome);
   const [unita, setUnita] = useState(material.unita);
   const [colore, setColore] = useState(material.colore || "");
+  const [costoUnitario, setCostoUnitario] = useState(material.costo_unit_medio);
 
   const editMutation = useMutation({
     mutationFn: async (payload: any) => {
@@ -267,10 +268,24 @@ function EditMaterialForm({ material, onClose }: { material: MaterialRow; onClos
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/production/materials"] });
+      qc.invalidateQueries({ queryKey: ["/api/spese"] });
+      qc.invalidateQueries({ queryKey: ["/api/cassa-reinvestimento-balance"] });
       toast({ title: "Materiale aggiornato" });
       onClose();
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Errore", 
+        description: error.message || "Errore durante l'aggiornamento", 
+        variant: "destructive" 
+      });
     }
   });
+
+  const costoDiff = Number(costoUnitario) - Number(material.costo_unit_medio);
+  const costoTotaleAttuale = Number(material.costo_unit_medio) * Number(material.q_residua);
+  const nuovoCostoTotale = Number(costoUnitario) * Number(material.q_residua);
+  const differenzaTotale = nuovoCostoTotale - costoTotaleAttuale;
 
   return (
     <div className="space-y-3">
@@ -288,9 +303,48 @@ function EditMaterialForm({ material, onClose }: { material: MaterialRow; onClos
         </select>
       </div>
       <div><Label>Colore (facoltativo)</Label><Input value={colore} onChange={e=>setColore(e.target.value)} /></div>
+      
+      <div className="space-y-2">
+        <Label>Costo unitario (€)</Label>
+        <Input 
+          type="number" 
+          step="0.01" 
+          value={costoUnitario} 
+          onChange={e=>setCostoUnitario(e.target.value)} 
+          data-testid="input-material-cost"
+        />
+        <div className="text-sm text-muted-foreground">
+          Quantità residua: {material.q_residua} {material.unita}
+        </div>
+        {costoDiff !== 0 && (
+          <div className={`p-3 rounded-md ${costoDiff > 0 ? 'bg-red-50 dark:bg-red-900/20 border border-red-200' : 'bg-green-50 dark:bg-green-900/20 border border-green-200'}`}>
+            <div className="text-sm font-medium">
+              {costoDiff > 0 ? '📈 Aumento costo' : '📉 Riduzione costo'}
+            </div>
+            <div className="text-xs mt-1">
+              Differenza unitaria: €{Math.abs(costoDiff).toFixed(2)}
+            </div>
+            <div className="text-xs">
+              Differenza totale: €{Math.abs(differenzaTotale).toFixed(2)}
+            </div>
+            <div className="text-xs mt-2 text-muted-foreground">
+              {costoDiff > 0 
+                ? 'Verrà creata una spesa per la differenza (Cassa Reinvestimento + fondi personali)'
+                : 'Verrà registrato un rimborso per la differenza ridotta'
+              }
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="flex justify-end gap-2">
         <Button variant="outline" onClick={onClose}>Annulla</Button>
-        <Button onClick={() => editMutation.mutate({ nome: nome.trim(), unita, colore: colore.trim() || null })}>
+        <Button onClick={() => editMutation.mutate({ 
+          nome: nome.trim(), 
+          unita, 
+          colore: colore.trim() || null,
+          nuovoCostoUnitario: Number(costoUnitario)
+        })}>
           Salva
         </Button>
       </div>
