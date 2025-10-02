@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useStoreProfile } from "@/contexts/store-profile";
 import { Button } from "@/components/ui/button";
 import {
@@ -171,8 +171,8 @@ export function Navbar() {
     joinActivityMutation.mutate(data);
   };
 
-  // Don't show navigation items if user doesn't have an activity selected
-  const showNavigation = hasActivity;
+  // Show navigation items if user has an activity and store profile is loaded
+  const showNavigation = hasActivity && profile !== undefined;
 
   const handleLogout = async () => {
     try {
