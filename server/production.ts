@@ -121,15 +121,137 @@ export async function refillProductionMaterial(p: {
   });
 }
 
-export async function updateMaterial(materialId: string, activityId: string, data: { nome?: string; unita?: string; colore?: string | null }) {
-  await db.update(productionMaterials)
-    .set({
-      ...(data.nome !== undefined && { nome: data.nome }),
-      ...(data.unita !== undefined && { unita: data.unita }),
-      ...(data.colore !== undefined && { colore: data.colore })
-    })
-    .where(and(eq(productionMaterials.id, materialId), eq(productionMaterials.activityId, activityId)));
-  return true;
+export async function updateMaterial(
+  materialId: string, 
+  activityId: string, 
+  userId: string,
+  data: { 
+    nome?: string; 
+    unita?: string; 
+    colore?: string | null;
+    nuovoCostoUnitario?: number;
+  }
+) {
+  return await db.transaction(async (trx) => {
+    // Get material info
+    const material = (await trx.select().from(productionMaterials).where(
+      and(eq(productionMaterials.id, materialId), eq(productionMaterials.activityId, activityId))
+    ))[0];
+    
+    if (!material) throw new Error("Materiale non trovato");
+
+    const updateData: any = {};
+    if (data.nome !== undefined) updateData.nome = data.nome;
+    if (data.unita !== undefined) updateData.unita = data.unita;
+    if (data.colore !== undefined) updateData.colore = data.colore;
+
+    // Handle cost update if provided
+    if (data.nuovoCostoUnitario !== undefined) {
+      const oldCostPerUnit = Number(material.costoUnitMedio);
+      const newCostPerUnit = data.nuovoCostoUnitario;
+      const quantitaResiduaTotale = Number(material.quantitaResiduaTotale);
+      
+      if (newCostPerUnit !== oldCostPerUnit && quantitaResiduaTotale > 0) {
+        const costDiff = newCostPerUnit - oldCostPerUnit;
+        const totalDiff = costDiff * quantitaResiduaTotale;
+        
+        // Update average unit cost
+        updateData.costoUnitMedio = String(newCostPerUnit);
+        
+        // Get all batches for this material
+        const batches = await trx.select().from(productionBatches).where(
+          and(eq(productionBatches.materialId, materialId), eq(productionBatches.activityId, activityId))
+        );
+        
+        // Update each batch's cost proportionally
+        for (const batch of batches) {
+          const batchQty = Number(batch.quantitaRimanente);
+          if (batchQty > 0) {
+            const newBatchCostPerUnit = newCostPerUnit;
+            const newBatchCostTotal = newBatchCostPerUnit * batchQty;
+            
+            await trx.update(productionBatches)
+              .set({
+                costoPerUnita: String(newBatchCostPerUnit),
+                costoTotale: String(newBatchCostTotal)
+              })
+              .where(eq(productionBatches.id, batch.id));
+          }
+        }
+        
+        // Handle accounting
+        if (totalDiff > 0) {
+          // Cost increase - create expense
+          const cassaBalance = await trx.execute(sql`
+            SELECT COALESCE(
+              (SELECT SUM(CAST(importo AS DECIMAL)) 
+               FROM ${financialHistory} 
+               WHERE activity_id = ${activityId} AND azione = 'DEPOSITO_CASSA'),
+              0
+            ) - COALESCE(
+              (SELECT SUM(CAST(importo AS DECIMAL)) 
+               FROM ${financialHistory} 
+               WHERE activity_id = ${activityId} AND azione = 'PRELIEVO_CASSA'),
+              0
+            ) AS balance
+          `);
+          const cassa = Number(cassaBalance.rows[0]?.balance || 0);
+          const fromCassa = Math.min(cassa, totalDiff);
+          const fromPersonal = totalDiff - fromCassa;
+
+          if (fromCassa > 0) {
+            await trx.insert(financialHistory).values({
+              userId, activityId, azione: "PRELIEVO_CASSA",
+              importo: String(fromCassa), 
+              descrizione: `Aumento costo materiale: ${material.nome}`, 
+              createdAt: new Date()
+            });
+          }
+
+          const fundingDetails = fromCassa > 0 
+            ? `Aumento costo totale €${totalDiff.toFixed(2)} (€${fromCassa.toFixed(2)} da cassa reinvestimento + €${fromPersonal.toFixed(2)} fondi personali)`
+            : `Aumento costo totale €${totalDiff.toFixed(2)} (fondi personali)`;
+
+          await trx.insert(spese).values({
+            userId, activityId,
+            voce: `Aumento costo materiale: ${material.nome} - ${fundingDetails}`,
+            importo: String(totalDiff),
+            categoria: "produzione",
+            nonEliminabile: 1,
+            data: new Date()
+          });
+        } else if (totalDiff < 0) {
+          // Cost decrease - create refund/income
+          const refundAmount = Math.abs(totalDiff);
+          
+          await trx.insert(financialHistory).values({
+            userId, activityId, azione: "DEPOSITO_CASSA",
+            importo: String(refundAmount),
+            descrizione: `Riduzione costo materiale: ${material.nome}`,
+            createdAt: new Date()
+          });
+
+          await trx.insert(spese).values({
+            userId, activityId,
+            voce: `Riduzione costo materiale: ${material.nome} (rimborso €${refundAmount.toFixed(2)} a cassa reinvestimento)`,
+            importo: String(-refundAmount),
+            categoria: "produzione",
+            nonEliminabile: 1,
+            data: new Date()
+          });
+        }
+      }
+    }
+
+    // Apply updates
+    if (Object.keys(updateData).length > 0) {
+      await trx.update(productionMaterials)
+        .set(updateData)
+        .where(and(eq(productionMaterials.id, materialId), eq(productionMaterials.activityId, activityId)));
+    }
+
+    return true;
+  });
 }
 
 export async function archiveMaterial(materialId: string, activityId: string) {

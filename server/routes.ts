@@ -3112,9 +3112,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/production/materials/:id', requireActivity, async (req, res) => {
     try {
       const { id } = req.params;
-      const { nome, unita, colore } = req.body;
+      const { nome, unita, colore, nuovoCostoUnitario } = req.body;
       const svc = await import('./production');
-      await svc.updateMaterial(id, req.session.activityId!, { nome, unita, colore });
+      await svc.updateMaterial(id, req.session.activityId!, req.session.userId!, { nome, unita, colore, nuovoCostoUnitario });
       res.json({ ok: true });
     } catch (e: any) { res.status(400).json({ message: e.message || 'Errore modifica materiale' }); }
   });
