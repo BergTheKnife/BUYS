@@ -289,12 +289,17 @@ export async function rollbackVetrinaSale(inventarioId: string, activityId: stri
 
     // Restore materials to batches (FIFO reverse)
     for (const c of consumptions) {
-      if (!c.batchId) continue;
+      if (!c.batchId) {
+        console.warn(`⚠️ Consumption ${c.id} has no batchId - skipping material restoration. This indicates data inconsistency.`);
+        continue;
+      }
       const batch = (await trx.select().from(productionBatches).where(eq(productionBatches.id, c.batchId)))[0];
       if (batch) {
         await trx.update(productionBatches).set({
           quantitaRimanente: String(Number(batch.quantitaRimanente) + Number(c.quantita))
         }).where(eq(productionBatches.id, batch.id));
+      } else {
+        console.warn(`⚠️ Batch ${c.batchId} not found for consumption ${c.id} - skipping restoration.`);
       }
     }
 
