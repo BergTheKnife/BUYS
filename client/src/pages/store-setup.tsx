@@ -290,13 +290,14 @@ export default function StoreSetup() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/store/profile"] });
+      queryClient.refetchQueries({ queryKey: ["/api/store/profile"] });
       toast({
         title: "✅ Configurazione salvata",
         description: "Le impostazioni dello store sono state aggiornate.",
       });
-      navigate("/");
+      setTimeout(() => navigate("/dashboard"), 100);
     },
-    onError: (error: Error) => {
+    onError: (error) => {
       toast({
         variant: "destructive",
         title: "Errore",

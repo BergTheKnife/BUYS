@@ -100,6 +100,22 @@ function RefillButton({ onSubmit }: { onSubmit: (q: number, c: number) => void }
 function AddMaterialForm({ onSubmit }: { onSubmit: (payload: any) => void }) {
   const [nome, setNome] = useState(""); const [unita, setUnita] = useState("g");
   const [colore, setColore] = useState(""); const [q, setQ] = useState(""); const [c, setC] = useState("");
+  
+  const handleSubmit = () => {
+    if (!nome.trim()) return;
+    const quantita = Number(q) || 0;
+    const costo = Number(c) || 0;
+    if (quantita <= 0 || costo <= 0) return;
+    
+    onSubmit({ 
+      nome: nome.trim(), 
+      unita, 
+      colore: colore.trim() || null, 
+      quantitaTotale: quantita, 
+      costoTotale: costo 
+    });
+  };
+  
   return (
     <div className="space-y-3">
       <div><Label>Nome</Label><Input data-testid="input-material-name" value={nome} onChange={e=>setNome(e.target.value)} /></div>
@@ -111,9 +127,9 @@ function AddMaterialForm({ onSubmit }: { onSubmit: (payload: any) => void }) {
         </select>
       </div>
       <div><Label>Colore (facoltativo)</Label><Input data-testid="input-material-color" value={colore} onChange={e=>setColore(e.target.value)} /></div>
-      <div><Label>Quantità totale</Label><Input data-testid="input-material-quantity" value={q} onChange={e=>setQ(e.target.value)} placeholder="es. 10000" /></div>
-      <div><Label>Costo totale</Label><Input data-testid="input-material-cost" value={c} onChange={e=>setC(e.target.value)} placeholder="es. 20.00" /></div>
-      <div className="flex justify-end"><Button data-testid="button-create-material" onClick={()=>onSubmit({ nome, unita, colore, quantitaTotale: q, costoTotale: c })}>Aggiungi</Button></div>
+      <div><Label>Quantità totale</Label><Input type="number" data-testid="input-material-quantity" value={q} onChange={e=>setQ(e.target.value)} placeholder="es. 10000" /></div>
+      <div><Label>Costo totale</Label><Input type="number" step="0.01" data-testid="input-material-cost" value={c} onChange={e=>setC(e.target.value)} placeholder="es. 20.00" /></div>
+      <div className="flex justify-end"><Button data-testid="button-create-material" onClick={handleSubmit}>Aggiungi</Button></div>
     </div>
   );
 }

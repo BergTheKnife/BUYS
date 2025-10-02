@@ -47,7 +47,7 @@ export async function createProductionMaterial(p: {
       materialId: material.id, activityId: p.activityId,
       quantitaTotale: String(p.quantitaTotale), quantitaRimanente: String(p.quantitaTotale),
       costoTotale: String(p.costoTotale), costoPerUnita: String(cpu),
-      spesaId: expense.id, quotaCassa: String(fromCassa)
+      spesaId: expense.id, quotaCassa: String(fromCassa), dataAcquisto: new Date()
     }).returning())[0];
 
     return { material, batch, expense };
@@ -94,7 +94,7 @@ export async function refillProductionMaterial(p: {
       materialId: p.materialId, activityId: p.activityId,
       quantitaTotale: String(p.quantita), quantitaRimanente: String(p.quantita),
       costoTotale: String(p.costoTotale), costoPerUnita: String(cpu),
-      spesaId: expense.id, quotaCassa: String(fromCassa)
+      spesaId: expense.id, quotaCassa: String(fromCassa), dataAcquisto: new Date()
     }).returning())[0];
 
     return batch;
