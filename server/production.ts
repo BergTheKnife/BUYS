@@ -102,7 +102,7 @@ export async function refillProductionMaterial(p: {
 }
 
 export async function archiveMaterial(materialId: string, activityId: string) {
-  await db.update(productionMaterials).set({ archiviato: 1 }).where(and(eq(productionMaterials.id, materialId), eq(productionMaterials.activityId, activityId)));
+  await db.update(productionMaterials).set({ archiviato: "1" }).where(and(eq(productionMaterials.id, materialId), eq(productionMaterials.activityId, activityId)));
   return true;
 }
 
@@ -157,7 +157,7 @@ export async function createProductionProduct(p: {
 }
 
 export async function listProductionProducts(activityId: string) {
-  const prods = await db.select().from(productionProducts).where(and(eq(productionProducts.activityId, activityId), eq(productionProducts.archiviato, 0))).orderBy(desc(productionProducts.createdAt));
+  const prods = await db.select().from(productionProducts).where(and(eq(productionProducts.activityId, activityId), eq(productionProducts.archiviato, "0"))).orderBy(desc(productionProducts.createdAt));
   const withBom: any[] = [];
   for (const p of prods) {
     const bom = await db.select().from(productionProductBom).where(eq(productionProductBom.productId, p.id));
@@ -166,7 +166,7 @@ export async function listProductionProducts(activityId: string) {
   return withBom;
 }
 export async function archiveProductionProduct(id: string, activityId: string) {
-  await db.update(productionProducts).set({ archiviato: 1 }).where(and(eq(productionProducts.id, id), eq(productionProducts.activityId, activityId)));
+  await db.update(productionProducts).set({ archiviato: "1" }).where(and(eq(productionProducts.id, id), eq(productionProducts.activityId, activityId)));
   return true;
 }
 export async function deleteProductionProductIfUnused(id: string, activityId: string) {

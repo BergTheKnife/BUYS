@@ -25,7 +25,6 @@ import { StoreProfileProvider } from "@/contexts/store-profile";
 import StoreSetup from "@/pages/store-setup";
 import ProductionMaterials from "@/pages/production-materials";
 import Vetrina from "@/pages/vetrina";
-import SellFromVetrinaPage from "@/pages/sell-from-vetrina";
 import { useEffect } from "react";
 import { Navbar } from "@/components/layout/navbar";
 
@@ -76,7 +75,6 @@ function AppContent() {
           <Route path="/setup/store" component={() => <ProtectedRoute><StoreSetup /></ProtectedRoute>} />
           <Route path="/produzione/materiali" component={() => <ProtectedRoute><ProductionMaterials /></ProtectedRoute>} />
           <Route path="/vetrina" component={() => <ProtectedRoute><Vetrina /></ProtectedRoute>} />
-          <Route path="/vendite/vetrina" component={() => <ProtectedRoute><SellFromVetrinaPage /></ProtectedRoute>} />
           <Route path="*" component={NotFound} />
         </Switch>
       </div>

@@ -29,19 +29,19 @@ export default function Vetrina() {
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Vetrina</h1>
-        <Button onClick={()=>setOpenAdd(true)}>Nuovo in Vetrina</Button>
+        <Button data-testid="button-add-vetrina" onClick={()=>setOpenAdd(true)}>Nuovo in Vetrina</Button>
       </div>
 
-      <div className="grid gap-3">
+      <div className="grid gap-3" data-testid="list-vetrina-products">
         {products.map((p:any) => (
-          <div key={p.id} className="border rounded-md p-3">
+          <div key={p.id} className="border rounded-md p-3" data-testid={`card-vetrina-${p.id}`}>
             <div className="flex items-center justify-between">
-              <div className="font-medium">{p.nome} {p.categoria ? `• ${p.categoria}` : ""}</div>
+              <div className="font-medium" data-testid={`text-product-name-${p.id}`}>{p.nome} {p.categoria ? `• ${p.categoria}` : ""}</div>
               <div className="flex gap-2">
-                <Button variant="secondary" onClick={()=>archiveMutation.mutate(p.id)}>Archivia</Button>
+                <Button variant="secondary" data-testid={`button-archive-${p.id}`} onClick={()=>archiveMutation.mutate(p.id)}>Archivia</Button>
               </div>
             </div>
-            <div className="text-sm text-muted-foreground mt-2">
+            <div className="text-sm text-muted-foreground mt-2" data-testid={`text-bom-${p.id}`}>
               {p.bom?.length ? `${p.bom.length} materiali in BOM` : "Nessun materiale associato"}
             </div>
           </div>
@@ -73,36 +73,36 @@ function AddVetrinaForm({ materials, onSubmit }: { materials: MaterialLite[]; on
 
   return (
     <div className="space-y-3">
-      <div><Label>Nome</Label><Input value={nome} onChange={e=>setNome(e.target.value)} /></div>
-      <div><Label>Categoria (facoltativa)</Label><Input value={categoria} onChange={e=>setCategoria(e.target.value)} /></div>
+      <div><Label>Nome</Label><Input data-testid="input-product-name" value={nome} onChange={e=>setNome(e.target.value)} /></div>
+      <div><Label>Categoria (facoltativa)</Label><Input data-testid="input-category" value={categoria} onChange={e=>setCategoria(e.target.value)} /></div>
       <div className="grid grid-cols-3 gap-2">
-        <div><Label>Altezza</Label><Input value={altezza} onChange={e=>setAltezza(e.target.value)} placeholder="cm" /></div>
-        <div><Label>Larghezza</Label><Input value={larghezza} onChange={e=>setLarghezza(e.target.value)} placeholder="cm" /></div>
-        <div><Label>Lunghezza</Label><Input value={lunghezza} onChange={e=>setLunghezza(e.target.value)} placeholder="cm" /></div>
+        <div><Label>Altezza</Label><Input data-testid="input-altezza" value={altezza} onChange={e=>setAltezza(e.target.value)} placeholder="cm" /></div>
+        <div><Label>Larghezza</Label><Input data-testid="input-larghezza" value={larghezza} onChange={e=>setLarghezza(e.target.value)} placeholder="cm" /></div>
+        <div><Label>Lunghezza</Label><Input data-testid="input-lunghezza" value={lunghezza} onChange={e=>setLunghezza(e.target.value)} placeholder="cm" /></div>
       </div>
 
       <div className="border rounded-md p-3">
         <div className="flex items-center justify-between mb-2">
           <div className="font-medium">Materiali (BOM)</div>
-          <Button variant="secondary" onClick={addBomRow}>Aggiungi materiale</Button>
+          <Button variant="secondary" data-testid="button-add-bom-material" onClick={addBomRow}>Aggiungi materiale</Button>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2" data-testid="list-bom-materials">
           {bom.map((r, i)=> (
-            <div key={i} className="grid grid-cols-3 gap-2 items-center">
-              <select value={r.materialId} onChange={e=>updateBom(i, { materialId: e.target.value })} className="border rounded-md px-3 py-2">
+            <div key={i} className="grid grid-cols-3 gap-2 items-center" data-testid={`row-bom-${i}`}>
+              <select data-testid={`select-material-${i}`} value={r.materialId} onChange={e=>updateBom(i, { materialId: e.target.value })} className="border rounded-md px-3 py-2">
                 {materials.map((m:any) => <option key={m.id} value={m.id}>{m.nome}</option>)}
               </select>
-              <Input value={r.quantita} onChange={e=>updateBom(i, { quantita: e.target.value })} placeholder="Quantità" />
-              <Button variant="ghost" onClick={()=>removeBom(i)}>Rimuovi</Button>
+              <Input data-testid={`input-quantita-${i}`} value={r.quantita} onChange={e=>updateBom(i, { quantita: e.target.value })} placeholder="Quantità" />
+              <Button variant="ghost" data-testid={`button-remove-bom-${i}`} onClick={()=>removeBom(i)}>Rimuovi</Button>
             </div>
           ))}
           {bom.length === 0 && <div className="text-sm text-muted-foreground">Nessun materiale aggiunto</div>}
         </div>
       </div>
 
-      <div><Label>Costo (override facoltativo)</Label><Input value={costoOverride} onChange={e=>setCostoOverride(e.target.value)} placeholder="es. 2.50" /></div>
+      <div><Label>Costo (override facoltativo)</Label><Input data-testid="input-costo-override" value={costoOverride} onChange={e=>setCostoOverride(e.target.value)} placeholder="es. 2.50" /></div>
       <div className="flex justify-end">
-        <Button onClick={()=>onSubmit({ nome, categoria, altezza, larghezza, lunghezza, costoOverride, bom: bom.map(r=>({ materialId: r.materialId, quantita: r.quantita })) })}>Crea scheda</Button>
+        <Button data-testid="button-create-vetrina" onClick={()=>onSubmit({ nome, categoria, altezza, larghezza, lunghezza, costoOverride, bom: bom.map(r=>({ materialId: r.materialId, quantita: r.quantita })) })}>Crea scheda</Button>
       </div>
     </div>
   );

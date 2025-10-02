@@ -192,6 +192,7 @@ export const spese = pgTable("spese", {
   importo: decimal("importo", { precision: 10, scale: 2 }).notNull(),
   categoria: text("categoria").notNull(),
   data: timestamp("data").notNull(),
+  nonEliminabile: integer("non_eliminabile").default(0),
   itemId: uuid("item_id").references(() => inventario.id), // Riferimento puntuale all'articolo (se applicabile)
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -220,6 +221,7 @@ export const financialHistory = pgTable("financial_history", {
   dettagli: text("dettagli"), // JSON stringificato con dettagli aggiuntivi
   itemId: uuid("item_id").references(() => inventario.id), // Riferimento puntuale all'articolo (se applicabile)
   data: timestamp("data").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Spedizioni e Consegne table - ogni vendita genera automaticamente una spedizione
