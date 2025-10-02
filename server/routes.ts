@@ -8,8 +8,8 @@ import { storage } from "./storage";
 import { db } from "./db";
 import bcrypt from "bcrypt";
 import { randomBytes } from "crypto";
-import { eq, sql, and } from "drizzle-orm";
-import { activities, activityUsers, vendite, spese, inventario, users, financialHistory, fundTransfers } from "@shared/schema";
+import { eq, sql, and, asc } from "drizzle-orm";
+import { activities, activityUsers, vendite, spese, inventario, users, financialHistory, fundTransfers, productionBatches } from "@shared/schema";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -2595,6 +2595,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('Sale preview error:', error);
+      res.status(400).json({ message: error.message || "Errore nel calcolo del preview" });
+    }
+  });
+
+  // Preview sale calculation endpoint for vetrina
+  app.post('/api/vendite/preview-vetrina', requireActivity, async (req, res) => {
+    try {
+      const { productionProductId, quantita, prezzoVendita } = req.body;
+
+      if (!productionProductId || !quantita || !prezzoVendita) {
+        return res.status(400).json({ message: "Dati mancanti per il calcolo del preview" });
+      }
+
+      const prodSvc = await import('./production');
+      
+      // Get product and BOM
+      const products = await prodSvc.listProductionProducts(req.session.activityId!);
+      const product = products.find((p: any) => p.id === productionProductId);
+      
+      if (!product) {
+        return res.status(404).json({ message: "Prodotto vetrina non trovato" });
+      }
+
+      // Calculate cost from BOM materials
+      let costoTotale = 0;
+      const batchDetails = [];
+
+      if (product.bom && Array.isArray(product.bom)) {
+        for (const bomItem of product.bom) {
+          const quantitaNecessaria = Number(bomItem.quantita) * quantita;
+          
+          // Get batches for this material (FIFO order)
+          const batches = await db.select().from(productionBatches)
+            .where(and(
+              eq(productionBatches.materialId, bomItem.materialId),
+              eq(productionBatches.activityId, req.session.activityId!),
+              sql`${productionBatches.quantitaRimanente} > 0`
+            ))
+            .orderBy(asc(productionBatches.dataAcquisto));
+
+          let toConsume = quantitaNecessaria;
+          for (const batch of batches) {
+            if (toConsume <= 0) break;
+            const available = Number(batch.quantitaRimanente);
+            const take = Math.min(available, toConsume);
+            const cost = take * Number(batch.costoPerUnita);
+            costoTotale += cost;
+            toConsume -= take;
+
+            batchDetails.push({
+              materialName: bomItem.materialName || 'Materiale',
+              quantitaUsata: take,
+              costoUnitario: Number(batch.costoPerUnita),
+              marginePartial: 0,
+            });
+          }
+
+          if (toConsume > 0) {
+            return res.status(400).json({ 
+              message: `Materiale insufficiente per produrre ${quantita} unità` 
+            });
+          }
+        }
+      }
+
+      const margineTotal = (Number(prezzoVendita) * quantita) - costoTotale;
+
+      res.json({
+        margineTotal,
+        costoTotale,
+        batchDetails
+      });
+    } catch (error: any) {
+      console.error('Vetrina preview error:', error);
       res.status(400).json({ message: error.message || "Errore nel calcolo del preview" });
     }
   });

@@ -36,10 +36,30 @@ interface AddSaleModalProps {
   editingSale?: Vendita | null;
 }
 
-const saleFormSchema = insertVenditaSchema.extend({
+const saleFormSchema = z.object({
+  inventarioId: z.string().optional(),
+  productionProductId: z.string().optional(),
+  quantita: z.number().min(1, "Quantità richiesta"),
+  prezzoVendita: z.string().min(1, "Prezzo richiesto"),
+  vendutoA: z.string().optional(),
+  incassato: z.number(),
+  incassatoDa: z.string().optional(),
+  incassatoSu: z.string().optional(),
   data: z.string().min(1, "Data richiesta"),
   origine: z.string().default("magazzino"),
-  productionProductId: z.string().optional(),
+}).refine((data) => {
+  // Se origine è magazzino, richiedi inventarioId
+  if (data.origine === "magazzino" && !data.inventarioId) {
+    return false;
+  }
+  // Se origine è vetrina, richiedi productionProductId
+  if (data.origine === "vetrina" && !data.productionProductId) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Seleziona un articolo",
+  path: ["inventarioId"],
 });
 
 type SaleFormData = z.infer<typeof saleFormSchema>;
@@ -152,21 +172,43 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
   const watchedValues = form.watch();
   const { inventarioId, productionProductId, quantita, prezzoVendita } = watchedValues;
 
-  // Calculate preview when relevant values change (only for magazzino)
+  // Calculate preview when relevant values change
   useEffect(() => {
     const calculatePreview = async () => {
-      if (origine !== "magazzino" || !inventarioId || !quantita || !prezzoVendita || quantita <= 0 || Number(prezzoVendita) <= 0 || editingSale) {
+      // Skip if editing or missing required data
+      if (editingSale || !quantita || !prezzoVendita || quantita <= 0 || Number(prezzoVendita) <= 0) {
+        setSalePreview(null);
+        return;
+      }
+
+      // For magazzino, need inventarioId
+      if (origine === "magazzino" && !inventarioId) {
+        setSalePreview(null);
+        return;
+      }
+
+      // For vetrina, need productionProductId
+      if (origine === "vetrina" && !productionProductId) {
         setSalePreview(null);
         return;
       }
 
       setIsCalculatingPreview(true);
       try {
-        const response = await apiRequest("POST", "/api/vendite/preview", {
-          inventarioId,
-          quantita: parseInt(quantita.toString()),
-          prezzoVendita: prezzoVendita
-        });
+        let response;
+        if (origine === "magazzino") {
+          response = await apiRequest("POST", "/api/vendite/preview", {
+            inventarioId,
+            quantita: parseInt(quantita.toString()),
+            prezzoVendita: prezzoVendita
+          });
+        } else {
+          response = await apiRequest("POST", "/api/vendite/preview-vetrina", {
+            productionProductId,
+            quantita: parseInt(quantita.toString()),
+            prezzoVendita: prezzoVendita
+          });
+        }
         const previewData = await response.json();
         setSalePreview(previewData);
       } catch (error) {
@@ -179,7 +221,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
 
     const timeoutId = setTimeout(calculatePreview, 500); // Debounce
     return () => clearTimeout(timeoutId);
-  }, [inventarioId, quantita, prezzoVendita, editingSale, origine]);
+  }, [inventarioId, productionProductId, quantita, prezzoVendita, editingSale, origine]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("it-IT", {
