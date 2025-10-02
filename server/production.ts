@@ -23,8 +23,7 @@ export async function createProductionMaterial(p: {
   nome: string; unita: 'g'|'m'|'pcs'; colore?: string|null;
   quantitaTotale: number; costoTotale: number;
 }) {
-  const trx = await db.transaction();
-  try {
+  return await db.transaction(async (trx) => {
     const material = (await trx.insert(productionMaterials).values({
       userId: p.userId, activityId: p.activityId, nome: p.nome, unita: p.unita, colore: p.colore || null
     }).returning())[0];
@@ -51,12 +50,8 @@ export async function createProductionMaterial(p: {
       spesaId: expense.id, quotaCassa: String(fromCassa)
     }).returning())[0];
 
-    await trx.commit();
     return { material, batch, expense };
-  } catch (e) {
-    await trx.rollback();
-    throw e;
-  }
+  });
 }
 
 export async function listProductionMaterials(activityId: string) {
@@ -79,8 +74,7 @@ export async function listProductionMaterials(activityId: string) {
 export async function refillProductionMaterial(p: {
   userId: string; activityId: string; materialId: string; quantita: number; costoTotale: number;
 }) {
-  const trx = await db.transaction();
-  try {
+  return await db.transaction(async (trx) => {
     const expense = (await trx.insert(spese).values({
       userId: p.userId, activityId: p.activityId, voce: `acquisto materiale produzione (rifornimento)`,
       importo: String(p.costoTotale), categoria: "produzione", nonEliminabile: 1, data: new Date()
@@ -103,12 +97,8 @@ export async function refillProductionMaterial(p: {
       spesaId: expense.id, quotaCassa: String(fromCassa)
     }).returning())[0];
 
-    await trx.commit();
     return batch;
-  } catch (e) {
-    await trx.rollback();
-    throw e;
-  }
+  });
 }
 
 export async function archiveMaterial(materialId: string, activityId: string) {
@@ -124,8 +114,7 @@ export async function deleteMaterialIfUnused(materialId: string, activityId: str
   const c = Number(used.rows[0]?.c || 0);
   if (c > 0) return { success: false, reason: "USED" };
 
-  const trx = await db.transaction();
-  try {
+  return await db.transaction(async (trx) => {
     const batches = (await trx.select().from(productionBatches).where(and(eq(productionBatches.materialId, materialId), eq(productionBatches.activityId, activityId))));
     for (const b of batches) {
       const quota = Number(b.quotaCassa || 0);
@@ -142,12 +131,8 @@ export async function deleteMaterialIfUnused(materialId: string, activityId: str
     await trx.delete(productionBatches).where(eq(productionBatches.materialId, materialId));
     await trx.delete(productionMaterials).where(eq(productionMaterials.id, materialId));
 
-    await trx.commit();
     return { success: true };
-  } catch (e) {
-    await trx.rollback();
-    throw e;
-  }
+  });
 }
 
 export async function createProductionProduct(p: {
@@ -155,8 +140,7 @@ export async function createProductionProduct(p: {
   altezza?: number|null; larghezza?: number|null; lunghezza?: number|null; costoOverride?: number|null;
   bom: { materialId: string; quantita: number; }[];
 }) {
-  const trx = await db.transaction();
-  try {
+  return await db.transaction(async (trx) => {
     const prod = (await trx.insert(productionProducts).values({
       userId: p.userId, activityId: p.activityId, nome: p.nome, categoria: p.categoria || null,
       altezza: p.altezza != null ? String(p.altezza) : null,
@@ -168,12 +152,8 @@ export async function createProductionProduct(p: {
     for (const r of p.bom) {
       await trx.insert(productionProductBom).values({ productId: prod.id, materialId: r.materialId, quantita: String(r.quantita) });
     }
-    await trx.commit();
     return prod;
-  } catch (e) {
-    await trx.rollback();
-    throw e;
-  }
+  });
 }
 
 export async function listProductionProducts(activityId: string) {
@@ -202,8 +182,7 @@ export async function deleteProductionProductIfUnused(id: string, activityId: st
 }
 
 export async function prepareInventoryFromVetrina(p: { userId: string; activityId: string; productId: string; quantita: number; }) {
-  const trx = await db.transaction();
-  try {
+  return await db.transaction(async (trx) => {
     const prod = (await trx.select().from(productionProducts).where(and(eq(productionProducts.id, p.productId), eq(productionProducts.activityId, p.activityId))))[0];
     if (!prod) throw new Error("Scheda Vetrina non trovata");
     const bom = await trx.select().from(productionProductBom).where(eq(productionProductBom.productId, prod.id));
@@ -238,10 +217,6 @@ export async function prepareInventoryFromVetrina(p: { userId: string; activityI
       cassaCoverage: "0", immagineUrl: null, archiviato: 0
     }).returning())[0];
 
-    await trx.commit();
     return { inventarioId: item.id, costoUnit, costoTot };
-  } catch (e) {
-    await trx.rollback();
-    throw e;
-  }
+  });
 }

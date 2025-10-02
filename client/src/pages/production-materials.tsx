@@ -113,7 +113,7 @@ function AddMaterialForm({ onSubmit }: { onSubmit: (payload: any) => void }) {
       <div><Label>Colore (facoltativo)</Label><Input data-testid="input-material-color" value={colore} onChange={e=>setColore(e.target.value)} /></div>
       <div><Label>Quantità totale</Label><Input data-testid="input-material-quantity" value={q} onChange={e=>setQ(e.target.value)} placeholder="es. 10000" /></div>
       <div><Label>Costo totale</Label><Input data-testid="input-material-cost" value={c} onChange={e=>setC(e.target.value)} placeholder="es. 20.00" /></div>
-      <div className="flex justify-end"><Button data-testid="button-create-material" onClick={()=>onSubmit({ nome, unita, colore, quantitaTotale: q, costoTotale: c })}>Crea</Button></div>
+      <div className="flex justify-end"><Button data-testid="button-create-material" onClick={()=>onSubmit({ nome, unita, colore, quantitaTotale: q, costoTotale: c })}>Aggiungi</Button></div>
     </div>
   );
 }
