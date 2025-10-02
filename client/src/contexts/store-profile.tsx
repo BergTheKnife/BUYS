@@ -17,7 +17,7 @@ export function StoreProfileProvider({ children }: { children: React.ReactNode }
   const { currentActivity } = useAuth();
   
   const { data } = useQuery<StoreProfile>({ 
-    queryKey: ['/api/store/profile'],
+    queryKey: ['/api/store/profile', currentActivity?.id],
     enabled: !!currentActivity?.id,
     staleTime: Infinity,
     refetchOnWindowFocus: false,

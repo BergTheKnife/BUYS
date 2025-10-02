@@ -2984,7 +2984,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/production/materials', requireActivity, async (req, res) => {
     try {
       const { nome, unita, colore, quantitaTotale, costoTotale } = req.body;
-      console.log('[DEBUG] Material creation request:', { nome, unita, colore, quantitaTotale, costoTotale, userId: req.session.userId, activityId: req.session.activityId });
       const svc = await import('./production');
       const out = await svc.createProductionMaterial({
         userId: req.session.userId!, activityId: req.session.activityId!,
