@@ -289,6 +289,7 @@ export async function rollbackVetrinaSale(inventarioId: string, activityId: stri
 
     // Restore materials to batches (FIFO reverse)
     for (const c of consumptions) {
+      if (!c.batchId) continue;
       const batch = (await trx.select().from(productionBatches).where(eq(productionBatches.id, c.batchId)))[0];
       if (batch) {
         await trx.update(productionBatches).set({
@@ -300,8 +301,8 @@ export async function rollbackVetrinaSale(inventarioId: string, activityId: stri
     // Delete consumption records for this specific inventory item
     await trx.delete(productionConsumptions).where(eq(productionConsumptions.inventoryId, inventarioId));
 
-    // Delete the auto-created inventory item
-    await trx.delete(inventario).where(eq(inventario.id, inventarioId));
+    // DO NOT delete the inventory item - it remains in inventory and behaves like any other item
+    // The item keeps its vetrinaId reference but is now available in inventory without double accounting
 
     return true;
   });
