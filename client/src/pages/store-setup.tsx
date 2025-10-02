@@ -272,7 +272,13 @@ export default function StoreSetup() {
   }, [profile]);
 
   const mutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
+    mutationFn: async (data: {
+      storeType: string;
+      currency: string;
+      country: string;
+      defaultVat: string;
+      featureFlags: any;
+    }) => {
       const response = await fetch("/api/store/profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

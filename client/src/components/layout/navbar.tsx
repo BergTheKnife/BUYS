@@ -39,7 +39,9 @@ import {
   Lock,
   Shield,
   Wallet,
-  Truck
+  Truck,
+  Factory,
+  ShoppingBag
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -57,8 +59,10 @@ import buysLogoColorPath from "@assets/Buys colore_1754472538088.png";
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
   { name: "Magazzino", href: "/inventario", icon: Package },
+  { name: "Produzione", href: "/produzione/materiali", icon: Factory, requiredFlag: "production" },
+  { name: "Vetrina", href: "/vetrina", icon: ShoppingBag, requiredFlag: "vetrina" },
   { name: "Vendite", href: "/vendite", icon: ShoppingCart },
-  { name: "Spedizioni", href: "/spedizioni", icon: Truck },
+  { name: "Spedizioni", href: "/spedizioni", icon: Truck, requiredFlag: "shipping" },
   { name: "Spese", href: "/spese", icon: Receipt },
   { name: "Bilancio", href: "/bilancio", icon: TrendingUp },
   { name: "Gestione Finanziaria", href: "/gestione-finanziaria", icon: Wallet },
@@ -178,36 +182,44 @@ export function Navbar() {
     }
   };
 
-  const NavigationItems = ({ mobile = false, onItemClick }: { mobile?: boolean; onItemClick?: () => void }) => (
-    <>
-      {navigation.map((item) => {
-        const Icon = item.icon;
-        const isActive = location === item.href;
-        return (
-          <Button
-            key={item.name}
-            variant={isActive ? "secondary" : "ghost"}
-            className={`${mobile ? "w-full justify-start py-4" : "py-3 px-4 text-base"} ${
-              mobile
-                ? isActive
-                  ? "bg-blue-100 text-blue-900 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-100 dark:hover:bg-blue-800"
-                  : "text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800"
-                : isActive
-                  ? "bg-white/20 text-white"
-                  : "text-white/90 hover:text-white hover:bg-white/10"
-            }`}
-            onClick={() => {
-              setLocation(item.href);
-              onItemClick?.();
-            }}
-          >
-            <Icon className={`${mobile ? "h-4 w-4" : "h-5 w-5"} mr-2`} />
-            {item.name}
-          </Button>
-        );
-      })}
-    </>
-  );
+  const NavigationItems = ({ mobile = false, onItemClick }: { mobile?: boolean; onItemClick?: () => void }) => {
+    const visibleNavigation = navigation.filter(item => {
+      if (!item.requiredFlag) return true;
+      return profile?.featureFlags?.[item.requiredFlag] === true;
+    });
+
+    return (
+      <>
+        {visibleNavigation.map((item) => {
+          const Icon = item.icon;
+          const isActive = location === item.href;
+          return (
+            <Button
+              key={item.name}
+              variant={isActive ? "secondary" : "ghost"}
+              className={`${mobile ? "w-full justify-start py-4" : "py-3 px-4 text-base"} ${
+                mobile
+                  ? isActive
+                    ? "bg-blue-100 text-blue-900 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-100 dark:hover:bg-blue-800"
+                    : "text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800"
+                  : isActive
+                    ? "bg-white/20 text-white"
+                    : "text-white/90 hover:text-white hover:bg-white/10"
+              }`}
+              onClick={() => {
+                setLocation(item.href);
+                onItemClick?.();
+              }}
+              data-testid={`nav-${item.name.toLowerCase().replace(/\s+/g, '-')}`}
+            >
+              <Icon className={`${mobile ? "h-4 w-4" : "h-5 w-5"} mr-2`} />
+              {item.name}
+            </Button>
+          );
+        })}
+      </>
+    );
+  };
 
   return (
     <nav className="bg-primary text-white shadow-lg fixed top-0 left-0 right-0 z-50">
@@ -519,13 +531,6 @@ export function Navbar() {
           </Form>
         </DialogContent>
       </Dialog>
-    
-  <div className="flex items-center gap-2 ml-2">
-    {!profile?.id && <a href="/setup/store"><button className="btn btn-outline">Completa setup store</button></a>}
-    {profile?.featureFlags?.production && <a href="/produzione/materiali"><button className="btn btn-outline">Produzione • Materiali</button></a>}
-    {profile?.featureFlags?.vetrina && <a href="/vetrina"><button className="btn btn-outline">Vetrina</button></a>}
-    {profile?.featureFlags?.vetrina && <a href="/vendite/vetrina"><button className="btn btn-outline">Vendi da Vetrina</button></a>}
-  </div>
-</nav>
+    </nav>
   );
 }
