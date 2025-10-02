@@ -90,8 +90,10 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <Toaster />
-          <AppContent />
+          <StoreProfileProvider>
+            <Toaster />
+            <AppContent />
+          </StoreProfileProvider>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
