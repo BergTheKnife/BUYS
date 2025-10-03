@@ -1713,7 +1713,8 @@ export class DatabaseStorage implements IStorage {
         sql`${financialHistory.descrizione} LIKE ${'%' + originalExpense.voce + '%'}`
       ));
 
-    const originalCassaCoverage = originalCoverage.length > 0 ? Number(originalCoverage[0].importo) : 0;
+    // L'importo in financialHistory per PRELIEVO_CASSA è negativo, quindi prendiamo il valore assoluto
+    const originalCassaCoverage = originalCoverage.length > 0 ? Math.abs(Number(originalCoverage[0].importo)) : 0;
 
     console.log(`💰 [EXPENSE UPDATE] Original cassa coverage: ${originalCassaCoverage}€`);
     console.log(`💰 [EXPENSE UPDATE] Amount difference: ${amountDiff}€`);
@@ -1723,7 +1724,7 @@ export class DatabaseStorage implements IStorage {
       console.log(`💰 [EXPENSE UPDATE] Restoring ${originalCassaCoverage}€ to cassa`);
       await this.updateCassaReinvestimento(
         activityId,
-        originalCassaCoverage,
+        originalCassaCoverage,  // Positivo per ripristinare
         `Ripristino per modifica spesa: ${originalExpense.voce}`,
         originalExpense.userId
       );
