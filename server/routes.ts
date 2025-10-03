@@ -15,6 +15,7 @@ import path from "path";
 import fs from "fs";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { DataProtectionService, dataProtectionMiddleware } from './dataProtection';
+import { z } from "zod";
 import {
   insertUserSchema,
   loginUserSchema,
@@ -2892,7 +2893,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/spese/:id', requireActivity, async (req, res) => {
     try {
       const { id } = req.params;
-      const updates = insertSpesaSchema.partial().parse(req.body);
+      
+      // Extend schema to accept both string and Date for data field
+      const updateSchema = insertSpesaSchema.partial().extend({
+        data: z.string().or(z.date()).transform((val: string | Date) => new Date(val) as Date).optional()
+      });
+      
+      const updates = updateSchema.parse(req.body) as Partial<{
+        voce: string;
+        importo: string;
+        categoria: string;
+        data: Date;
+        nonEliminabile: number | null;
+        itemId: string | null;
+      }>;
 
       const expense = await storage.updateExpense(id, req.session.activityId!, updates);
       if (!expense) {
@@ -3113,7 +3127,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get material name for expense description
       const materials = await svc.listProductionMaterials(req.session.activityId!);
       const material = materials.find((m: any) => m.id === id);
-      const materialName: string = material?.nome || 'Materiale';
+      const materialName = material?.nome || 'Materiale';
       
       const out = await svc.refillProductionMaterial({
         userId: req.session.userId!, activityId: req.session.activityId!,

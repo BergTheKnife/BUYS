@@ -1788,11 +1788,17 @@ export class DatabaseStorage implements IStorage {
         sql`${financialHistory.descrizione} LIKE ${'%' + expense.voce + '%'}`
       ));
 
-    // Se era stata coperta dalla cassa, ripristina l'importo E elimina il record di copertura
+    // Se era stata coperta dalla cassa, ripristina SOLO l'importo prelevato dalla cassa (non l'importo totale)
     if (coverage.length > 0) {
+      // L'importo in financialHistory per PRELIEVO_CASSA è negativo
+      // Quindi ripristiniamo il valore assoluto (positivo)
+      const amountFromCassa = Math.abs(Number(coverage[0].importo));
+      
+      console.log(`💰 [EXPENSE DELETE] Expense: ${expense.voce}, Total: ${expense.importo}€, Cassa coverage: ${amountFromCassa}€`);
+      
       await this.updateCassaReinvestimento(
         activityId,
-        Number(expense.importo),
+        amountFromCassa,
         `Ripristino per eliminazione spesa: ${expense.voce}`,
         expense.userId
       );
