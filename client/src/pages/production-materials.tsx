@@ -260,7 +260,10 @@ function EditMaterialForm({ material, onClose }: { material: MaterialRow; onClos
   const [nome, setNome] = useState(material.nome);
   const [unita, setUnita] = useState(material.unita);
   const [colore, setColore] = useState(material.colore || "");
-  const [costoUnitario, setCostoUnitario] = useState(material.costo_unit_medio);
+  
+  // Calcola il costo totale attuale
+  const costoTotaleAttuale = Number(material.costo_unit_medio) * Number(material.q_residua);
+  const [costoTotale, setCostoTotale] = useState(costoTotaleAttuale.toFixed(2));
 
   const editMutation = useMutation({
     mutationFn: async (payload: any) => {
@@ -282,9 +285,8 @@ function EditMaterialForm({ material, onClose }: { material: MaterialRow; onClos
     }
   });
 
-  const costoDiff = Number(costoUnitario) - Number(material.costo_unit_medio);
-  const costoTotaleAttuale = Number(material.costo_unit_medio) * Number(material.q_residua);
-  const nuovoCostoTotale = Number(costoUnitario) * Number(material.q_residua);
+  const nuovoCostoTotale = Number(costoTotale);
+  const nuovoCostoUnitario = Number(material.q_residua) > 0 ? nuovoCostoTotale / Number(material.q_residua) : 0;
   const differenzaTotale = nuovoCostoTotale - costoTotaleAttuale;
 
   return (
@@ -305,30 +307,30 @@ function EditMaterialForm({ material, onClose }: { material: MaterialRow; onClos
       <div><Label>Colore (facoltativo)</Label><Input value={colore} onChange={e=>setColore(e.target.value)} /></div>
       
       <div className="space-y-2">
-        <Label>Costo unitario (€)</Label>
+        <Label>Costo totale (€)</Label>
         <Input 
           type="number" 
           step="0.01" 
-          value={costoUnitario} 
-          onChange={e=>setCostoUnitario(e.target.value)} 
+          value={costoTotale} 
+          onChange={e=>setCostoTotale(e.target.value)} 
           data-testid="input-material-cost"
         />
         <div className="text-sm text-muted-foreground">
           Quantità residua: {material.q_residua} {material.unita}
         </div>
-        {costoDiff !== 0 && (
-          <div className={`p-3 rounded-md ${costoDiff > 0 ? 'bg-red-50 dark:bg-red-900/20 border border-red-200' : 'bg-green-50 dark:bg-green-900/20 border border-green-200'}`}>
+        <div className="text-sm text-muted-foreground">
+          Costo unitario calcolato: €{nuovoCostoUnitario.toFixed(4)} / {material.unita}
+        </div>
+        {differenzaTotale !== 0 && (
+          <div className={`p-3 rounded-md ${differenzaTotale > 0 ? 'bg-red-50 dark:bg-red-900/20 border border-red-200' : 'bg-green-50 dark:bg-green-900/20 border border-green-200'}`}>
             <div className="text-sm font-medium">
-              {costoDiff > 0 ? '📈 Aumento costo' : '📉 Riduzione costo'}
+              {differenzaTotale > 0 ? '📈 Aumento costo' : '📉 Riduzione costo'}
             </div>
             <div className="text-xs mt-1">
-              Differenza unitaria: €{Math.abs(costoDiff).toFixed(2)}
-            </div>
-            <div className="text-xs">
               Differenza totale: €{Math.abs(differenzaTotale).toFixed(2)}
             </div>
             <div className="text-xs mt-2 text-muted-foreground">
-              {costoDiff > 0 
+              {differenzaTotale > 0 
                 ? 'Verrà creata una spesa per la differenza (Cassa Reinvestimento + fondi personali)'
                 : 'Verrà registrato un rimborso per la differenza ridotta'
               }
@@ -343,7 +345,7 @@ function EditMaterialForm({ material, onClose }: { material: MaterialRow; onClos
           nome: nome.trim(), 
           unita, 
           colore: colore.trim() || null,
-          nuovoCostoUnitario: Number(costoUnitario)
+          nuovoCostoUnitario: nuovoCostoUnitario
         })}>
           Salva
         </Button>
