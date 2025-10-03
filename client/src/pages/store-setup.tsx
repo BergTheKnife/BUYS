@@ -429,18 +429,7 @@ export default function StoreSetup() {
                     onCheckedChange={(checked) => setFormData(prev => ({ ...prev, hasProduzione: !!checked }))}
                   />
                   <label htmlFor="produzione" className="text-sm cursor-pointer">
-                    Produzione
-                  </label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="vetrina"
-                    data-testid="checkbox-vetrina"
-                    checked={formData.hasVetrina}
-                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, hasVetrina: !!checked }))}
-                  />
-                  <label htmlFor="vetrina" className="text-sm cursor-pointer">
-                    Vetrina
+                    Produzione (include Vetrina)
                   </label>
                 </div>
                 <div className="flex items-center space-x-2">

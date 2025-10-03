@@ -5,17 +5,7 @@ import {
   productionMaterials, productionBatches, productionProducts, productionProductBom, productionConsumptions,
   inventario
 } from "@shared/schema";
-
-/** Balance cassa reinvestimento */
-async function getCassaReinvestimentoBalance(activityId: string): Promise<number> {
-  const rows = await db.execute(sql`
-    SELECT COALESCE(SUM(CASE WHEN azione='DEPOSITO_CASSA' THEN importo::numeric ELSE 0 END),0)
-         - COALESCE(SUM(CASE WHEN azione='PRELIEVO_CASSA' THEN importo::numeric ELSE 0 END),0) AS balance
-    FROM ${financialHistory}
-    WHERE activity_id = ${activityId}
-  `);
-  return Number(rows.rows[0]?.balance || 0);
-}
+import { storage } from "./storage";
 
 /** Crea materiale + primo lotto + spesa non eliminabile + prelievo cassa */
 export async function createProductionMaterial(p: {
@@ -29,16 +19,18 @@ export async function createProductionMaterial(p: {
     }).returning())[0];
 
     // Calcola copertura dalla cassa reinvestimento
-    const balance = await getCassaReinvestimentoBalance(p.activityId);
+    const balance = await storage.getCassaReinvestimentoBalance(p.activityId);
     const fromCassa = Math.min(balance, p.costoTotale);
     const fromPersonal = p.costoTotale - fromCassa;
 
-    // Preleva dalla cassa se disponibile
+    // Preleva dalla cassa se disponibile usando updateCassaReinvestimento
     if (fromCassa > 0) {
-      await trx.insert(financialHistory).values({
-        userId: p.userId, activityId: p.activityId, azione: "PRELIEVO_CASSA",
-        importo: String(fromCassa), descrizione: `Acquisto materiali produzione: ${p.nome}`, createdAt: new Date()
-      });
+      await storage.updateCassaReinvestimento(
+        p.activityId,
+        -fromCassa,
+        `Acquisto materiali produzione: ${p.nome}`,
+        p.userId
+      );
     }
 
     // Crea spesa con dettaglio finanziamento (come inventario)
@@ -86,16 +78,18 @@ export async function refillProductionMaterial(p: {
 }) {
   return await db.transaction(async (trx) => {
     // Calcola copertura dalla cassa reinvestimento
-    const balance = await getCassaReinvestimentoBalance(p.activityId);
+    const balance = await storage.getCassaReinvestimentoBalance(p.activityId);
     const fromCassa = Math.min(balance, p.costoTotale);
     const fromPersonal = p.costoTotale - fromCassa;
 
-    // Preleva dalla cassa se disponibile
+    // Preleva dalla cassa se disponibile usando updateCassaReinvestimento
     if (fromCassa > 0) {
-      await trx.insert(financialHistory).values({
-        userId: p.userId, activityId: p.activityId, azione: "PRELIEVO_CASSA",
-        importo: String(fromCassa), descrizione: `Rifornimento materiali produzione: ${p.materialName}`, createdAt: new Date()
-      });
+      await storage.updateCassaReinvestimento(
+        p.activityId,
+        -fromCassa,
+        `Rifornimento materiali produzione: ${p.materialName}`,
+        p.userId
+      );
     }
 
     // Crea spesa con dettaglio finanziamento (come inventario)
@@ -193,31 +187,18 @@ export async function updateMaterial(
         
         // Handle accounting
         if (totalDiff > 0) {
-          // Cost increase - create expense
-          const cassaBalance = await trx.execute(sql`
-            SELECT COALESCE(
-              (SELECT SUM(CAST(importo AS DECIMAL)) 
-               FROM ${financialHistory} 
-               WHERE activity_id = ${activityId} AND azione = 'DEPOSITO_CASSA'),
-              0
-            ) - COALESCE(
-              (SELECT SUM(CAST(importo AS DECIMAL)) 
-               FROM ${financialHistory} 
-               WHERE activity_id = ${activityId} AND azione = 'PRELIEVO_CASSA'),
-              0
-            ) AS balance
-          `);
-          const cassa = Number(cassaBalance.rows[0]?.balance || 0);
+          // Cost increase - withdraw from cassa reinvestimento first
+          const cassa = await storage.getCassaReinvestimentoBalance(activityId);
           const fromCassa = Math.min(cassa, totalDiff);
           const fromPersonal = totalDiff - fromCassa;
 
           if (fromCassa > 0) {
-            await trx.insert(financialHistory).values({
-              userId, activityId, azione: "PRELIEVO_CASSA",
-              importo: String(fromCassa), 
-              descrizione: `Aumento costo materiale: ${material.nome}`, 
-              createdAt: new Date()
-            });
+            await storage.updateCassaReinvestimento(
+              activityId,
+              -fromCassa,
+              `Aumento costo materiale: ${material.nome}`,
+              userId
+            );
           }
 
           const fundingDetails = fromCassa > 0 
@@ -233,15 +214,15 @@ export async function updateMaterial(
             data: new Date()
           });
         } else if (totalDiff < 0) {
-          // Cost decrease - create refund/income
+          // Cost decrease - refund to cassa reinvestimento
           const refundAmount = Math.abs(totalDiff);
           
-          await trx.insert(financialHistory).values({
-            userId, activityId, azione: "DEPOSITO_CASSA",
-            importo: String(refundAmount),
-            descrizione: `Riduzione costo materiale: ${material.nome}`,
-            createdAt: new Date()
-          });
+          await storage.updateCassaReinvestimento(
+            activityId,
+            refundAmount,
+            `Riduzione costo materiale: ${material.nome}`,
+            userId
+          );
 
           await trx.insert(spese).values({
             userId, activityId,
@@ -284,10 +265,13 @@ export async function deleteMaterialIfUnused(materialId: string, activityId: str
     for (const b of batches) {
       const quota = Number(b.quotaCassa || 0);
       if (quota > 0 && userId) {
-        await trx.insert(financialHistory).values({
-          userId, activityId, azione: "DEPOSITO_CASSA", importo: String(quota),
-          descrizione: "Rollback eliminazione materiale (mai usato)", createdAt: new Date()
-        });
+        // Ripristina la cassa reinvestimento usando updateCassaReinvestimento
+        await storage.updateCassaReinvestimento(
+          activityId,
+          quota,
+          "Rollback eliminazione materiale (mai usato)",
+          userId
+        );
       }
       if (b.spesaId) {
         await trx.delete(spese).where(eq(spese.id, b.spesaId as any));
