@@ -17,7 +17,21 @@ The backend is a **RESTful API** developed with **Node.js** and **Express.js**, 
 ### Database Architecture
 **PostgreSQL** is the primary database, managed with **Drizzle ORM** for type-safe operations. The schema supports user management (with bcrypt password hashing and email verification), secure email verification tokens, and activity-based data organization to isolate business entities. It includes comprehensive tracking for inventory (products, quantities, images), sales (with margin calculation and inventory updates), and expenses (categorization, date tracking). Relational data integrity is enforced with foreign key constraints. A critical data protection system prevents accidental data loss by blocking deletion of users/activities associated with business data and implementing automatic backups before deletions, along with comprehensive audit logging.
 
-**Production & Vetrina Accounting**: The system implements FIFO (First-In-First-Out) material consumption tracking for production. When a vetrina (showcase) product is sold, materials are consumed from batches in FIFO order, and each consumption is linked to the specific inventory item via `inventory_id` in the `production_consumptions` table. This linkage is critical for accounting integrity: when a vetrina sale is deleted, the system restores materials ONLY for that specific sale's consumptions, preventing over-restoration issues. The vetrina sale flow creates an auto-generated inventory item (with `vetrina_id` reference), consumes materials, and records consumptions with the inventory item's ID, ensuring precise rollback capabilities.
+**Production & Vetrina Accounting**: The system implements intelligent material consumption tracking with two ordering strategies:
+- **FIFO (First-In-First-Out)**: Default ordering by purchase date when `lots_expiry=false`
+- **FEFO (First-Expired-First-Out)**: Priority ordering by expiry date (nulls last) then purchase date when `lots_expiry=true`
+
+When a vetrina (showcase) product is sold, materials are consumed from batches according to the configured strategy, and each consumption is linked to the specific inventory item via `inventory_id` in the `production_consumptions` table. The vetrina sale flow creates an auto-generated inventory item (with `vetrina_id` reference), consumes materials, and records consumptions with the inventory item's ID.
+
+**Critical Accounting Rule for Vetrina Sale Deletion**: When a vetrina sale is deleted, the system does NOT restore consumed materials back to inventory. This matches real-world accounting where materials used in production cannot be "unconsumed". Instead, the system only deletes consumption records, and the inventory item remains in stock with its calculated cost, ready to be sold again. This prevents material double-counting and maintains accurate inventory valuation.
+
+**Material Cost Modification**: Materials support real-time cost updates with automatic accounting. When modifying a material's unit cost, the system:
+1. Calculates the cost difference against all remaining batches
+2. Updates all batch costs proportionally
+3. Creates appropriate financial records:
+   - Cost increase: Creates expense using Cassa Reinvestimento first, then personal funds
+   - Cost decrease: Creates refund to Cassa Reinvestimento first, then personal funds
+4. Provides visual feedback in the UI (red indicator for increases, green for decreases)
 
 ### Authentication & Authorization
 Authentication relies on **session-based authentication** with secure cookies. Passwords are hashed using **bcrypt**. A robust **email verification system** uses secure, token-based verification via **nodemailer** for all new registrations, preventing unverified users from accessing the system. Protected routes are enforced through client and server-side middleware. An auto-login "remember me" system allows users to stay logged in for up to 30 days using secure HTTP-only cookies and a `remember_tokens` database table.
