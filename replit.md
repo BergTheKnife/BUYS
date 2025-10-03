@@ -25,13 +25,13 @@ When a vetrina (showcase) product is sold, materials are consumed from batches a
 
 **Critical Accounting Rule for Vetrina Sale Deletion**: When a vetrina sale is deleted, the system does NOT restore consumed materials back to inventory. This matches real-world accounting where materials used in production cannot be "unconsumed". Instead, the system only deletes consumption records, and the inventory item remains in stock with its calculated cost, ready to be sold again. This prevents material double-counting and maintains accurate inventory valuation.
 
-**Material Cost Modification**: Materials support real-time cost updates with automatic accounting. When modifying a material's unit cost, the system:
-1. Calculates the cost difference against all remaining batches
-2. Updates all batch costs proportionally
-3. Creates appropriate financial records:
-   - Cost increase: Creates expense using Cassa Reinvestimento first, then personal funds
-   - Cost decrease: Creates refund to Cassa Reinvestimento first, then personal funds
-4. Provides visual feedback in the UI (red indicator for increases, green for decreases)
+**Proportional Refund System (Materials & Expenses)**: Both materials and expenses use proportional refund logic when costs are modified:
+- **Cost Decrease**: Refunds are split proportionally between Cassa Reinvestimento and personal funds based on original coverage ratio
+  - Example: 30€ total (20€ from cassa + 10€ personal) → reduced to 10€ = 10€ back to cassa + 10€ to personal
+  - Calculation: `maxCassaCoverageNeeded = min(newCost, originalCassaCoverage)`, `refundToCassa = originalCassaCoverage - maxCassaCoverageNeeded`
+- **Cost Increase**: Additional cost drawn from Cassa Reinvestimento (if available), remainder from personal funds
+- **Materials**: Apply changes to all remaining batches, update unit costs proportionally, provide visual feedback (red/green indicators)
+- **Expenses**: Direct proportional adjustment without batch calculations
 
 ### Authentication & Authorization
 Authentication relies on **session-based authentication** with secure cookies. Passwords are hashed using **bcrypt**. A robust **email verification system** uses secure, token-based verification via **nodemailer** for all new registrations, preventing unverified users from accessing the system. Protected routes are enforced through client and server-side middleware. An auto-login "remember me" system allows users to stay logged in for up to 30 days using secure HTTP-only cookies and a `remember_tokens` database table.
