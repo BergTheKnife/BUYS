@@ -236,7 +236,6 @@ export default function StoreSetup() {
     paese: "IT",
     ivaPredefinita: "22.00",
     hasProduzione: false,
-    hasVetrina: false,
     hasVarianti: false,
     hasSeriali: false,
     hasLottiScadenze: false,
@@ -260,7 +259,6 @@ export default function StoreSetup() {
         paese: p.country || "IT",
         ivaPredefinita: p.defaultVat || "22.00",
         hasProduzione: !!flags.production,
-        hasVetrina: !!flags.vetrina,
         hasVarianti: !!flags.variants,
         hasSeriali: !!flags.serials,
         hasLottiScadenze: !!flags.lots_expiry,
@@ -329,9 +327,10 @@ export default function StoreSetup() {
     }
     
     // Prepara i feature flags per il backend
+    // NOTA: vetrina è sempre uguale a production (vetrina inclusa in produzione)
     const featureFlags = {
       production: formData.hasProduzione,
-      vetrina: formData.hasVetrina,
+      vetrina: formData.hasProduzione,
       variants: formData.hasVarianti,
       serials: formData.hasSeriali,
       lots_expiry: formData.hasLottiScadenze,
