@@ -256,11 +256,22 @@ export async function updateMaterial(
           // Calculate new total cost
           const newCostTotal = newCostPerUnit * quantitaResiduaTotale;
           
+          console.log(`🔍 [MATERIAL COST DECREASE] Debugging:`);
+          console.log(`  - Cost reduction: ${costReduction}€`);
+          console.log(`  - Original total cost: ${costoTotaleCorrente}€`);
+          console.log(`  - New total cost: ${newCostTotal}€`);
+          console.log(`  - Original cassa coverage: ${originalCassaCoverage}€`);
+          console.log(`  - Quantity: ${quantitaResiduaTotale}`);
+          
           // LOGICA CORRETTA: Rimborsa la differenza tra quello che la cassa aveva coperto 
           // e quello che dovrebbe coprire ora (limitato al nuovo costo totale)
           const maxCassaCoverageNeeded = Math.min(newCostTotal, originalCassaCoverage);
           const amountToReturn = originalCassaCoverage - maxCassaCoverageNeeded;
           const personalRefund = costReduction - amountToReturn;
+          
+          console.log(`  - Max cassa coverage needed: ${maxCassaCoverageNeeded}€`);
+          console.log(`  - Amount to return to cassa: ${amountToReturn}€`);
+          console.log(`  - Personal refund: ${personalRefund}€`);
           
           if (amountToReturn > 0) {
             await storage.updateCassaReinvestimento(
