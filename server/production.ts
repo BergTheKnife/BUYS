@@ -147,9 +147,21 @@ export async function updateMaterial(
 
     // Handle cost update if provided
     if (data.nuovoCostoUnitario !== undefined) {
-      const oldCostPerUnit = Number(material.costoUnitMedio);
+      // Calculate current average cost and total remaining quantity from batches
+      const batchStats = await trx.execute(sql`
+        SELECT 
+          COALESCE(SUM(CAST(quantita_rimanente AS DECIMAL)), 0) as total_qty,
+          COALESCE(SUM(CAST(costo_totale AS DECIMAL)), 0) as total_cost
+        FROM ${productionBatches}
+        WHERE material_id = ${materialId} 
+          AND activity_id = ${activityId}
+          AND CAST(quantita_rimanente AS DECIMAL) > 0
+      `);
+      
+      const quantitaResiduaTotale = Number(batchStats.rows[0]?.total_qty || 0);
+      const costoTotaleCorrente = Number(batchStats.rows[0]?.total_cost || 0);
+      const oldCostPerUnit = quantitaResiduaTotale > 0 ? costoTotaleCorrente / quantitaResiduaTotale : 0;
       const newCostPerUnit = data.nuovoCostoUnitario;
-      const quantitaResiduaTotale = Number(material.quantitaResiduaTotale);
       
       if (newCostPerUnit !== oldCostPerUnit && quantitaResiduaTotale > 0) {
         const costDiff = newCostPerUnit - oldCostPerUnit;
@@ -371,6 +383,11 @@ export async function prepareInventoryFromVetrina(p: { userId: string; activityI
     if (!prod) throw new Error("Scheda Vetrina non trovata");
     const bom = await trx.select().from(productionProductBom).where(eq(productionProductBom.productId, prod.id));
 
+    // Check if lots_expiry flag is enabled for FEFO logic
+    const storeSvc = await import('./store');
+    const storeProfile = await storeSvc.getStoreProfile(p.activityId);
+    const useFEFO = storeProfile?.featureFlags?.lots_expiry === true;
+
     // First, create the inventory item to get its ID
     const costoUnit = 0; // Will be calculated after consumption
     const item = (await trx.insert(inventario).values({
@@ -386,18 +403,45 @@ export async function prepareInventoryFromVetrina(p: { userId: string; activityI
     let costoTot = 0;
     for (const r of bom) {
       let toConsume = Number(r.quantita) * p.quantita;
-      const batches = await trx.select().from(productionBatches).where(and(eq(productionBatches.materialId, r.materialId), eq(productionBatches.activityId, p.activityId), sql`${productionBatches.quantitaRimanente} > 0`)).orderBy(asc(productionBatches.dataAcquisto));
+      
+      // Fetch batches with appropriate ordering based on lots_expiry flag
+      let batchRows: any[];
+      if (useFEFO) {
+        // FEFO: First Expired First Out (scadenza ASC, nulls last, then dataAcquisto)
+        const result = await trx.execute(sql`
+          SELECT * FROM ${productionBatches}
+          WHERE material_id = ${r.materialId}
+            AND activity_id = ${p.activityId}
+            AND CAST(quantita_rimanente AS DECIMAL) > 0
+          ORDER BY 
+            CASE WHEN scadenza IS NULL THEN 1 ELSE 0 END,
+            scadenza ASC,
+            data_acquisto ASC
+        `);
+        batchRows = result.rows as any[];
+      } else {
+        // FIFO: First In First Out (dataAcquisto only)
+        batchRows = await trx.select().from(productionBatches)
+          .where(and(
+            eq(productionBatches.materialId, r.materialId), 
+            eq(productionBatches.activityId, p.activityId), 
+            sql`${productionBatches.quantitaRimanente} > 0`
+          ))
+          .orderBy(asc(productionBatches.dataAcquisto));
+      }
       
       let consumed = 0;
-      for (const b of batches) {
+      for (const b of batchRows) {
         if (toConsume <= 0) break;
-        const rem = Number(b.quantitaRimanente);
+        const rem = Number(b.quantita_rimanente || b.quantitaRimanente);
         const take = Math.min(rem, toConsume);
-        const cost = take * Number(b.costoPerUnita);
-        await trx.update(productionBatches).set({ quantitaRimanente: String(rem - take) }).where(eq(productionBatches.id, b.id));
+        const cost = take * Number(b.costo_per_unita || b.costoPerUnita);
+        const batchId = b.id;
+        
+        await trx.update(productionBatches).set({ quantitaRimanente: String(rem - take) }).where(eq(productionBatches.id, batchId));
         await trx.insert(productionConsumptions).values({
           activityId: p.activityId, inventoryId: item.id, productId: prod.id, 
-          materialId: b.materialId, batchId: b.id,
+          materialId: b.material_id || b.materialId, batchId: batchId,
           quantita: String(take), costoImputato: String(cost)
         });
         costoTot += cost;
@@ -424,33 +468,13 @@ export async function rollbackVetrinaSale(inventarioId: string, activityId: stri
     const [item] = await trx.select().from(inventario).where(and(eq(inventario.id, inventarioId), eq(inventario.activityId, activityId)));
     if (!item || !item.vetrinaId) throw new Error("Item non trovato o non da vetrina");
 
-    // Get ONLY consumptions for this specific inventory item
-    const consumptions = await trx.select().from(productionConsumptions).where(and(
-      eq(productionConsumptions.activityId, activityId),
-      eq(productionConsumptions.inventoryId, inventarioId)
-    ));
-
-    // Restore materials to batches (FIFO reverse)
-    for (const c of consumptions) {
-      if (!c.batchId) {
-        console.warn(`⚠️ Consumption ${c.id} has no batchId - skipping material restoration. This indicates data inconsistency.`);
-        continue;
-      }
-      const batch = (await trx.select().from(productionBatches).where(eq(productionBatches.id, c.batchId)))[0];
-      if (batch) {
-        await trx.update(productionBatches).set({
-          quantitaRimanente: String(Number(batch.quantitaRimanente) + Number(c.quantita))
-        }).where(eq(productionBatches.id, batch.id));
-      } else {
-        console.warn(`⚠️ Batch ${c.batchId} not found for consumption ${c.id} - skipping restoration.`);
-      }
-    }
-
     // Delete consumption records for this specific inventory item
+    // NOTE: According to specs, we DO NOT restore materials when deleting a vetrina sale
+    // The materials were consumed and the inventory item remains as stock with its cost
     await trx.delete(productionConsumptions).where(eq(productionConsumptions.inventoryId, inventarioId));
 
-    // DO NOT delete the inventory item - it remains in inventory and behaves like any other item
-    // The item keeps its vetrinaId reference but is now available in inventory without double accounting
+    // The inventory item remains in stock and can be sold again
+    // This matches the spec: "l'articolo diventa giacenza in Magazzino con quel costo"
 
     return true;
   });

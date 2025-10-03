@@ -1,0 +1,104 @@
+MODIFICA 1) CASSA REINVESTIMENTO COLLEGATA AI MATERIALI (Produzione → Materiali)
+Obiettivo
+•	All’aggiunta o rifornimento di un materiale: creare Spesa non eliminabile “acquisto materiale produzione: [nome]” + fare PRELIEVO_CASSA fino a capienza; salvare sui lotti la quotaCassa effettiva.
+•	All’eliminazione definitiva di un materiale mai usato: fare DEPOSITO_CASSA della somma delle quoteCassa di tutti i suoi lotti + cancellare le Spese collegate ai lotti + eliminare lotti e materiale.
+•	Se il materiale è stato usato almeno una volta → consentire solo Archivia (nessun movimento contabile).
+Dati / Tabelle (aggiungere se mancano)
+•	production_materials (materiali); production_batches (lotti) con campi minimi:
+materialId, quantitaTotale, quantitaRimanente, costoTotale, costoPerUnita, spesaId, quotaCassa, opzionali lotto, scadenza, dataAcquisto.
+•	production_consumptions (consumi per vendita).
+•	Spese: supporto a nonEliminabile=1 per le spese materiali.
+•	Storico finanziario: azioni PRELIEVO_CASSA / DEPOSITO_CASSA.
+Flussi da implementare/verificare
+1.	Aggiungi materiale
+Input: Nome, Unità (g/m/pz), Colore (fac.), Quantità totale, Costo totale, Lotto (fac.), Scadenza (obbligatoria solo se flag “Lotti e Scadenze” attivo).
+Azioni: Spesa non eliminabile; PRELIEVO_CASSA = min(saldoCassa, costoTotale); creare Lotto con quantitaRimanente=quantitaTotale, costoPerUnita=costoTotale/quantitaTotale, spesaId, quotaCassa.
+2.	Rifornisci materiale
+Stessa logica di Aggiungi: nuova Spesa non eliminabile + PRELIEVO_CASSA; nuovo Lotto con quotaCassa.
+3.	Elimina materiale (solo se mai usato)
+Se esistono consumi → blocca e mostra solo Archivia.
+Se mai usato: DEPOSITO_CASSA = somma quotaCassa dei lotti; cancella Spese dei lotti; elimina lotti + materiale.
+4.	Archivia materiale (se usato)
+Solo cambio stato, nessun movimento contabile.
+5.	Vendita Origine = Vetrina (da menu Vendite, vedi Modifica 2/3 per UI)
+Calcola fabbisogno = quantità venduta × “quantità per pezzo”; consuma lotti:
+o	Se flag “Lotti e Scadenze” attivo → FEFO (prima scadenza più vicina; a parità/assenza scadenza → FIFO).
+o	Se non attivo → FIFO puro (per data acquisto).
+Somma costi → costoTotaleProduzione; costoUnitario = costoTotaleProduzione / quantitàVenduta; crea articolo inventario sintetico con quel costo; registra la vendita col flusso attuale. Nessuna nuova Spesa, nessun movimento Cassa.
+6.	Storno vendita (Origine = Vetrina)
+Storna solo entrate/registrazioni vendita; non ripristinare materiali; l’articolo diventa giacenza in Magazzino con quel costo.
+Test numerico rapido (accettazione)
+•	Cassa=60€. Aggiungo “Bobina PLA Nero” 7.000 g a 70€ → Spesa non eliminabile + PRELIEVO 60€, quotaCassa=60, costo/unità 0,01€/g.
+•	Vetrina: “Cover 3D” con 300 g per pezzo.
+•	Vendita: Origine=Vetrina, Q=1, Prezzo=9,90€ → consumo 300 g a 0,01€/g, costo 3,00€, nessuna Spesa nuova, margine ≈ 6,90€.
+•	Storno vendita: entrata stornata; materiali non si ripristinano; in Magazzino 1 pezzo costo 3,00€.
+________________________________________
+MODIFICA 2) CONFIGURAZIONE AUTOMATICA MENÙ PER TIPOLOGIA DI STORE (con persistenza)
+Obiettivo
+•	Quando configuro lo Store in “Imposta Store”, salvare tipologia, feature flags e ripristinarli sempre dopo login.
+•	Il menu laterale deve aggiornarsi automaticamente in base ai flag: Produzione compare solo se production=true e include Materiali e Vetrina.
+•	“Imposta Store” resta nel NAV bar.
+Persistenza e API
+•	Tabella store_profiles con unique su activityId. Campi: userId, activityId, storeType, featureFlags (JSON), currency (EUR), country (IT), defaultVat (22.00), timestamps.
+•	GET /api/store/profile → profilo per activityId.
+•	POST /api/store/profile → crea/aggiorna profilo.
+•	Login/persistenza: lato client, chiamare /api/store/profile solo quando esiste activityId (query enabled: !!activityId, staleTime: Infinity, refetchOnWindowFocus: false). Lato server, impostare req.session.activityId subito a login/restoro.
+Flag (unificati)
+•	production: unico flag che accende il menu Produzione con i due sottomenu Materiali e Vetrina.
+•	lots_expiry (o simile): flag funzionale per Scadenze/FEFO (non un menu).
+•	Altri flag eventuali: serials, variants, shipping, services, digital (solo se già previsti).
+Mappa tipologia → flag/menu (default)
+•	Abbigliamento & Accessori: production=false, variants=true, serials=false, lots_expiry=false, shipping=true
+•	Calzature: production=false, variants=true, shipping=true
+•	Gioielli & Orologi: production=false, shipping=true
+•	Elettronica / Telefonia: production=false, serials=true, shipping=true
+•	Informatica & Periferiche: production=false, serials=true, shipping=true
+•	Casa & Arredo: production=false, shipping=true
+•	Sport & Outdoor: production=false, variants=true, shipping=true
+•	Cosmetici & Benessere: production=false, lots_expiry=true, shipping=true
+•	Alimentari & Bevande: production=false, lots_expiry=true, shipping=true
+•	Libri & Media: production=false, shipping=true
+•	Ricambi Auto/Moto: production=false, serials=true, shipping=true
+•	Artigianato / Maker / Stampa 3D: production=true, shipping=true
+•	Stampa & Personalizzazioni: production=true, shipping=true
+•	Digitale / Download: production=false, digital=true, shipping=false
+•	Servizi: production=false, services=true, shipping=false
+Accettazione (menu)
+•	Scelgo “Artigianato / Maker / Stampa 3D” → appare Produzione → Materiali, Vetrina. Logout/login: i menu restano.
+•	Scelgo “Abbigliamento & Accessori” → Produzione non compare.
+•	Se tipologia con lots_expiry=true, i form dei lotti chiedono Scadenza e il consumo usa FEFO.
+________________________________________
+MODIFICA 3) FORM DI MAGAZZINO DINAMICI IN BASE ALLA TIPOLOGIA DI STORE
+Obiettivo
+•	I campi del form di Magazzino (Aggiungi/Modifica articolo) devono cambiare in base alla tipologia di store: ciò che non è pertinente non deve comparire.
+•	Esempio chiave: per “Stampa 3D/Maker” non deve comparire “Taglia”; per “Abbigliamento” sì.
+Implementazione
+•	Se esistono product_attribute_defs/values, usarli; altrimenti usare rendering condizionale in base a storeType/flag.
+•	Non cancellare valori già presenti quando cambia tipologia: nasconderli soltanto se non pertinenti.
+Mappa campi per tipologia (obbligatori/facoltativi)
+•	Abbigliamento & Accessori: Taglia (obbl.), Colore (fac.)
+•	Calzature: Numero EU (obbl.), Colore (fac.)
+•	Gioielli & Orologi: Materiale (fac.), Colore (fac.)
+•	Elettronica / Telefonia: Seriale/IMEI (obbl.), Garanzia mesi (fac.)
+•	Informatica & Periferiche: Seriale (obbl.), Garanzia mesi (fac.)
+•	Casa & Arredo: Colore (fac.), Dimensioni L×P×A (fac.)
+•	Sport & Outdoor: Taglia (fac.), Colore (fac.)
+•	Cosmetici & Benessere: Lotto (obbl.), Scadenza (obbl.), PAO mesi (fac.)
+•	Alimentari & Bevande: Lotto (obbl.), Scadenza (obbl.), Allergeni (fac.)
+•	Libri & Media: ISBN (obbl.)
+•	Ricambi Auto/Moto: Codice ricambio (obbl.), Compatibilità/Modelli (fac.)
+•	Artigianato / Maker / Stampa 3D: Dimensioni L×P×A (fac.), Note tecniche (fac.) — niente Taglia/Numero EU
+•	Stampa & Personalizzazioni: Dimensioni L×P×A (fac.), Note lavorazione (fac.) — niente Taglia/Numero EU
+•	Digitale / Download: Licenza (obbl.), Formato (obbl.)
+•	Servizi: Tipo servizio (obbl.), Durata (obbl.)
+Accettazione (form)
+•	Imposto “Stampa 3D/Maker” → in Magazzino non vedo “Taglia”, ma posso vedere “Dimensioni/Note tecniche”.
+•	Imposto “Abbigliamento” → vedo “Taglia” (obbligatoria) e “Colore”.
+•	Imposto “Cosmetici” → vedo “Lotto/Scadenza/PAO”; consumo materiali usa FEFO se flag attivo.
+________________________________________
+NOTE TECNICHE FINALI
+•	Le operazioni che toccano quantità o denaro devono essere in transazione.
+•	Gli errori devono essere chiari: “Materiale insufficiente”, “Eliminazione non consentita: materiale già utilizzato”, “Attività non selezionata”.
+•	Vendite: aggiungere nel form il campo “Origine articolo” (Magazzino | Vetrina). Se Vetrina, usare la logica di consumo lotti e di costo descritta in Modifica 1.
+•	Rimuovere eventuale voce di menu “Lotti/Scadenze”: è un flag, non un menu.
+
