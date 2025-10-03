@@ -2861,12 +2861,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const expenseData = insertSpesaSchema.parse(formData);
 
-      // Crea la spesa - la logica di scala dalla cassa reinvestimento è ora gestita nel metodo createExpense
+      // Crea la spesa
       const expense = await storage.createExpense({
         ...expenseData,
         userId: req.session.userId!,
         activityId: req.session.activityId!,
       });
+
+      // Preleva dalla cassa reinvestimento se disponibile
+      const amount = Number(expense.importo);
+      const cassaBalance = await storage.getCassaReinvestimentoBalance(req.session.activityId!);
+      const cassaCoverage = Math.min(amount, cassaBalance);
+      
+      if (cassaCoverage > 0) {
+        await storage.updateCassaReinvestimento(
+          req.session.activityId!,
+          -cassaCoverage,
+          `Spesa coperta da cassa reinvestimento: ${expense.voce}`,
+          req.session.userId!
+        );
+      }
 
       res.json(expense);
     } catch (error: any) {
