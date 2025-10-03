@@ -1683,7 +1683,22 @@ export class DatabaseStorage implements IStorage {
 
     if (!originalExpense) return undefined;
 
-    // Controlla se la spesa originale era stata coperta dalla cassa reinvestimento
+    // Se l'importo NON è cambiato, aggiorna solo gli altri campi
+    if (!updates.importo || updates.importo === originalExpense.importo) {
+      const [updatedExpense] = await db
+        .update(spese)
+        .set(updates)
+        .where(and(eq(spese.id, id), eq(spese.activityId, activityId)))
+        .returning();
+      return updatedExpense;
+    }
+
+    // L'importo è cambiato - applica logica proporzionale rimborso cassa/personali
+    const originalAmount = Number(originalExpense.importo);
+    const newAmount = Number(updates.importo);
+    const amountDiff = newAmount - originalAmount;
+
+    // Trova quanto era stato prelevato dalla cassa originariamente
     const originalCoverage = await db
       .select()
       .from(financialHistory)
@@ -1693,46 +1708,74 @@ export class DatabaseStorage implements IStorage {
         sql`${financialHistory.descrizione} LIKE ${'%' + originalExpense.voce + '%'}`
       ));
 
-    // Se era stata coperta dalla cassa, ripristina l'importo originale E elimina il record
-    if (originalCoverage.length > 0) {
-      await this.updateCassaReinvestimento(
-        activityId,
-        Number(originalExpense.importo),
-        `Ripristino per modifica spesa: ${originalExpense.voce}`,
-        originalExpense.userId
-      );
+    const originalCassaCoverage = originalCoverage.length > 0 ? Number(originalCoverage[0].importo) : 0;
 
-      // IMPORTANTE: Elimina il record di copertura originale per evitare duplicazioni
-      await db
-        .delete(financialHistory)
-        .where(eq(financialHistory.id, originalCoverage[0].id));
-    }
+    if (amountDiff < 0) {
+      // RIDUZIONE SPESA - Rimborso proporzionale
+      const reduction = Math.abs(amountDiff);
+      
+      // Calcola quanto della cassa serve ora: min(nuovo_importo, quota_cassa_originale)
+      const maxCassaCoverageNeeded = Math.min(newAmount, originalCassaCoverage);
+      const amountToReturn = originalCassaCoverage - maxCassaCoverageNeeded;
+      const personalRefund = reduction - amountToReturn;
 
-    // Aggiorna la spesa
-    const [updatedExpense] = await db
-      .update(spese)
-      .set(updates)
-      .where(and(eq(spese.id, id), eq(spese.activityId, activityId)))
-      .returning();
-
-    if (!updatedExpense) return undefined;
-
-    // Se l'importo è cambiato, applica la nuova logica di copertura dalla cassa
-    if (updates.importo && updates.importo !== originalExpense.importo) {
-      const newAmount = Number(updates.importo);
-      const cassaBalance = await this.getCassaReinvestimentoBalance(activityId);
-
-      if (newAmount > 0 && cassaBalance >= newAmount) {
+      if (amountToReturn > 0) {
         await this.updateCassaReinvestimento(
           activityId,
-          -newAmount,
-          `Spesa coperta da cassa reinvestimento: ${updatedExpense.voce}`,
-          updatedExpense.userId
+          amountToReturn,
+          `Riduzione spesa: ${originalExpense.voce}`,
+          originalExpense.userId
         );
       }
-    }
 
-    return updatedExpense;
+      // Elimina il record di copertura originale
+      if (originalCoverage.length > 0) {
+        await db.delete(financialHistory).where(eq(financialHistory.id, originalCoverage[0].id));
+      }
+
+      // Se serve ancora copertura cassa, crea nuovo record
+      if (maxCassaCoverageNeeded > 0) {
+        await this.updateCassaReinvestimento(
+          activityId,
+          -maxCassaCoverageNeeded,
+          `Spesa coperta da cassa reinvestimento: ${originalExpense.voce}`,
+          originalExpense.userId
+        );
+      }
+
+      // Aggiorna la spesa
+      const [updatedExpense] = await db
+        .update(spese)
+        .set(updates)
+        .where(and(eq(spese.id, id), eq(spese.activityId, activityId)))
+        .returning();
+
+      return updatedExpense;
+    } else {
+      // AUMENTO SPESA - Preleva dalla cassa se disponibile
+      const increase = amountDiff;
+      const cassaBalance = await this.getCassaReinvestimentoBalance(activityId);
+      const fromCassa = Math.min(cassaBalance, increase);
+      const fromPersonal = increase - fromCassa;
+
+      if (fromCassa > 0) {
+        await this.updateCassaReinvestimento(
+          activityId,
+          -fromCassa,
+          `Aumento spesa: ${originalExpense.voce}`,
+          originalExpense.userId
+        );
+      }
+
+      // Aggiorna la spesa
+      const [updatedExpense] = await db
+        .update(spese)
+        .set(updates)
+        .where(and(eq(spese.id, id), eq(spese.activityId, activityId)))
+        .returning();
+
+      return updatedExpense;
+    }
   }
 
   async deleteExpense(id: string, activityId: string): Promise<boolean> {
