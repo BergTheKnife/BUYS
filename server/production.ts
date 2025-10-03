@@ -202,12 +202,13 @@ export async function updateMaterial(
           }
 
           // Update quotaCassa for each batch proportionally
-          // Calculate total original cassa coverage
+          // Calculate total original cassa coverage (ONLY with remaining quantity)
           const cassaStats = await trx.execute(sql`
             SELECT COALESCE(SUM(CAST(quota_cassa AS DECIMAL)), 0) as total_cassa
             FROM ${productionBatches}
             WHERE material_id = ${materialId} 
               AND activity_id = ${activityId}
+              AND CAST(quantita_rimanente AS DECIMAL) > 0
           `);
           const originalCassaCoverage = Number(cassaStats.rows[0]?.total_cassa || 0);
           const newCassaCoverage = originalCassaCoverage + fromCassa;
@@ -242,12 +243,13 @@ export async function updateMaterial(
           // Cost decrease - calculate how much to refund to cassa vs personal funds
           const costReduction = Math.abs(totalDiff);
           
-          // Calculate total original cassa coverage from all batches
+          // Calculate total original cassa coverage from all batches (ONLY with remaining quantity)
           const cassaStats = await trx.execute(sql`
             SELECT COALESCE(SUM(CAST(quota_cassa AS DECIMAL)), 0) as total_cassa
             FROM ${productionBatches}
             WHERE material_id = ${materialId} 
               AND activity_id = ${activityId}
+              AND CAST(quantita_rimanente AS DECIMAL) > 0
           `);
           const originalCassaCoverage = Number(cassaStats.rows[0]?.total_cassa || 0);
           
