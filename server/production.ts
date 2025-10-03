@@ -201,6 +201,31 @@ export async function updateMaterial(
             );
           }
 
+          // Update quotaCassa for each batch proportionally
+          // Calculate total original cassa coverage
+          const cassaStats = await trx.execute(sql`
+            SELECT COALESCE(SUM(CAST(quota_cassa AS DECIMAL)), 0) as total_cassa
+            FROM ${productionBatches}
+            WHERE material_id = ${materialId} 
+              AND activity_id = ${activityId}
+          `);
+          const originalCassaCoverage = Number(cassaStats.rows[0]?.total_cassa || 0);
+          const newCassaCoverage = originalCassaCoverage + fromCassa;
+          
+          // Distribute new cassa coverage proportionally across batches
+          const totalQty = batches.reduce((sum, b) => sum + Number(b.quantitaRimanente), 0);
+          for (const batch of batches) {
+            const batchQty = Number(batch.quantitaRimanente);
+            if (batchQty > 0 && totalQty > 0) {
+              const oldQuotaCassa = Number(batch.quotaCassa || 0);
+              const batchShare = (batchQty / totalQty) * fromCassa;
+              const newQuotaCassa = oldQuotaCassa + batchShare;
+              await trx.update(productionBatches)
+                .set({ quotaCassa: String(newQuotaCassa) })
+                .where(eq(productionBatches.id, batch.id));
+            }
+          }
+
           const fundingDetails = fromCassa > 0 
             ? `Aumento costo totale €${totalDiff.toFixed(2)} (€${fromCassa.toFixed(2)} da cassa reinvestimento + €${fromPersonal.toFixed(2)} fondi personali)`
             : `Aumento costo totale €${totalDiff.toFixed(2)} (fondi personali)`;
@@ -214,20 +239,56 @@ export async function updateMaterial(
             data: new Date()
           });
         } else if (totalDiff < 0) {
-          // Cost decrease - refund to cassa reinvestimento
-          const refundAmount = Math.abs(totalDiff);
+          // Cost decrease - calculate how much to refund to cassa vs personal funds
+          const costReduction = Math.abs(totalDiff);
           
-          await storage.updateCassaReinvestimento(
-            activityId,
-            refundAmount,
-            `Riduzione costo materiale: ${material.nome}`,
-            userId
-          );
+          // Calculate total original cassa coverage from all batches
+          const cassaStats = await trx.execute(sql`
+            SELECT COALESCE(SUM(CAST(quota_cassa AS DECIMAL)), 0) as total_cassa
+            FROM ${productionBatches}
+            WHERE material_id = ${materialId} 
+              AND activity_id = ${activityId}
+          `);
+          const originalCassaCoverage = Number(cassaStats.rows[0]?.total_cassa || 0);
+          
+          // Calculate new total cost
+          const newCostTotal = newCostPerUnit * quantitaResiduaTotale;
+          
+          // LOGICA CORRETTA: Rimborsa la differenza tra quello che la cassa aveva coperto 
+          // e quello che dovrebbe coprire ora (limitato al nuovo costo totale)
+          const maxCassaCoverageNeeded = Math.min(newCostTotal, originalCassaCoverage);
+          const amountToReturn = originalCassaCoverage - maxCassaCoverageNeeded;
+          const personalRefund = costReduction - amountToReturn;
+          
+          if (amountToReturn > 0) {
+            await storage.updateCassaReinvestimento(
+              activityId,
+              amountToReturn,
+              `Riduzione costo materiale: ${material.nome}`,
+              userId
+            );
+          }
+          
+          // Update quotaCassa for each batch proportionally
+          const newCassaCoverage = maxCassaCoverageNeeded;
+          const cassaRatio = originalCassaCoverage > 0 ? newCassaCoverage / originalCassaCoverage : 0;
+          
+          for (const batch of batches) {
+            const oldQuotaCassa = Number(batch.quotaCassa || 0);
+            const newQuotaCassa = oldQuotaCassa * cassaRatio;
+            await trx.update(productionBatches)
+              .set({ quotaCassa: String(newQuotaCassa) })
+              .where(eq(productionBatches.id, batch.id));
+          }
+
+          const fundingDetails = amountToReturn > 0 
+            ? `Riduzione costo totale €${costReduction.toFixed(2)} (€${amountToReturn.toFixed(2)} rimborsato alla cassa reinvestimento + €${personalRefund.toFixed(2)} ai fondi personali)`
+            : `Riduzione costo totale €${costReduction.toFixed(2)} (fondi personali)`;
 
           await trx.insert(spese).values({
             userId, activityId,
-            voce: `Riduzione costo materiale: ${material.nome} (rimborso €${refundAmount.toFixed(2)} a cassa reinvestimento)`,
-            importo: String(-refundAmount),
+            voce: `Riduzione costo materiale: ${material.nome} - ${fundingDetails}`,
+            importo: String(-costReduction),
             categoria: "produzione",
             nonEliminabile: 1,
             data: new Date()
