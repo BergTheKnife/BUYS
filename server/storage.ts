@@ -1683,8 +1683,13 @@ export class DatabaseStorage implements IStorage {
 
     if (!originalExpense) return undefined;
 
+    console.log(`💰 [EXPENSE UPDATE] Expense: ${originalExpense.voce}`);
+    console.log(`💰 [EXPENSE UPDATE] Original amount: ${originalExpense.importo}€`);
+    console.log(`💰 [EXPENSE UPDATE] New amount: ${updates.importo}€`);
+
     // Se l'importo NON è cambiato, aggiorna solo gli altri campi
     if (!updates.importo || updates.importo === originalExpense.importo) {
+      console.log(`💰 [EXPENSE UPDATE] Amount unchanged - updating other fields only`);
       const [updatedExpense] = await db
         .update(spese)
         .set(updates)
@@ -1710,8 +1715,12 @@ export class DatabaseStorage implements IStorage {
 
     const originalCassaCoverage = originalCoverage.length > 0 ? Number(originalCoverage[0].importo) : 0;
 
+    console.log(`💰 [EXPENSE UPDATE] Original cassa coverage: ${originalCassaCoverage}€`);
+    console.log(`💰 [EXPENSE UPDATE] Amount difference: ${amountDiff}€`);
+
     // STEP 1: Ripristina la copertura cassa originale (se esisteva)
     if (originalCassaCoverage > 0 && originalCoverage.length > 0) {
+      console.log(`💰 [EXPENSE UPDATE] Restoring ${originalCassaCoverage}€ to cassa`);
       await this.updateCassaReinvestimento(
         activityId,
         originalCassaCoverage,
@@ -1726,6 +1735,9 @@ export class DatabaseStorage implements IStorage {
     // STEP 2: Applica la nuova copertura dalla cassa disponibile
     const cassaBalance = await this.getCassaReinvestimentoBalance(activityId);
     const newCassaCoverage = Math.min(newAmount, cassaBalance);
+    
+    console.log(`💰 [EXPENSE UPDATE] Cassa balance after restore: ${cassaBalance}€`);
+    console.log(`💰 [EXPENSE UPDATE] New cassa coverage: ${newCassaCoverage}€`);
     
     if (newCassaCoverage > 0) {
       await this.updateCassaReinvestimento(
@@ -1743,6 +1755,7 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(spese.id, id), eq(spese.activityId, activityId)))
       .returning();
 
+    console.log(`✅ [EXPENSE UPDATE] Expense updated successfully`);
     return updatedExpense;
   }
 
