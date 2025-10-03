@@ -25,6 +25,7 @@ import { insertInventarioSchema } from "@shared/schema";
 import type { InsertInventario, Inventario } from "@shared/schema";
 import { useEffect } from "react";
 import { capitalizeWords } from "@/lib/utils";
+import { useStoreProfile } from "@/contexts/store-profile";
 
 interface AddItemModalProps {
   isOpen: boolean;
@@ -35,6 +36,7 @@ interface AddItemModalProps {
 export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const storeProfile = useStoreProfile();
 
   const form = useForm<InsertInventario & { immagine?: FileList }>({
     resolver: zodResolver(insertInventarioSchema.extend({
@@ -116,6 +118,11 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
     },
   });
 
+  // Determine which fields to show based on store type
+  const storeType = storeProfile?.storeType || "";
+  const showSizeField = ["abbigliamento", "calzature", "sport"].includes(storeType);
+  const showDimensions = ["3d_printer", "casa", "artigianato", "stampa", "gioielli"].includes(storeType);
+
   const onSubmit = (data: InsertInventario & { immagine?: FileList }) => {
     console.log('Form submitted with data:', data);
     console.log('Form errors:', form.formState.errors);
@@ -151,26 +158,26 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="nomeArticolo">Nome Articolo</Label>
-              <Input
-                id="nomeArticolo"
-                data-testid="input-nome-articolo"
-                placeholder="Es. T-shirt Blu"
-                {...form.register("nomeArticolo")}
-                onChange={(e) => {
-                  const capitalizedValue = capitalizeWords(e.target.value);
-                  form.setValue("nomeArticolo", capitalizedValue);
-                }}
-              />
-              {form.formState.errors.nomeArticolo && (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.nomeArticolo.message}
-                </p>
-              )}
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="nomeArticolo">Nome Articolo</Label>
+            <Input
+              id="nomeArticolo"
+              data-testid="input-nome-articolo"
+              placeholder="Es. T-shirt Blu"
+              {...form.register("nomeArticolo")}
+              onChange={(e) => {
+                const capitalizedValue = capitalizeWords(e.target.value);
+                form.setValue("nomeArticolo", capitalizedValue);
+              }}
+            />
+            {form.formState.errors.nomeArticolo && (
+              <p className="text-sm text-destructive">
+                {form.formState.errors.nomeArticolo.message}
+              </p>
+            )}
+          </div>
 
+          {showSizeField && (
             <div className="space-y-2">
               <Label htmlFor="taglia">Taglia (Facoltativo)</Label>
               <Select
@@ -205,7 +212,7 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
                 </p>
               )}
             </div>
-          </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -243,62 +250,64 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
             </div>
           </div>
 
-          {/* Dimensioni fisiche */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="lunghezza">Lunghezza (cm)</Label>
-              <Input
-                id="lunghezza"
-                data-testid="input-lunghezza"
-                type="number"
-                step="0.1"
-                min="0"
-                placeholder="Es. 30.5"
-                {...form.register("lunghezza")}
-              />
-              {form.formState.errors.lunghezza && (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.lunghezza.message}
-                </p>
-              )}
-            </div>
+          {/* Dimensioni fisiche - shown only for relevant store types */}
+          {showDimensions && (
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="lunghezza">Lunghezza (cm)</Label>
+                <Input
+                  id="lunghezza"
+                  data-testid="input-lunghezza"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  placeholder="Es. 30.5"
+                  {...form.register("lunghezza")}
+                />
+                {form.formState.errors.lunghezza && (
+                  <p className="text-sm text-destructive">
+                    {form.formState.errors.lunghezza.message}
+                  </p>
+                )}
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="larghezza">Larghezza (cm)</Label>
-              <Input
-                id="larghezza"
-                data-testid="input-larghezza"
-                type="number"
-                step="0.1"
-                min="0"
-                placeholder="Es. 20.0"
-                {...form.register("larghezza")}
-              />
-              {form.formState.errors.larghezza && (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.larghezza.message}
-                </p>
-              )}
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="larghezza">Larghezza (cm)</Label>
+                <Input
+                  id="larghezza"
+                  data-testid="input-larghezza"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  placeholder="Es. 20.0"
+                  {...form.register("larghezza")}
+                />
+                {form.formState.errors.larghezza && (
+                  <p className="text-sm text-destructive">
+                    {form.formState.errors.larghezza.message}
+                  </p>
+                )}
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="altezza">Altezza (cm)</Label>
-              <Input
-                id="altezza"
-                data-testid="input-altezza"
-                type="number"
-                step="0.1"
-                min="0"
-                placeholder="Es. 1.5"
-                {...form.register("altezza")}
-              />
-              {form.formState.errors.altezza && (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.altezza.message}
-                </p>
-              )}
+              <div className="space-y-2">
+                <Label htmlFor="altezza">Altezza (cm)</Label>
+                <Input
+                  id="altezza"
+                  data-testid="input-altezza"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  placeholder="Es. 1.5"
+                  {...form.register("altezza")}
+                />
+                {form.formState.errors.altezza && (
+                  <p className="text-sm text-destructive">
+                    {form.formState.errors.altezza.message}
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="immagine">

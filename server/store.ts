@@ -18,6 +18,7 @@ const DEFAULT_FLAGS_BY_TYPE: Record<string, FeatureFlags> = {
   "ricambi": { production: false, vetrina: false, variants: false, serials: true, lots_expiry: false, shipping: true, services: false, digital: false },
   "artigianato": { production: true, vetrina: true, variants: false, serials: false, lots_expiry: false, shipping: true, services: false, digital: false },
   "stampa": { production: true, vetrina: true, variants: false, serials: false, lots_expiry: false, shipping: true, services: false, digital: false },
+  "3d_printer": { production: true, vetrina: true, variants: false, serials: false, lots_expiry: false, shipping: true, services: false, digital: false },
   "digitale": { production: false, vetrina: false, variants: false, serials: false, lots_expiry: false, shipping: false, services: false, digital: true },
   "servizi": { production: false, vetrina: false, variants: false, serials: false, lots_expiry: false, shipping: false, services: true, digital: false }
 };
@@ -50,6 +51,11 @@ const DEFAULT_ATTRS_BY_TYPE: Record<string, Array<{key:string,label:string,type:
   ],
   "stampa": [
     { key: "schedaVetrina", label: "Scheda Vetrina", type: "text" }
+  ],
+  "3d_printer": [
+    { key: "dimensioni", label: "Dimensioni (LxWxH cm)", type: "dimensions" },
+    { key: "materiale", label: "Materiale", type: "text" },
+    { key: "colore", label: "Colore", type: "text" }
   ]
 };
 
