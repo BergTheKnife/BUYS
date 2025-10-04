@@ -568,16 +568,19 @@ export default function FinancialManagement() {
         </Card>
       </div>
 
-      {/* Export and Actions - responsive layout */}
-      <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4 mb-4">
-        <Button onClick={handleComprehensiveExport} variant="outline" className="bg-green-50 border-green-200 text-green-700 hover:bg-green-100 w-full sm:w-auto">
+      {/* Pulsante Excel come in vendite */}
+      <div className="flex justify-end mb-4">
+        <Button onClick={handleComprehensiveExport} variant="outline" className="bg-green-50 border-green-200 text-green-700 hover:bg-green-100">
           <Download className="h-4 w-4 mr-2" />
           Scarica Storico Completo
         </Button>
-        
+      </div>
+
+      {/* Export and Actions */}
+      <div className="flex justify-center gap-4">
         <Dialog open={showTransferModal} onOpenChange={setShowTransferModal}>
           <DialogTrigger asChild>
-            <Button size="lg" className="px-8 w-full sm:w-auto">
+            <Button size="lg" className="px-8">
               <ArrowRightLeft className="h-5 w-5 mr-2" />
               Riunisci Fondi
             </Button>
@@ -704,7 +707,7 @@ export default function FinancialManagement() {
 
         <Dialog open={showAddFundsModal} onOpenChange={setShowAddFundsModal}>
           <DialogTrigger asChild>
-            <Button size="lg" className="px-8 w-full sm:w-auto" variant="outline">
+            <Button size="lg" className="px-8" variant="outline">
               <Plus className="h-5 w-5 mr-2" />
               Aggiungi Fondi Personali
             </Button>

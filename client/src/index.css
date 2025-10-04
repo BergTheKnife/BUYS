@@ -202,24 +202,6 @@
     box-shadow: none !important;
   }
 
-  /* Prevent color disappearing on click/active state */
-  button:active,
-  [role="button"]:active,
-  a:active,
-  [data-state]:active {
-    opacity: 1 !important;
-    transform: none !important;
-  }
-
-  /* Keep Badge colors on active state */
-  .inline-flex:active,
-  [class*="badge"]:active,
-  [class*="Badge"]:active {
-    background-color: inherit !important;
-    color: inherit !important;
-    border-color: inherit !important;
-  }
-
   /* Mobile-specific optimizations */
   @media (max-width: 768px) {
     body {
