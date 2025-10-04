@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Edit, Trash2, Package, Search } from "lucide-react";
 import { useState, useMemo } from "react";
 
-type MaterialRow = { id: string; nome: string; unita: string; costo_unit_medio: string; q_residua: string };
+type MaterialRow = { id: string; nome: string; unita: string; costo_unit_medio: string; q_residua: string; colore?: string };
 type BomRow = { materialId: string; quantita: string };
 type VetrinaProduct = { 
   id: string; nome: string; categoria?: string; imageUrl?: string; 
@@ -146,12 +146,26 @@ export default function Vetrina() {
                       Nessun materiale
                     </p>
                   )}
-                  <div className="flex gap-2 pt-2">
-                    <Button variant="ghost" size="sm" onClick={() => setEditingProduct(p)} data-testid={`button-edit-${p.id}`}>
-                      <Edit className="h-4 w-4" />
+                  <div className="flex gap-1 pt-2 border-t mt-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setEditingProduct(p)} 
+                      data-testid={`button-edit-${p.id}`}
+                      className="flex-1 h-9"
+                    >
+                      <Edit className="h-4 w-4 mr-1" />
+                      <span className="text-xs">Modifica</span>
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => deleteMutation.mutate(p.id)} data-testid={`button-delete-${p.id}`}>
-                      <Trash2 className="h-4 w-4 text-red-600" />
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => deleteMutation.mutate(p.id)} 
+                      data-testid={`button-delete-${p.id}`}
+                      className="flex-1 h-9 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      <span className="text-xs">Elimina</span>
                     </Button>
                   </div>
                 </div>
