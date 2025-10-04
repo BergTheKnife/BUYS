@@ -1664,192 +1664,167 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createExpense(expenseData: InsertSpesa & { userId: string; activityId: string }): Promise<Spesa> {
-    // Crea sempre la spesa normale - la gestione della cassa reinvestimento
-    // viene fatta esplicitamente nei metodi che la chiamano
-    const [expense] = await db.insert(spese).values({
-      ...expenseData,
-      data: expenseData.data || new Date(),
-    }).returning();
+    return await db.transaction(async (tx) => {
+      const amount = Number(expenseData.importo || 0);
+      if (amount <= 0) throw new Error("Importo spesa non valido.");
 
-    return expense;
+      // 1) Prelievo cassa fino a capienza
+      const cassaBalance = await this.getCassaReinvestimentoBalance(expenseData.activityId);
+      const fromCassa = Math.min(cassaBalance, amount);
+      if (fromCassa > 0) {
+        await this.updateCassaReinvestimento(
+          expenseData.activityId,
+          -fromCassa,
+          `Spesa coperta da cassa reinvestimento: ${expenseData.voce} – prelevati €${fromCassa.toFixed(2)}`,
+          expenseData.userId
+        );
+      }
+
+      // 2) Crea la spesa
+      const [expense] = await tx.insert(spese).values({
+        ...expenseData,
+        data: expenseData.data || new Date(),
+      }).returning();
+
+      return expense;
+    });
   }
 
   async updateExpense(id: string, activityId: string, updates: Partial<InsertSpesa>): Promise<Spesa | undefined> {
-    // Recupera la spesa originale
-    const [originalExpense] = await db
-      .select()
-      .from(spese)
-      .where(and(eq(spese.id, id), eq(spese.activityId, activityId)));
+    return await db.transaction(async (tx) => {
+      // 1) Spesa originale
+      const [original] = await tx
+        .select()
+        .from(spese)
+        .where(and(eq(spese.id, id), eq(spese.activityId, activityId)))
+        .limit(1);
 
-    if (!originalExpense) return undefined;
+      if (!original) return undefined;
 
-    console.log(`💰 [EXPENSE UPDATE] Expense: ${originalExpense.voce}`);
-    console.log(`💰 [EXPENSE UPDATE] Original amount: ${originalExpense.importo}€`);
-    console.log(`💰 [EXPENSE UPDATE] New amount: ${updates.importo}€`);
+      const originalAmount = Number(original.importo);
+      const newAmount = updates.importo !== undefined ? Number(updates.importo) : originalAmount;
+      const amountDiff = newAmount - originalAmount;
 
-    // Se l'importo NON è cambiato, aggiorna solo gli altri campi
-    if (!updates.importo || updates.importo === originalExpense.importo) {
-      console.log(`💰 [EXPENSE UPDATE] Amount unchanged - updating other fields only`);
-      const [updatedExpense] = await db
+      // 2) Copertura cassa ATTUALE legata a QUESTA spesa
+      //    Somma PRELIEVI_CASSA - DEPOSITI_CASSA filtrando per descrizione che contiene la voce spesa.
+      const likeVoce = `%${original.voce}%`;
+      const covRows = await tx
+        .select({
+          azione: financialHistory.azione,
+          importo: financialHistory.importo,
+        })
+        .from(financialHistory)
+        .where(and(
+          eq(financialHistory.activityId, activityId),
+          or(eq(financialHistory.azione, "PRELIEVO_CASSA"), eq(financialHistory.azione, "DEPOSITO_CASSA")),
+          sql`${financialHistory.descrizione} LIKE ${likeVoce}`
+        ));
+
+      let prelievi = 0, depositi = 0;
+      for (const r of covRows) {
+        const v = Math.abs(Number(r.importo) || 0);
+        if (r.azione === "PRELIEVO_CASSA") prelievi += v;
+        else if (r.azione === "DEPOSITO_CASSA") depositi += v;
+      }
+      const currentCassaCoverage = Math.max(0, prelievi - depositi);
+
+      // 3) Applica SOLO il delta (niente cancellazione/ricreazione movimenti)
+      if (amountDiff < 0) {
+        // Spesa diminuita → riduci copertura cassa fino a min(nuovaSpesa, coperturaAttuale)
+        const targetCoverage = Math.min(newAmount, currentCassaCoverage);
+        const toReturn = currentCassaCoverage - targetCoverage; // da restituire in cassa
+        if (toReturn > 0) {
+          await this.updateCassaReinvestimento(
+            activityId,
+            +toReturn, // DEPOSITO in cassa
+            `Adeguamento spesa (riduzione): ${original.voce} – restituiti €${toReturn.toFixed(2)}`,
+            original.userId
+          );
+        }
+        // La parte oltre la copertura cassa riguarda fondi personali → non tocca la cassa.
+
+      } else if (amountDiff > 0) {
+        // Spesa aumentata → prova a coprire l'aumento con cassa (entro saldo)
+        const cassaBalance = await this.getCassaReinvestimentoBalance(activityId);
+        const toWithdraw = Math.min(cassaBalance, amountDiff);
+        if (toWithdraw > 0) {
+          await this.updateCassaReinvestimento(
+            activityId,
+            -toWithdraw, // PRELIEVO dalla cassa
+            `Adeguamento spesa (aumento): ${original.voce} – prelevati €${toWithdraw.toFixed(2)}`,
+            original.userId
+          );
+        }
+        // L'eventuale parte eccedente resta su fondi personali.
+      }
+      // amountDiff === 0 → nessun movimento.
+
+      // 4) Aggiorna la spesa
+      const patch: any = { ...updates };
+      if (patch.data) patch.data = new Date(patch.data);
+      const [updated] = await tx
         .update(spese)
-        .set(updates)
+        .set(patch)
         .where(and(eq(spese.id, id), eq(spese.activityId, activityId)))
         .returning();
-      return updatedExpense;
-    }
 
-    // L'importo è cambiato - applica logica proporzionale rimborso cassa/personali
-    const originalAmount = Number(originalExpense.importo);
-    const newAmount = Number(updates.importo);
-    const amountDiff = newAmount - originalAmount;
-
-    // Trova quanto era stato prelevato dalla cassa originariamente
-    const originalCoverage = await db
-      .select()
-      .from(financialHistory)
-      .where(and(
-        eq(financialHistory.activityId, activityId),
-        eq(financialHistory.azione, "PRELIEVO_CASSA"),
-        sql`${financialHistory.descrizione} LIKE ${'%' + originalExpense.voce + '%'}`
-      ));
-
-    // L'importo in financialHistory per PRELIEVO_CASSA è negativo, quindi prendiamo il valore assoluto
-    const originalCassaCoverage = originalCoverage.length > 0 ? Math.abs(Number(originalCoverage[0].importo)) : 0;
-
-    console.log(`💰 [EXPENSE UPDATE] Original amount: ${originalAmount}€ (${originalCassaCoverage}€ cassa + ${originalAmount - originalCassaCoverage}€ personali)`);
-    console.log(`💰 [EXPENSE UPDATE] New amount: ${newAmount}€`);
-
-    // Elimina il vecchio record di copertura cassa (se esisteva)
-    if (originalCoverage.length > 0) {
-      await db.delete(financialHistory).where(eq(financialHistory.id, originalCoverage[0].id));
-    }
-
-    if (amountDiff < 0) {
-      // RIDUZIONE DEL COSTO - Logica proporzionale (come per i materiali)
-      const costReduction = -amountDiff;
-      const maxCassaCoverageNeeded = Math.min(newAmount, originalCassaCoverage);
-      const amountToReturn = originalCassaCoverage - maxCassaCoverageNeeded;
-      const personalRefund = costReduction - amountToReturn;
-
-      console.log(`💰 [EXPENSE UPDATE] Cost reduced by ${costReduction}€`);
-      console.log(`💰 [EXPENSE UPDATE] → ${amountToReturn}€ back to cassa, ${personalRefund}€ to personal funds`);
-
-      // Ripristina alla cassa la parte proporzionale
-      if (amountToReturn > 0) {
-        await this.updateCassaReinvestimento(
-          activityId,
-          amountToReturn,
-          `Riduzione spesa: ${originalExpense.voce} (€${amountToReturn.toFixed(2)} cassa + €${personalRefund.toFixed(2)} personali)`,
-          originalExpense.userId
-        );
-      }
-
-      // Crea il nuovo record di copertura cassa solo se necessario
-      if (maxCassaCoverageNeeded > 0) {
-        await this.updateCassaReinvestimento(
-          activityId,
-          -maxCassaCoverageNeeded,
-          `Spesa coperta da cassa reinvestimento: ${originalExpense.voce}`,
-          originalExpense.userId
-        );
-      }
-    } else if (amountDiff > 0) {
-      // AUMENTO DEL COSTO - Preleva dalla cassa reinvestimento prima
-      const cassaBalance = await this.getCassaReinvestimentoBalance(activityId);
-      const fromCassa = Math.min(cassaBalance, amountDiff);
-      const fromPersonal = amountDiff - fromCassa;
-
-      console.log(`💰 [EXPENSE UPDATE] Cost increased by ${amountDiff}€`);
-      console.log(`💰 [EXPENSE UPDATE] → ${fromCassa}€ from cassa, ${fromPersonal}€ from personal funds`);
-
-      // La nuova copertura totale è la vecchia + quella aggiuntiva dalla cassa
-      const newCassaCoverage = originalCassaCoverage + fromCassa;
-
-      if (newCassaCoverage > 0) {
-        await this.updateCassaReinvestimento(
-          activityId,
-          -newCassaCoverage,
-          `Spesa coperta da cassa reinvestimento: ${originalExpense.voce}`,
-          originalExpense.userId
-        );
-      }
-    } else {
-      // Importo invariato ma dobbiamo ricreare il record
-      if (originalCassaCoverage > 0) {
-        await this.updateCassaReinvestimento(
-          activityId,
-          -originalCassaCoverage,
-          `Spesa coperta da cassa reinvestimento: ${originalExpense.voce}`,
-          originalExpense.userId
-        );
-      }
-    }
-
-    // STEP 3: Aggiorna la spesa
-    const [updatedExpense] = await db
-      .update(spese)
-      .set(updates)
-      .where(and(eq(spese.id, id), eq(spese.activityId, activityId)))
-      .returning();
-
-    console.log(`✅ [EXPENSE UPDATE] Expense updated successfully`);
-    return updatedExpense;
+      return updated;
+    });
   }
 
   async deleteExpense(id: string, activityId: string): Promise<boolean> {
-    // Check if this expense is for inventory addition - these should not be deleted manually
-    const [expense] = await db
-      .select()
-      .from(spese)
-      .where(and(eq(spese.id, id), eq(spese.activityId, activityId)));
+    return await db.transaction(async (tx) => {
+      const [row] = await tx
+        .select()
+        .from(spese)
+        .where(and(eq(spese.id, id), eq(spese.activityId, activityId)))
+        .limit(1);
 
-    if (!expense) return false;
+      if (!row) return false;
 
-    // Prevent deletion of inventory-related expenses
-    if (expense.categoria === "Aggiunta articolo" || expense.categoria === "Inventario") {
-      throw new Error("Non è possibile eliminare manualmente le spese relative all'inventario. Gestisci l'inventario dalla sezione Magazzino per aggiornare automaticamente le spese correlate.");
-    }
+      // Prevent deletion of inventory-related expenses
+      if (row.categoria === "Aggiunta articolo" || row.categoria === "Inventario") {
+        throw new Error("Non è possibile eliminare manualmente le spese relative all'inventario. Gestisci l'inventario dalla sezione Magazzino per aggiornare automaticamente le spese correlate.");
+      }
 
-    // Prevent deletion of production-related expenses (materials)
-    if (expense.categoria === "produzione" || expense.nonEliminabile === 1) {
-      throw new Error("Non è possibile eliminare manualmente le spese relative ai materiali di produzione. Gestisci i materiali dalla sezione Produzione per aggiornare automaticamente le spese correlate.");
-    }
+      // Prevent deletion of production-related expenses (materials)
+      if (row.categoria === "produzione" || row.nonEliminabile === 1) {
+        throw new Error("Non è possibile eliminare manualmente le spese relative ai materiali di produzione. Gestisci i materiali dalla sezione Produzione per aggiornare automaticamente le spese correlate.");
+      }
 
-    // Controlla se la spesa era stata coperta dalla cassa reinvestimento
-    const coverage = await db
-      .select()
-      .from(financialHistory)
-      .where(and(
-        eq(financialHistory.activityId, activityId),
-        eq(financialHistory.azione, "PRELIEVO_CASSA"),
-        sql`${financialHistory.descrizione} LIKE ${'%' + expense.voce + '%'}`
-      ));
+      // Copertura cassa attuale legata a questa spesa
+      const likeVoce = `%${row.voce}%`;
+      const cov = await tx
+        .select({ azione: financialHistory.azione, importo: financialHistory.importo })
+        .from(financialHistory)
+        .where(and(
+          eq(financialHistory.activityId, activityId),
+          or(eq(financialHistory.azione, "PRELIEVO_CASSA"), eq(financialHistory.azione, "DEPOSITO_CASSA")),
+          sql`${financialHistory.descrizione} LIKE ${likeVoce}`
+        ));
 
-    // Se era stata coperta dalla cassa, ripristina SOLO l'importo prelevato dalla cassa (non l'importo totale)
-    if (coverage.length > 0) {
-      // L'importo in financialHistory per PRELIEVO_CASSA è negativo
-      // Quindi ripristiniamo il valore assoluto (positivo)
-      const amountFromCassa = Math.abs(Number(coverage[0].importo));
-      
-      console.log(`💰 [EXPENSE DELETE] Expense: ${expense.voce}, Total: ${expense.importo}€, Cassa coverage: ${amountFromCassa}€`);
-      
-      await this.updateCassaReinvestimento(
-        activityId,
-        amountFromCassa,
-        `Ripristino per eliminazione spesa: ${expense.voce}`,
-        expense.userId
-      );
+      let prelievi = 0, depositi = 0;
+      for (const r of cov) {
+        const v = Math.abs(Number(r.importo) || 0);
+        if (r.azione === "PRELIEVO_CASSA") prelievi += v;
+        else if (r.azione === "DEPOSITO_CASSA") depositi += v;
+      }
+      const currentCassaCoverage = Math.max(0, prelievi - depositi);
 
-      // IMPORTANTE: Elimina il record di copertura per evitare che venga processato di nuovo
-      await db
-        .delete(financialHistory)
-        .where(eq(financialHistory.id, coverage[0].id));
-    }
+      // Restituisci eventuale copertura residua
+      if (currentCassaCoverage > 0) {
+        await this.updateCassaReinvestimento(
+          activityId,
+          +currentCassaCoverage,
+          `Eliminazione spesa: ${row.voce} – restituiti €${currentCassaCoverage.toFixed(2)} alla cassa`,
+          row.userId
+        );
+      }
 
-    const result = await db
-      .delete(spese)
-      .where(and(eq(spese.id, id), eq(spese.activityId, activityId)));
-    return (result.rowCount ?? 0) > 0;
+      // Elimina la spesa
+      await tx.delete(spese).where(and(eq(spese.id, id), eq(spese.activityId, activityId)));
+      return true;
+    });
   }
 
   // Updated stats methods with activity context
