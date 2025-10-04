@@ -129,15 +129,26 @@ export default function Vetrina() {
                   {p.costoOverride && (
                     <p className="text-xs font-medium">Costo: €{Number(p.costoOverride).toFixed(2)}</p>
                   )}
-                  <p className="text-xs text-muted-foreground" data-testid={`text-bom-${p.id}`}>
-                    {p.bom?.length ? `${p.bom.length} materiali` : "Nessun materiale"}
-                  </p>
+                  {p.bom && p.bom.length > 0 ? (
+                    <div className="text-xs space-y-1 mt-2 pt-2 border-t">
+                      <p className="font-medium text-muted-foreground">Materiali utilizzati:</p>
+                      {p.bom.map((bomItem: any, idx: number) => {
+                        const mat = materials.find(m => m.id === bomItem.materialId);
+                        return (
+                          <p key={idx} className="text-muted-foreground">
+                            • {mat?.nome || 'N/A'} {mat?.colore ? `(${mat.colore})` : ''}: {Number(bomItem.quantita).toFixed(2)} {mat?.unita || ''}
+                          </p>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground" data-testid={`text-bom-${p.id}`}>
+                      Nessun materiale
+                    </p>
+                  )}
                   <div className="flex gap-2 pt-2">
                     <Button variant="ghost" size="sm" onClick={() => setEditingProduct(p)} data-testid={`button-edit-${p.id}`}>
                       <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => archiveMutation.mutate(p.id)} data-testid={`button-archive-${p.id}`}>
-                      Archivia
                     </Button>
                     <Button variant="ghost" size="sm" onClick={() => deleteMutation.mutate(p.id)} data-testid={`button-delete-${p.id}`}>
                       <Trash2 className="h-4 w-4 text-red-600" />
