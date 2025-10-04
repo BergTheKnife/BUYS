@@ -1716,37 +1716,73 @@ export class DatabaseStorage implements IStorage {
     // L'importo in financialHistory per PRELIEVO_CASSA è negativo, quindi prendiamo il valore assoluto
     const originalCassaCoverage = originalCoverage.length > 0 ? Math.abs(Number(originalCoverage[0].importo)) : 0;
 
-    console.log(`💰 [EXPENSE UPDATE] Original cassa coverage: ${originalCassaCoverage}€`);
-    console.log(`💰 [EXPENSE UPDATE] Amount difference: ${amountDiff}€`);
+    console.log(`💰 [EXPENSE UPDATE] Original amount: ${originalAmount}€ (${originalCassaCoverage}€ cassa + ${originalAmount - originalCassaCoverage}€ personali)`);
+    console.log(`💰 [EXPENSE UPDATE] New amount: ${newAmount}€`);
 
-    // STEP 1: Ripristina la copertura cassa originale (se esisteva)
-    if (originalCassaCoverage > 0 && originalCoverage.length > 0) {
-      console.log(`💰 [EXPENSE UPDATE] Restoring ${originalCassaCoverage}€ to cassa`);
-      await this.updateCassaReinvestimento(
-        activityId,
-        originalCassaCoverage,  // Positivo per ripristinare
-        `Ripristino per modifica spesa: ${originalExpense.voce}`,
-        originalExpense.userId
-      );
-      
-      // Elimina il record di copertura originale
+    // Elimina il vecchio record di copertura cassa (se esisteva)
+    if (originalCoverage.length > 0) {
       await db.delete(financialHistory).where(eq(financialHistory.id, originalCoverage[0].id));
     }
 
-    // STEP 2: Applica la nuova copertura dalla cassa disponibile
-    const cassaBalance = await this.getCassaReinvestimentoBalance(activityId);
-    const newCassaCoverage = Math.min(newAmount, cassaBalance);
-    
-    console.log(`💰 [EXPENSE UPDATE] Cassa balance after restore: ${cassaBalance}€`);
-    console.log(`💰 [EXPENSE UPDATE] New cassa coverage: ${newCassaCoverage}€`);
-    
-    if (newCassaCoverage > 0) {
-      await this.updateCassaReinvestimento(
-        activityId,
-        -newCassaCoverage,
-        `Spesa coperta da cassa reinvestimento: ${originalExpense.voce}`,
-        originalExpense.userId
-      );
+    if (amountDiff < 0) {
+      // RIDUZIONE DEL COSTO - Logica proporzionale (come per i materiali)
+      const costReduction = -amountDiff;
+      const maxCassaCoverageNeeded = Math.min(newAmount, originalCassaCoverage);
+      const amountToReturn = originalCassaCoverage - maxCassaCoverageNeeded;
+      const personalRefund = costReduction - amountToReturn;
+
+      console.log(`💰 [EXPENSE UPDATE] Cost reduced by ${costReduction}€`);
+      console.log(`💰 [EXPENSE UPDATE] → ${amountToReturn}€ back to cassa, ${personalRefund}€ to personal funds`);
+
+      // Ripristina alla cassa la parte proporzionale
+      if (amountToReturn > 0) {
+        await this.updateCassaReinvestimento(
+          activityId,
+          amountToReturn,
+          `Riduzione spesa: ${originalExpense.voce} (€${amountToReturn.toFixed(2)} cassa + €${personalRefund.toFixed(2)} personali)`,
+          originalExpense.userId
+        );
+      }
+
+      // Crea il nuovo record di copertura cassa solo se necessario
+      if (maxCassaCoverageNeeded > 0) {
+        await this.updateCassaReinvestimento(
+          activityId,
+          -maxCassaCoverageNeeded,
+          `Spesa coperta da cassa reinvestimento: ${originalExpense.voce}`,
+          originalExpense.userId
+        );
+      }
+    } else if (amountDiff > 0) {
+      // AUMENTO DEL COSTO - Preleva dalla cassa reinvestimento prima
+      const cassaBalance = await this.getCassaReinvestimentoBalance(activityId);
+      const fromCassa = Math.min(cassaBalance, amountDiff);
+      const fromPersonal = amountDiff - fromCassa;
+
+      console.log(`💰 [EXPENSE UPDATE] Cost increased by ${amountDiff}€`);
+      console.log(`💰 [EXPENSE UPDATE] → ${fromCassa}€ from cassa, ${fromPersonal}€ from personal funds`);
+
+      // La nuova copertura totale è la vecchia + quella aggiuntiva dalla cassa
+      const newCassaCoverage = originalCassaCoverage + fromCassa;
+
+      if (newCassaCoverage > 0) {
+        await this.updateCassaReinvestimento(
+          activityId,
+          -newCassaCoverage,
+          `Spesa coperta da cassa reinvestimento: ${originalExpense.voce}`,
+          originalExpense.userId
+        );
+      }
+    } else {
+      // Importo invariato ma dobbiamo ricreare il record
+      if (originalCassaCoverage > 0) {
+        await this.updateCassaReinvestimento(
+          activityId,
+          -originalCassaCoverage,
+          `Spesa coperta da cassa reinvestimento: ${originalExpense.voce}`,
+          originalExpense.userId
+        );
+      }
     }
 
     // STEP 3: Aggiorna la spesa
