@@ -134,9 +134,11 @@ export default function Vetrina() {
                       <p className="font-medium text-muted-foreground">Materiali utilizzati:</p>
                       {p.bom.map((bomItem: any, idx: number) => {
                         const mat = materials.find(m => m.id === bomItem.materialId);
+                        const quantita = Number(bomItem.quantita);
+                        const displayQuantita = quantita % 1 === 0 ? quantita.toFixed(0) : quantita.toFixed(2);
                         return (
                           <p key={idx} className="text-muted-foreground">
-                            • {mat?.nome || 'N/A'} {mat?.colore ? `(${mat.colore})` : ''}: {Number(bomItem.quantita).toFixed(2)} {mat?.unita || ''}
+                            • {mat?.nome || 'N/A'} {mat?.colore ? `(${mat.colore})` : ''}: {displayQuantita} {mat?.unita || ''}
                           </p>
                         );
                       })}
