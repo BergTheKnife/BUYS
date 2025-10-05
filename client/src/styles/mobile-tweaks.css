@@ -73,3 +73,16 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Cronologia Cassa - Mobile improvements */
+@media (max-width: 640px) {
+  /* Forza layout verticale completo su mobile */
+  [class*="flex flex-col md:flex-row"] {
+    flex-direction: column !important;
+  }
+  
+  /* Bottoni full width su mobile */
+  [class*="flex flex-col sm:flex-row"] button {
+    width: 100% !important;
+  }
+}

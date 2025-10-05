@@ -785,7 +785,7 @@ export default function FinancialManagement() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />
-            Cronologia Azioni Finanziarie
+            Cronologia Cassa
           </CardTitle>
           <CardDescription>
             Storico di tutti i movimenti e le azioni intraprese
@@ -809,20 +809,20 @@ export default function FinancialManagement() {
                 const IconComponent = actionInfo.icon;
                 
                 return (
-                  <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary">{item.azione}</Badge>
+                  <div key={item.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-4 border rounded-lg bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="space-y-2 flex-1">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <Badge variant="secondary" className="w-fit">{item.azione}</Badge>
                         <span className="text-sm text-muted-foreground">
                           {formatDate(item.data)}
                         </span>
                       </div>
-                      <p className="text-sm">{item.descrizione}</p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">{item.descrizione}</p>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
                       {item.importo && (
-                        <div className="text-right">
-                          <span className="font-medium">
+                        <div className="text-left sm:text-right min-w-[100px]">
+                          <span className="font-bold text-lg text-green-600 dark:text-green-400">
                             {formatCurrency(Number(item.importo))}
                           </span>
                         </div>
@@ -835,6 +835,7 @@ export default function FinancialManagement() {
                           onClick={() => deleteFinancialAction.mutate(item.id)}
                           disabled={deleteFinancialAction.isPending}
                           data-testid={`button-delete-${item.id}`}
+                          className="w-full sm:w-auto min-w-[100px]"
                         >
                           Elimina
                         </Button>
@@ -844,6 +845,7 @@ export default function FinancialManagement() {
                           size="sm"
                           onClick={() => setLocation(actionInfo.page!)}
                           data-testid={`button-goto-${actionInfo.pageLabel?.toLowerCase()}`}
+                          className="w-full sm:w-auto min-w-[100px]"
                         >
                           {IconComponent && <IconComponent className="h-4 w-4 mr-1" />}
                           <ExternalLink className="h-3 w-3 mr-1" />
