@@ -105,15 +105,32 @@ export default function ProductionMaterials() {
       </div>
 
       <div className="grid gap-3">
-        {filteredMaterials.map((m) => (
-          <div key={m.id} className="border rounded-md p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div>
-              <div className="font-medium">{m.nome} {m.colore ? `• ${m.colore}` : ""}</div>
-              <div className="text-sm text-muted-foreground">
-                Totale: {m.q_totale} {m.unita} • Residuo: {m.q_residua} {m.unita} • Costo medio/unità: €{Number(m.costo_unit_medio || 0).toFixed(4)}
+        {filteredMaterials.map((m) => {
+          const formatQuantity = (val: string) => {
+            const num = Number(val || 0);
+            return num % 1 === 0 ? num.toFixed(0) : num.toFixed(2);
+          };
+          
+          return (
+          <div key={m.id} className="border rounded-lg p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 hover:shadow-md transition-shadow bg-card">
+            <div className="flex-1">
+              <div className="font-semibold text-lg mb-2">{m.nome} {m.colore ? `• ${m.colore}` : ""}</div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Totale:</span>{" "}
+                  <span className="font-medium">{formatQuantity(m.q_totale)} {m.unita}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Residuo:</span>{" "}
+                  <span className="font-medium">{formatQuantity(m.q_residua)} {m.unita}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Costo medio:</span>{" "}
+                  <span className="font-medium">€{Number(m.costo_unit_medio || 0).toFixed(4)}/{m.unita}</span>
+                </div>
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-shrink-0">
               <Button 
                 variant="ghost" 
                 size="icon"
@@ -146,7 +163,8 @@ export default function ProductionMaterials() {
               </Button>
             </div>
           </div>
-        ))}
+        )}
+        )}
       </div>
 
       {/* Dialog Aggiungi Materiale */}
@@ -260,6 +278,7 @@ function EditMaterialForm({ material, onClose }: { material: MaterialRow; onClos
   const [nome, setNome] = useState(material.nome);
   const [unita, setUnita] = useState(material.unita);
   const [colore, setColore] = useState(material.colore || "");
+  const [scadenza, setScadenza] = useState("");
   
   // Calcola il costo totale attuale
   const costoTotaleAttuale = Number(material.costo_unit_medio) * Number(material.q_residua);
@@ -305,6 +324,7 @@ function EditMaterialForm({ material, onClose }: { material: MaterialRow; onClos
         </select>
       </div>
       <div><Label>Colore (facoltativo)</Label><Input value={colore} onChange={e=>setColore(e.target.value)} /></div>
+      <div><Label>Scadenza (facoltativo)</Label><Input type="date" value={scadenza} onChange={e=>setScadenza(e.target.value)} /></div>
       
       <div className="space-y-2">
         <Label>Costo totale (€)</Label>
@@ -345,6 +365,7 @@ function EditMaterialForm({ material, onClose }: { material: MaterialRow; onClos
           nome: nome.trim(), 
           unita, 
           colore: colore.trim() || null,
+          scadenza: scadenza || null,
           nuovoCostoUnitario: nuovoCostoUnitario
         })}>
           Salva
@@ -358,6 +379,7 @@ function AddMaterialForm({ onSubmit }: { onSubmit: (payload: any) => void }) {
   const [nome, setNome] = useState(""); 
   const [unita, setUnita] = useState("g");
   const [colore, setColore] = useState(""); 
+  const [scadenza, setScadenza] = useState("");
   const [q, setQ] = useState(""); 
   const [c, setC] = useState("");
   
@@ -370,7 +392,8 @@ function AddMaterialForm({ onSubmit }: { onSubmit: (payload: any) => void }) {
     onSubmit({ 
       nome: nome.trim(), 
       unita, 
-      colore: colore.trim() || null, 
+      colore: colore.trim() || null,
+      scadenza: scadenza || null,
       quantitaTotale: quantita, 
       costoTotale: costo 
     });
@@ -387,6 +410,7 @@ function AddMaterialForm({ onSubmit }: { onSubmit: (payload: any) => void }) {
         </select>
       </div>
       <div><Label>Colore (facoltativo)</Label><Input data-testid="input-material-color" value={colore} onChange={e=>setColore(e.target.value)} /></div>
+      <div><Label>Scadenza (facoltativo)</Label><Input type="date" value={scadenza} onChange={e=>setScadenza(e.target.value)} /></div>
       <div><Label>Quantità totale</Label><Input type="number" data-testid="input-material-quantity" value={q} onChange={e=>setQ(e.target.value)} placeholder="es. 10000" /></div>
       <div><Label>Costo totale</Label><Input type="number" step="0.01" data-testid="input-material-cost" value={c} onChange={e=>setC(e.target.value)} placeholder="es. 20.00" /></div>
       <div className="flex justify-end"><Button data-testid="button-create-material" onClick={handleSubmit}>Aggiungi</Button></div>

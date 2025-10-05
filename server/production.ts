@@ -11,7 +11,7 @@ import { storage } from "./storage";
 export async function createProductionMaterial(p: {
   userId: string; activityId: string;
   nome: string; unita: 'g'|'m'|'pcs'; colore?: string|null;
-  quantitaTotale: number; costoTotale: number;
+  quantitaTotale: number; costoTotale: number; scadenza?: Date | null;
 }) {
   return await db.transaction(async (trx) => {
     const material = (await trx.insert(productionMaterials).values({
@@ -38,9 +38,9 @@ export async function createProductionMaterial(p: {
       ? `Costo totale €${p.costoTotale.toFixed(2)} (€${fromCassa.toFixed(2)} da cassa reinvestimento + €${fromPersonal.toFixed(2)} fondi personali)`
       : `Costo totale €${p.costoTotale.toFixed(2)} (fondi personali)`;
 
-    const expense = (await trx.insert(spese).values({
+    const spesa = (await trx.insert(spese).values({
       userId: p.userId, activityId: p.activityId, 
-      voce: `Acquisto materiale produzione: ${p.nome} - ${fundingDetails}`,
+      voce: `Acquisto materiali produzione: ${p.nome}${fundingDetails}`,
       importo: String(p.costoTotale), categoria: "produzione", nonEliminabile: 1, data: new Date()
     }).returning())[0];
 
@@ -49,10 +49,11 @@ export async function createProductionMaterial(p: {
       materialId: material.id, activityId: p.activityId,
       quantitaTotale: String(p.quantitaTotale), quantitaRimanente: String(p.quantitaTotale),
       costoTotale: String(p.costoTotale), costoPerUnita: String(cpu),
-      spesaId: expense.id, quotaCassa: String(fromCassa), dataAcquisto: new Date()
+      spesaId: spesa.id, quotaCassa: String(fromCassa), dataAcquisto: new Date(),
+      scadenza: p.scadenza ? new Date(p.scadenza) : null
     }).returning())[0];
 
-    return { material, batch, expense };
+    return { material, batch, spesa };
   });
 }
 
@@ -124,6 +125,7 @@ export async function updateMaterial(
     unita?: string; 
     colore?: string | null;
     nuovoCostoUnitario?: number;
+    scadenza?: Date | null; // Added expiration date field
   }
 ) {
   return await db.transaction(async (trx) => {
@@ -131,13 +133,14 @@ export async function updateMaterial(
     const material = (await trx.select().from(productionMaterials).where(
       and(eq(productionMaterials.id, materialId), eq(productionMaterials.activityId, activityId))
     ))[0];
-    
+
     if (!material) throw new Error("Materiale non trovato");
 
     const updateData: any = {};
     if (data.nome !== undefined) updateData.nome = data.nome;
     if (data.unita !== undefined) updateData.unita = data.unita;
     if (data.colore !== undefined) updateData.colore = data.colore;
+    if (data.scadenza !== undefined) updateData.scadenza = data.scadenza ? new Date(data.scadenza) : null; // Handle expiration date update
 
     // Handle cost update if provided
     if (data.nuovoCostoUnitario !== undefined) {
@@ -151,31 +154,31 @@ export async function updateMaterial(
           AND activity_id = ${activityId}
           AND CAST(quantita_rimanente AS DECIMAL) > 0
       `);
-      
+
       const quantitaResiduaTotale = Number(batchStats.rows[0]?.total_qty || 0);
       const costoTotaleCorrente = Number(batchStats.rows[0]?.total_cost || 0);
       const oldCostPerUnit = quantitaResiduaTotale > 0 ? costoTotaleCorrente / quantitaResiduaTotale : 0;
       const newCostPerUnit = data.nuovoCostoUnitario;
-      
+
       if (newCostPerUnit !== oldCostPerUnit && quantitaResiduaTotale > 0) {
         const costDiff = newCostPerUnit - oldCostPerUnit;
         const totalDiff = costDiff * quantitaResiduaTotale;
-        
+
         // Update average unit cost
         updateData.costoUnitMedio = String(newCostPerUnit);
-        
+
         // Get all batches for this material
         const batches = await trx.select().from(productionBatches).where(
           and(eq(productionBatches.materialId, materialId), eq(productionBatches.activityId, activityId))
         );
-        
+
         // Update each batch's cost proportionally
         for (const batch of batches) {
           const batchQty = Number(batch.quantitaRimanente);
           if (batchQty > 0) {
             const newBatchCostPerUnit = newCostPerUnit;
             const newBatchCostTotal = newBatchCostPerUnit * batchQty;
-            
+
             await trx.update(productionBatches)
               .set({
                 costoPerUnita: String(newBatchCostPerUnit),
@@ -184,7 +187,7 @@ export async function updateMaterial(
               .where(eq(productionBatches.id, batch.id));
           }
         }
-        
+
         // Handle accounting
         if (totalDiff > 0) {
           // Cost increase - withdraw from cassa reinvestimento first
@@ -212,15 +215,14 @@ export async function updateMaterial(
           `);
           const originalCassaCoverage = Number(cassaStats.rows[0]?.total_cassa || 0);
           const newCassaCoverage = originalCassaCoverage + fromCassa;
-          
+
           // Distribute new cassa coverage proportionally across batches
           const totalQty = batches.reduce((sum, b) => sum + Number(b.quantitaRimanente), 0);
           for (const batch of batches) {
             const batchQty = Number(batch.quantitaRimanente);
             if (batchQty > 0 && totalQty > 0) {
-              const oldQuotaCassa = Number(batch.quotaCassa || 0);
               const batchShare = (batchQty / totalQty) * fromCassa;
-              const newQuotaCassa = oldQuotaCassa + batchShare;
+              const newQuotaCassa = Number(batch.quotaCassa || 0) + batchShare;
               await trx.update(productionBatches)
                 .set({ quotaCassa: String(newQuotaCassa) })
                 .where(eq(productionBatches.id, batch.id));
@@ -242,7 +244,7 @@ export async function updateMaterial(
         } else if (totalDiff < 0) {
           // Cost decrease - calculate how much to refund to cassa vs personal funds
           const costReduction = Math.abs(totalDiff);
-          
+
           // Calculate total original cassa coverage from all batches (ONLY with remaining quantity)
           const cassaStats = await trx.execute(sql`
             SELECT COALESCE(SUM(CAST(quota_cassa AS DECIMAL)), 0) as total_cassa
@@ -252,16 +254,14 @@ export async function updateMaterial(
               AND CAST(quantita_rimanente AS DECIMAL) > 0
           `);
           const originalCassaCoverage = Number(cassaStats.rows[0]?.total_cassa || 0);
-          
+
           // Calculate new total cost
           const newCostTotal = newCostPerUnit * quantitaResiduaTotale;
-          
-          // LOGICA CORRETTA: Rimborsa la differenza tra quello che la cassa aveva coperto 
-          // e quello che dovrebbe coprire ora (limitato al nuovo costo totale)
+
           const maxCassaCoverageNeeded = Math.min(newCostTotal, originalCassaCoverage);
           const amountToReturn = originalCassaCoverage - maxCassaCoverageNeeded;
           const personalRefund = costReduction - amountToReturn;
-          
+
           if (amountToReturn > 0) {
             await storage.updateCassaReinvestimento(
               activityId,
@@ -270,11 +270,11 @@ export async function updateMaterial(
               userId
             );
           }
-          
+
           // Update quotaCassa for each batch proportionally
           const newCassaCoverage = maxCassaCoverageNeeded;
           const cassaRatio = originalCassaCoverage > 0 ? newCassaCoverage / originalCassaCoverage : 0;
-          
+
           for (const batch of batches) {
             const oldQuotaCassa = Number(batch.quotaCassa || 0);
             const newQuotaCassa = oldQuotaCassa * cassaRatio;
@@ -450,7 +450,7 @@ export async function prepareInventoryFromVetrina(p: { userId: string; activityI
     let costoTot = 0;
     for (const r of bom) {
       let toConsume = Number(r.quantita) * p.quantita;
-      
+
       // Fetch batches with appropriate ordering based on lots_expiry flag
       let batchRows: any[];
       if (useFEFO) {
@@ -476,7 +476,7 @@ export async function prepareInventoryFromVetrina(p: { userId: string; activityI
           ))
           .orderBy(asc(productionBatches.dataAcquisto));
       }
-      
+
       let consumed = 0;
       for (const b of batchRows) {
         if (toConsume <= 0) break;
@@ -484,7 +484,7 @@ export async function prepareInventoryFromVetrina(p: { userId: string; activityI
         const take = Math.min(rem, toConsume);
         const cost = take * Number(b.costo_per_unita || b.costoPerUnita);
         const batchId = b.id;
-        
+
         await trx.update(productionBatches).set({ quantitaRimanente: String(rem - take) }).where(eq(productionBatches.id, batchId));
         await trx.insert(productionConsumptions).values({
           activityId: p.activityId, inventoryId: item.id, productId: prod.id, 
@@ -495,7 +495,7 @@ export async function prepareInventoryFromVetrina(p: { userId: string; activityI
         toConsume -= take;
         consumed += take;
       }
-      
+
       if (toConsume > 0) {
         throw new Error(`Materiale insufficiente: ${r.materialId} richiede ${Number(r.quantita) * p.quantita}, disponibili ${consumed}`);
       }

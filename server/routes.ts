@@ -3106,11 +3106,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/production/materials', requireActivity, async (req, res) => {
     try {
-      const { nome, unita, colore, quantitaTotale, costoTotale } = req.body;
+      const { nome, unita, colore, scadenza, quantitaTotale, costoTotale } = req.body;
       const svc = await import('./production');
       const out = await svc.createProductionMaterial({
         userId: req.session.userId!, activityId: req.session.activityId!,
-        nome, unita, colore, quantitaTotale: Number(quantitaTotale), costoTotale: Number(costoTotale)
+        nome, unita, colore, scadenza, quantitaTotale: Number(quantitaTotale), costoTotale: Number(costoTotale)
       });
       res.json(out.material);
     } catch (e: any) { 
@@ -3140,9 +3140,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/production/materials/:id', requireActivity, async (req, res) => {
     try {
       const { id } = req.params;
-      const { nome, unita, colore, nuovoCostoUnitario } = req.body;
+      const { nome, unita, colore, scadenza, nuovoCostoUnitario } = req.body;
       const svc = await import('./production');
-      await svc.updateMaterial(id, req.session.activityId!, req.session.userId!, { nome, unita, colore, nuovoCostoUnitario });
+      await svc.updateMaterial(id, req.session.activityId!, req.session.userId!, { nome, unita, colore, scadenza, nuovoCostoUnitario });
       res.json({ ok: true });
     } catch (e: any) { res.status(400).json({ message: e.message || 'Errore modifica materiale' }); }
   });
