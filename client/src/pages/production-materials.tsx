@@ -366,7 +366,7 @@ function EditMaterialForm({ material, onClose }: { material: MaterialRow; onClos
           data-testid="input-material-cost"
         />
         <div className="text-sm text-muted-foreground">
-          Quantità residua: {material.q_residua} {material.unita}
+          Quantità residua: {Number(material.q_residua) % 1 === 0 ? Number(material.q_residua).toFixed(0) : Number(material.q_residua).toFixed(2)} {material.unita}
         </div>
         <div className="text-sm text-muted-foreground">
           Costo unitario calcolato: €{nuovoCostoUnitario.toFixed(4)} / {material.unita}
