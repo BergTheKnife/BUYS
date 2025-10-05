@@ -14,15 +14,15 @@
   }
 
   /* Container pulsanti azioni - Stack verticale completo */
-  .flex.justify-center.gap-4:has(> button[size="lg"]) {
+  .flex.justify-center.gap-4 {
     flex-direction: column !important;
     width: 100% !important;
     gap: 12px !important;
     margin-top: 16px !important;
   }
 
-  /* Tutti i pulsanti grandi a full width */
-  button[size="lg"] {
+  /* Tutti i pulsanti grandi e nei dialog a full width */
+  .flex.justify-center.gap-4 > button {
     width: 100% !important;
     min-height: 48px !important;
   }
