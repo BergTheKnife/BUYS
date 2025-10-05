@@ -167,12 +167,14 @@ export function AddExpenseModal({ isOpen, onClose, editingExpense }: AddExpenseM
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="Fisse">Fisse</SelectItem>
-                <SelectItem value="Inventario">Inventario</SelectItem>
                 <SelectItem value="Utenze">Utenze</SelectItem>
                 <SelectItem value="Marketing">Marketing</SelectItem>
                 <SelectItem value="Altro">Altro</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              Le categorie "Inventario" e "Produzione" sono gestite automaticamente dal sistema
+            </p>
             {form.formState.errors.categoria && (
               <p className="text-sm text-destructive">
                 {form.formState.errors.categoria.message}

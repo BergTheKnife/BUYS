@@ -97,6 +97,7 @@ export default function Expenses() {
     switch (category.toLowerCase()) {
       case "fisse": return "secondary";
       case "inventario": return "default";
+      case "produzione": return "default";
       case "utenze": return "outline";
       case "marketing": return "destructive";
       default: return "secondary";
