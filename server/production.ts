@@ -49,8 +49,7 @@ export async function createProductionMaterial(p: {
       materialId: material.id, activityId: p.activityId,
       quantitaTotale: String(p.quantitaTotale), quantitaRimanente: String(p.quantitaTotale),
       costoTotale: String(p.costoTotale), costoPerUnita: String(cpu),
-      spesaId: spesa.id, quotaCassa: String(fromCassa), dataAcquisto: new Date(),
-      scadenza: p.scadenza ? new Date(p.scadenza) : null
+      spesaId: spesa.id, quotaCassa: String(fromCassa), dataAcquisto: new Date()
     }).returning())[0];
 
     return { material, batch, spesa };
