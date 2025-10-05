@@ -1,0 +1,68 @@
+
+/* ============ MOBILE TWEAKS ============ */
+
+/* Gestione Finanziaria - Pulsanti responsive */
+@media (max-width: 768px) {
+  /* Container pulsanti azioni - Stack verticale */
+  .flex.justify-center.gap-4:has(> button[size="lg"]) {
+    flex-direction: column !important;
+    width: 100% !important;
+    gap: 12px !important;
+  }
+
+  /* Pulsante "Scarica Storico Completo" - Full width */
+  .flex.justify-end.mb-4 {
+    justify-content: center !important;
+    margin-bottom: 16px !important;
+  }
+
+  .flex.justify-end.mb-4 > button {
+    width: 100% !important;
+  }
+
+  /* Tutti i pulsanti grandi a full width */
+  button[size="lg"] {
+    width: 100% !important;
+  }
+
+  /* Dialog content responsive */
+  [role="dialog"] {
+    max-width: calc(100vw - 32px) !important;
+    margin: 16px !important;
+  }
+
+  /* Bottoni nei dialog - Full width mobile */
+  [class*="DialogFooter"] button,
+  [class*="AlertDialogFooter"] button {
+    width: 100% !important;
+  }
+
+  [class*="DialogFooter"],
+  [class*="AlertDialogFooter"] {
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+}
+
+/* Touch targets minimi Apple HIG */
+button, a, input, select, textarea, [role="button"] {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+/* Input size - Previene zoom iOS */
+input, select, textarea {
+  font-size: 16px !important;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Antialiasing */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
