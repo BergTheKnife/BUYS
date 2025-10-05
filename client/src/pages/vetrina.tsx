@@ -199,7 +199,7 @@ function VetrinaForm({ materials, product, onSubmit, onClose }: {
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  
+
   const [nome, setNome] = useState(product?.nome || "");
   const [categoria, setCategoria] = useState(product?.categoria || "");
   const [altezza, setAltezza] = useState(product?.altezza || "");
@@ -229,7 +229,7 @@ function VetrinaForm({ materials, product, onSubmit, onClose }: {
     }
     setBom([...bom, { materialId: materials[0].id, quantita: "" }]);
   };
-  
+
   const updateBom = (i: number, patch: Partial<BomRow>) => setBom(bom.map((r, idx) => idx === i ? { ...r, ...patch } : r));
   const removeBom = (i: number) => setBom(bom.filter((_, idx) => idx !== i));
 
