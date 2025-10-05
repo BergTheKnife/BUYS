@@ -111,6 +111,8 @@ export default function ProductionMaterials() {
             return num % 1 === 0 ? num.toFixed(0) : num.toFixed(2);
           };
           
+          const costoTotale = Number(m.q_residua) * Number(m.costo_unit_medio || 0);
+          
           return (
           <div key={m.id} className="border rounded-lg p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 hover:shadow-md transition-shadow bg-card">
             <div className="flex-1">
@@ -125,9 +127,12 @@ export default function ProductionMaterials() {
                   <span className="font-medium">{formatQuantity(m.q_residua)} {m.unita}</span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Costo medio:</span>{" "}
-                  <span className="font-medium">€{Number(m.costo_unit_medio || 0).toFixed(4)}/{m.unita}</span>
+                  <span className="text-muted-foreground">Costo totale:</span>{" "}
+                  <span className="font-medium">€{costoTotale.toFixed(2)}</span>
                 </div>
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                Costo medio: €{Number(m.costo_unit_medio || 0).toFixed(4)}/{m.unita}
               </div>
             </div>
             <div className="flex gap-2 flex-shrink-0">
@@ -261,10 +266,35 @@ function RefillForm({ onSubmit }: { onSubmit: (q: number, c: number) => void }) 
   const [q, setQ] = useState(""); 
   const [c, setC] = useState("");
   
+  const costoUnitario = Number(q) > 0 ? Number(c) / Number(q) : 0;
+  
   return (
     <div className="space-y-3">
-      <div><Label>Quantità</Label><Input type="number" value={q} onChange={e=>setQ(e.target.value)} placeholder="es. 1000" /></div>
-      <div><Label>Costo totale</Label><Input type="number" step="0.01" value={c} onChange={e=>setC(e.target.value)} placeholder="es. 25.00" /></div>
+      <div>
+        <Label>Quantità</Label>
+        <Input 
+          type="number" 
+          step="any"
+          value={q} 
+          onChange={e=>setQ(e.target.value)} 
+          placeholder="es. 1000" 
+        />
+      </div>
+      <div>
+        <Label>Costo totale (€)</Label>
+        <Input 
+          type="number" 
+          step="0.01" 
+          value={c} 
+          onChange={e=>setC(e.target.value)} 
+          placeholder="es. 25.00" 
+        />
+      </div>
+      {q && c && (
+        <div className="text-sm text-muted-foreground">
+          Costo unitario: €{costoUnitario.toFixed(4)}
+        </div>
+      )}
       <div className="flex justify-end">
         <Button onClick={()=>{ onSubmit(Number(q||0), Number(c||0)); }}>Conferma</Button>
       </div>
@@ -383,6 +413,8 @@ function AddMaterialForm({ onSubmit }: { onSubmit: (payload: any) => void }) {
   const [q, setQ] = useState(""); 
   const [c, setC] = useState("");
   
+  const costoUnitario = Number(q) > 0 ? Number(c) / Number(q) : 0;
+  
   const handleSubmit = () => {
     if (!nome.trim()) return;
     const quantita = Number(q) || 0;
@@ -403,7 +435,7 @@ function AddMaterialForm({ onSubmit }: { onSubmit: (payload: any) => void }) {
     <div className="space-y-3">
       <div><Label>Nome</Label><Input data-testid="input-material-name" value={nome} onChange={e=>setNome(e.target.value)} /></div>
       <div><Label>Unità</Label>
-        <select data-testid="select-material-unit" value={unita} onChange={e=>setUnita(e.target.value)} className="border rounded-md px-3 py-2 w-full">
+        <select data-testid="select-material-unit" value={unita} onChange={e=>setUnita(e.target.value)} className="border rounded-md px-3 py-2 w-full bg-background">
           <option value="g">grammi (g)</option>
           <option value="m">metri (m)</option>
           <option value="pcs">pezzi (pcs)</option>
@@ -411,8 +443,33 @@ function AddMaterialForm({ onSubmit }: { onSubmit: (payload: any) => void }) {
       </div>
       <div><Label>Colore (facoltativo)</Label><Input data-testid="input-material-color" value={colore} onChange={e=>setColore(e.target.value)} /></div>
       <div><Label>Scadenza (facoltativo)</Label><Input type="date" value={scadenza} onChange={e=>setScadenza(e.target.value)} /></div>
-      <div><Label>Quantità totale</Label><Input type="number" data-testid="input-material-quantity" value={q} onChange={e=>setQ(e.target.value)} placeholder="es. 10000" /></div>
-      <div><Label>Costo totale</Label><Input type="number" step="0.01" data-testid="input-material-cost" value={c} onChange={e=>setC(e.target.value)} placeholder="es. 20.00" /></div>
+      <div>
+        <Label>Quantità totale</Label>
+        <Input 
+          type="number" 
+          step="any"
+          data-testid="input-material-quantity" 
+          value={q} 
+          onChange={e=>setQ(e.target.value)} 
+          placeholder="es. 10000" 
+        />
+      </div>
+      <div>
+        <Label>Costo totale (€)</Label>
+        <Input 
+          type="number" 
+          step="0.01" 
+          data-testid="input-material-cost" 
+          value={c} 
+          onChange={e=>setC(e.target.value)} 
+          placeholder="es. 20.00" 
+        />
+      </div>
+      {q && c && (
+        <div className="text-sm text-muted-foreground">
+          Costo unitario: €{costoUnitario.toFixed(4)} / {unita}
+        </div>
+      )}
       <div className="flex justify-end"><Button data-testid="button-create-material" onClick={handleSubmit}>Aggiungi</Button></div>
     </div>
   );
