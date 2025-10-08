@@ -1,0 +1,98 @@
+PROMPT PER AGENT DI REPLIT — “Preleva da cassa” (dividendi/rimborso investimenti) senza toccare la logica contabile
+
+Contesto e vincoli
+	•	Non modificare la logica di vendite, spese, magazzino, materiali o margini.
+	•	Il nuovo flusso deve solo prelevare dalla Cassa reinvestimento senza impattare “Spese” o il calcolo del Bilancio/Margine.
+	•	Tutto in italiano (UI e descrizioni).
+	•	Ogni operazione deve avere storico e poter essere auditata.
+
+⸻
+
+1) UI — Gestione finanziaria
+	•	Nella pagina Gestione finanziaria, subito sotto a “Aggiungi fondi personali”, aggiungi un secondo bottone:
+“Preleva da cassa”.
+	•	Click apre modale “Preleva da cassa” con campi:
+	•	Importo (obbligatorio, >0 e ≤ saldo cassa)
+	•	Tipo (tendina):
+	•	“Rimborso investimento iniziale”
+	•	“Distribuzione margine (dividendi)”
+	•	“Altro prelievo socio”
+	•	Membro (obbligatorio se lo store ha membri; altrimenti opzionale)
+	•	Descrizione (opzionale, testo breve)
+	•	Data (default oggi)
+	•	Pulsanti: Annulla / Conferma prelievo.
+	•	Validazioni: importo ≤ saldo cassa; se Tipo = Rimborso/Distribuzione e l’istanza prevede membri, richiedi “Membro”.
+
+2) Dati — Nuova tabella per tracciamento “equity” (fuori bilancio)
+
+Crea tabella (o equivalente) equity_withdrawals:
+	•	id, activityId, userId (chi l’ha creato), memberId (nullable),
+importo (DECIMAL), tipo (ENUM: RIMBORSO, DIVIDENDO, ALTRO),
+descrizione (TEXT, nullable), dataOperazione (DATE),
+createdAt, annullato (BOOLEAN default false).
+	•	Indici su (activityId, dataOperazione) e (activityId, tipo).
+
+Nota: questa tabella è separata da “spese” e “entrate” e non deve mai comparire nel bilancio/margine.
+
+3) Backend — API
+
+Aggiungi rotte (tutte scoped ad activityId):
+	•	POST /api/equity/withdrawals
+Body: { importo, tipo, memberId?, descrizione?, data? }
+Azioni server:
+	1.	Verifica saldo cassa sufficiente.
+	2.	updateCassaReinvestimento(activityId, -importo, descrizione leggibile, userId, tx, {scope:"EQUITY", kind:tipo})
+	•	Inserisci in financial_history un movimento PRELIEVO_CASSA con details JSON { scope:"EQUITY", kind:tipo, withdrawalId }.
+	3.	Inserisci riga in equity_withdrawals.
+	4.	Rispondi con il record creato e il nuovo saldo cassa.
+	•	GET /api/equity/withdrawals (lista, filtri opzionali: from, to, tipo, memberId)
+	•	Restituisce elenco + totali aggregati (per UI).
+	•	POST /api/equity/withdrawals/:id/annulla (annullamento “contabile”)
+Azioni:
+	1.	Carica record; se già annullato=true → 409.
+	2.	Esegui deposito in cassa di pari importo (movimento DEPOSITO_CASSA con details.scope:"EQUITY", kind:"ANNULLAMENTO" e withdrawalId).
+	3.	Marca annullato=true.
+	4.	Non cancellare i record storici (coerenza/audit).
+
+4) Esclusione dal bilancio
+	•	Importantissimo: tutte le query/aggregazioni che alimentano Bilancio, Uscite, Margine e simili devono escludere i movimenti cassa con details.scope = "EQUITY" (o, se non usi JSON details, escludi azione IN ('PRELIEVO_DIVIDENDI','DEPOSITO_DIVIDENDI') o descrizioni che contengono un prefisso univoco come “Equity: ”).
+	•	Nessuna riga in Spese deve essere creata per questi prelievi; restano fuori dal conto economico.
+
+5) Widget e storico in Gestione finanziaria
+	•	Nella stessa pagina, sotto i saldi, aggiungi pannello “Prelievi soci (fuori bilancio)”:
+	•	Totale prelevato (somma equity_withdrawals.importo non annullati, periodo selezionato)
+	•	Di cui rimborsi investimento / dividendi (breakdown per tipo)
+	•	Per membro (top 5, con link “Vedi tutti”)
+	•	Link “Vedi storico prelievi” → apre una tabella/pagina con filtri (data, tipo, membro) e azione Annulla (se permesso).
+	•	Nessun impatto su tabelle Spese/Entrate.
+
+6) Log delle descrizioni (leggibili e filtrabili)
+	•	Standardizza descrizioni financial_history:
+	•	Prelievo: Equity – Prelievo da cassa: <Tipo> – <Membro opzionale> – €<importo>
+	•	Annullamento: Equity – Annullamento prelievo: ref <id> – €<importo>
+	•	In equity_withdrawals.descrizione salva l’eventuale nota dell’utente.
+
+7) Vincoli e sicurezza
+	•	Transazioni: ogni creazione/annullamento deve essere atomico (cassa + insert/update tabelle).
+	•	Validazioni: importo positivo; saldo cassa sufficiente; tipo ammesso; membro valido per l’attività.
+	•	Permessi: solo utenti autorizzati a Gestione finanziaria possono creare/annullare.
+
+8) Accettazione (test rapidi)
+	1.	Cassa = 500€. Clicco Preleva da cassa → “Rimborso investimento” 120€ a “Mario Rossi”.
+	•	Cassa scende a 380€.
+	•	Nessuna spesa creata; bilancio invariato.
+	•	In “Prelievi soci (fuori bilancio)” vedo Totale=120€, breakdown corretto.
+	2.	Filtro storico per “Mario Rossi” → record presente con data, tipo, importo, descrizione.
+	3.	Annulla prelievo → cassa risale a 500€; record segnato “annullato”.
+	4.	Report bilancio/margine non cambia mai al variare di questi prelievi.
+	5.	Se importo > saldo cassa → errore “Saldo cassa insufficiente”.
+
+9) Dettagli tecnici suggeriti
+	•	Se financial_history ha un campo JSON details, usalo per salvare { scope:"EQUITY", kind, withdrawalId, memberId }.
+In mancanza, usa un prefisso testuale univoco in descrizione (“Equity – …”) e filtra con LIKE dove necessario.
+	•	Riusa l’utility esistente updateCassaReinvestimento(...) per applicare il movimento; non creare righe in “spese”.
+	•	Non mostrare questi movimenti nelle liste “Uscite/Entrate”.
+
+⸻
+
+Obiettivo: consentire prelievi da cassa (rimborso investimenti o distribuzione utili) fuori bilancio, con storico e controlli, senza toccare il conto economico né la logica esistente
