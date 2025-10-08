@@ -51,6 +51,16 @@
   }
 }
 
+/* Dialog perfect centering on mobile */
+@media (max-width: 768px) {
+  [role="dialog"],
+  [role="alertdialog"] {
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    margin: 0 !important;
+  }
+}
+
 /* Touch targets minimi Apple HIG */
 button, a, input, select, textarea, [role="button"] {
   min-height: 44px;
