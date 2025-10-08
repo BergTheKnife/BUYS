@@ -158,7 +158,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
       });
       setOrigine("magazzino");
     }
-  }, [editingSale, form]);
+  }, [editingSale, form, isOpen]);
 
   const selectedItem = origine === "magazzino" 
     ? inventory.find((item: Inventario) => item.id === form.watch("inventarioId"))
@@ -244,13 +244,19 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
         incassatoDa: data.incassatoDa,
         incassatoSu: data.incassatoSu,
         data: data.data,
-        origine: data.origine,
       };
 
-      if (data.origine === "magazzino") {
+      // For updates, always send inventarioId (backend expects it)
+      if (editingSale) {
         payload.inventarioId = data.inventarioId;
       } else {
-        payload.productionProductId = data.productionProductId;
+        // For new sales, handle origine
+        payload.origine = data.origine;
+        if (data.origine === "magazzino") {
+          payload.inventarioId = data.inventarioId;
+        } else {
+          payload.productionProductId = data.productionProductId;
+        }
       }
 
       const response = await apiRequest(method, url, payload);

@@ -2744,17 +2744,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
 
-      // Convert form data types
-      const formData = {
-        inventarioId: req.body.inventarioId,
-        quantita: parseInt(req.body.quantita) || 1,
-        prezzoVendita: req.body.prezzoVendita,
-        vendutoA: req.body.vendutoA,
-        incassato: Number(req.body.incassato) || 0,
-        incassatoDa: req.body.incassatoDa,
-        incassatoSu: req.body.incassatoSu,
-        data: new Date(req.body.data)
-      };
+      // Convert form data types - ensure proper type handling
+      const formData: any = {};
+      
+      if (req.body.inventarioId !== undefined) formData.inventarioId = req.body.inventarioId;
+      if (req.body.quantita !== undefined) formData.quantita = parseInt(req.body.quantita) || 1;
+      if (req.body.prezzoVendita !== undefined) formData.prezzoVendita = req.body.prezzoVendita;
+      if (req.body.vendutoA !== undefined) formData.vendutoA = req.body.vendutoA || undefined;
+      if (req.body.incassato !== undefined) formData.incassato = Number(req.body.incassato) || 0;
+      if (req.body.incassatoDa !== undefined) formData.incassatoDa = req.body.incassatoDa || undefined;
+      if (req.body.incassatoSu !== undefined) formData.incassatoSu = req.body.incassatoSu || undefined;
+      if (req.body.data !== undefined) formData.data = new Date(req.body.data);
 
       const updates = insertVenditaSchema.partial().parse(formData);
 
