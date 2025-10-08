@@ -51,13 +51,12 @@
   }
 }
 
-/* Dialog perfect centering on mobile */
+/* Dialog perfect centering on mobile - only vertical positioning */
 @media (max-width: 768px) {
   [role="dialog"],
   [role="alertdialog"] {
-    left: 50% !important;
-    transform: translate(-50%, -50%) !important;
-    margin: 0 !important;
+    margin-left: 1rem !important;
+    margin-right: 1rem !important;
   }
 }
 
