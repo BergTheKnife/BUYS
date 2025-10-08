@@ -299,9 +299,18 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
   });
 
   const onSubmit = (data: SaleFormData) => {
+    console.log('=== FORM SUBMITTED ===');
     console.log('Sale form submitted with data:', data);
     console.log('Sale form errors:', form.formState.errors);
+    console.log('Is editing:', !!editingSale);
     mutation.mutate(data);
+  };
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    console.log('=== FORM SUBMIT EVENT TRIGGERED ===');
+    console.log('Form values:', form.getValues());
+    console.log('Form errors before submit:', form.formState.errors);
+    form.handleSubmit(onSubmit)(e);
   };
 
   return (
@@ -317,7 +326,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleFormSubmit} className="space-y-6">
           {/* Origine selection */}
           {!editingSale && (
             <div className="space-y-2">
