@@ -402,7 +402,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
               <div className="space-y-2">
                 <Label htmlFor="productionProductId">Articolo Vetrina</Label>
                 <Select 
-                  value={form.watch("productionProductId")} 
+                  value={form.watch("productionProductId") || undefined} 
                   onValueChange={(value) => form.setValue("productionProductId", value)}
                 >
                   <SelectTrigger data-testid="select-vetrina-product">
