@@ -47,7 +47,12 @@ const saleFormSchema = z.object({
   incassatoSu: z.string().optional(),
   data: z.string().min(1, "Data richiesta"),
   origine: z.string().default("magazzino"),
+  isEditing: z.boolean().optional(),
 }).refine((data) => {
+  // Skip validation for editing mode
+  if (data.isEditing) {
+    return true;
+  }
   // Se origine è magazzino, richiedi inventarioId
   if (data.origine === "magazzino" && !data.inventarioId) {
     return false;
@@ -123,6 +128,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
       incassatoSu: "",
       data: new Date().toISOString().split('T')[0],
       origine: "magazzino",
+      isEditing: false,
     },
   });
 
@@ -142,6 +148,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
         incassatoSu: editingSale.incassatoSu ?? undefined,
         data: new Date(editingSale.data).toISOString().split('T')[0],
         origine: editOrigine,
+        isEditing: true,
       });
     } else {
       form.reset({
@@ -155,6 +162,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
         incassatoSu: "",
         data: new Date().toISOString().split('T')[0],
         origine: "magazzino",
+        isEditing: false,
       });
       setOrigine("magazzino");
     }
@@ -277,6 +285,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
         incassatoSu: "",
         data: new Date().toISOString().split('T')[0],
         origine: "magazzino",
+        isEditing: false,
       });
       setOrigine("magazzino");
     },
@@ -656,8 +665,12 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
               type="submit" 
               disabled={mutation.isPending}
               className="bg-green-600 hover:bg-green-700"
+              data-testid="button-submit-sale"
             >
-              {mutation.isPending ? "Registrando..." : "Registra Vendita"}
+              {mutation.isPending 
+                ? (editingSale ? "Salvando..." : "Registrando...") 
+                : (editingSale ? "Salva Modifiche" : "Registra Vendita")
+              }
             </Button>
           </div>
         </form>
