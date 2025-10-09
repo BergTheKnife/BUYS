@@ -524,6 +524,9 @@ export const insertEquityWithdrawalSchema = createInsertSchema(equityWithdrawals
   annullato: true,
 });
 
+export type EquityWithdrawal = typeof equityWithdrawals.$inferSelect;
+export type InsertEquityWithdrawal = z.infer<typeof insertEquityWithdrawalSchema>;
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type LoginUser = z.infer<typeof loginUserSchema>;
 export type UpdateProfile = z.infer<typeof updateProfileSchema>;
