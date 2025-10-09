@@ -2557,21 +2557,13 @@ export class DatabaseStorage implements IStorage {
         annullato: 0, // Initially not canceled
       }).returning();
 
-      // Update cash balance (debit from cash)
+      // Update cash balance and create financial history entry
       const tipoLabel = data.tipo === 'RIMBORSO' ? 'Rimborso investimento iniziale' :
                         data.tipo === 'DIVIDENDO' ? 'Distribuzione margine (dividendi)' :
                         'Altro prelievo socio';
       const descrizione = `Equity – Prelievo da cassa: ${tipoLabel}${data.memberId ? ` – Membro ${data.memberId}` : ''} – €${data.importo.toFixed(2)}`;
 
-      await this.updateCassaReinvestimento(
-        activityId,
-        -data.importo, // Debit from cash
-        descrizione,
-        userId,
-        tx // Pass transaction to ensure atomicity
-      );
-
-      // Insert into financial history
+      // Insert into financial history (this updates the cash balance)
       await tx.insert(financialHistory).values({
         userId,
         activityId,
@@ -2641,18 +2633,10 @@ export class DatabaseStorage implements IStorage {
         throw new Error("Prelievo già annullato");
       }
 
-      // Deposit amount back into cash
+      // Deposit amount back into cash and create financial history entry
       const descrizione = `Equity – Annullamento prelievo: ref ${withdrawalId} – €${parseFloat(withdrawal.importo).toFixed(2)}`;
 
-      await this.updateCassaReinvestimento(
-        activityId,
-        parseFloat(withdrawal.importo), // Deposit back
-        descrizione,
-        userId,
-        tx // Pass transaction
-      );
-
-      // Insert into financial history
+      // Insert into financial history (this updates the cash balance)
       await tx.insert(financialHistory).values({
         userId,
         activityId,
