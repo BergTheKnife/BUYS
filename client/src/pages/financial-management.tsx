@@ -166,10 +166,15 @@ export default function FinancialManagement() {
   });
 
   // Fetch equity withdrawals
-  const { data: equityWithdrawals = [] } = useQuery<EquityWithdrawal[]>({
+  const { data: equityWithdrawalsData } = useQuery<{ 
+    withdrawals: EquityWithdrawal[]; 
+    totals: { totale: number; rimborsi: number; dividendi: number }; 
+  }>({
     queryKey: ["/api/equity/withdrawals"],
     staleTime: 30 * 1000, // 30 secondi
   });
+
+  const equityWithdrawals = equityWithdrawalsData?.withdrawals || [];
 
   // Calculate financial summary from sales data
   const calculateFinancialSummary = (): FinancialSummary => {
