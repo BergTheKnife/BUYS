@@ -174,7 +174,9 @@ export default function FinancialManagement() {
     staleTime: 30 * 1000, // 30 secondi
   });
 
-  const equityWithdrawals = equityWithdrawalsData?.withdrawals || [];
+  const equityWithdrawals = Array.isArray(equityWithdrawalsData?.withdrawals) 
+    ? equityWithdrawalsData.withdrawals 
+    : [];
 
   // Calculate financial summary from sales data
   const calculateFinancialSummary = (): FinancialSummary => {
@@ -356,7 +358,8 @@ export default function FinancialManagement() {
         canDelete: true,
         page: null,
         pageLabel: null,
-        icon: null
+        icon: null,
+        isEquityWithdrawal: false
       };
     }
     
@@ -365,11 +368,24 @@ export default function FinancialManagement() {
         item.descrizione?.includes("Equity")) {
       // Check if it's a withdrawal or cancellation
       const isWithdrawal = item.azione === "PRELIEVO_CASSA";
+      
+      // Extract withdrawal ID from dettagli if available
+      let withdrawalId = null;
+      try {
+        const dettagli = JSON.parse(item.dettagli || '{}');
+        withdrawalId = dettagli.withdrawalId;
+      } catch (e) {
+        console.error('Error parsing dettagli:', e);
+      }
+      
       return {
         canDelete: false,
         page: null,
         pageLabel: isWithdrawal ? "Prelievo Socio" : "Annullamento Prelievo",
-        icon: null
+        icon: null,
+        isEquityWithdrawal: true,
+        withdrawalId,
+        isWithdrawal
       };
     }
     
@@ -1178,17 +1194,68 @@ export default function FinancialManagement() {
                   <div key={item.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-4 border rounded-lg bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow">
                     <div className="space-y-2 flex-1">
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                        <Badge variant="secondary" className="w-fit">{item.azione}</Badge>
+                        <Badge 
+                          variant="secondary" 
+                          className={`w-fit ${actionInfo.isEquityWithdrawal ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' : ''}`}
+                        >
+                          {item.azione}
+                        </Badge>
                         <span className="text-sm text-muted-foreground">
                           {formatDate(item.data)}
                         </span>
                       </div>
                       <p className="text-sm text-gray-700 dark:text-gray-300">{item.descrizione}</p>
+                      
+                      {/* Show equity withdrawal details if available */}
+                      {actionInfo.isEquityWithdrawal && actionInfo.withdrawalId && (
+                        <div className="mt-2 p-2 bg-orange-50 dark:bg-orange-900/20 rounded text-xs space-y-1">
+                          {(() => {
+                            const withdrawal = equityWithdrawals.find(w => w.id === actionInfo.withdrawalId);
+                            if (!withdrawal) return null;
+                            
+                            const member = activityMembers.find(m => m.id === withdrawal.memberId);
+                            const memberName = member ? `${member.nome} ${member.cognome}` : null;
+                            const tipoLabel = withdrawal.tipo === 'RIMBORSO' ? 'Rimborso investimento' : 
+                                            withdrawal.tipo === 'DIVIDENDO' ? 'Dividendi' : 'Altro';
+                            
+                            return (
+                              <>
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">Tipo:</span>
+                                  <span className="font-medium">{tipoLabel}</span>
+                                </div>
+                                {memberName && (
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Membro:</span>
+                                    <span className="font-medium">{memberName}</span>
+                                  </div>
+                                )}
+                                {withdrawal.descrizione && (
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Note:</span>
+                                    <span className="font-medium">{withdrawal.descrizione}</span>
+                                  </div>
+                                )}
+                                {withdrawal.annullato === 1 && (
+                                  <Badge variant="outline" className="text-red-600 mt-1">Annullato</Badge>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      )}
                     </div>
                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
                       {item.importo && (
                         <div className="text-left sm:text-right min-w-[100px]">
-                          <span className="font-bold text-lg text-green-600 dark:text-green-400">
+                          <span className={`font-bold text-lg ${
+                            actionInfo.isEquityWithdrawal 
+                              ? actionInfo.isWithdrawal 
+                                ? 'text-red-600 dark:text-red-400' 
+                                : 'text-green-600 dark:text-green-400'
+                              : 'text-green-600 dark:text-green-400'
+                          }`}>
+                            {actionInfo.isEquityWithdrawal && actionInfo.isWithdrawal ? '-' : ''}
                             {formatCurrency(Number(item.importo))}
                           </span>
                         </div>
