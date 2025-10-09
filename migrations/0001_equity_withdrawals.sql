@@ -8,9 +8,9 @@ CREATE TABLE "equity_withdrawals" (
   "importo" numeric(10, 2) NOT NULL,
   "tipo" text NOT NULL CHECK (tipo IN ('RIMBORSO', 'DIVIDENDO', 'ALTRO')),
   "descrizione" text,
-  "data_operazione" timestamp NOT NULL,
+  "data_operazione" date NOT NULL,
   "created_at" timestamp DEFAULT now(),
-  "annullato" integer DEFAULT 0 NOT NULL,
+  "annullato" boolean DEFAULT false NOT NULL,
   CONSTRAINT "equity_withdrawals_activity_fk" FOREIGN KEY ("activity_id") REFERENCES "activities"("id") ON DELETE cascade,
   CONSTRAINT "equity_withdrawals_user_fk" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE cascade,
   CONSTRAINT "equity_withdrawals_member_fk" FOREIGN KEY ("member_id") REFERENCES "users"("id") ON DELETE set null

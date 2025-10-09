@@ -2553,7 +2553,7 @@ export class DatabaseStorage implements IStorage {
         tipo: data.tipo,
         memberId: data.memberId,
         descrizione: data.descrizione,
-        dataOperazione: data.data ? new Date(data.data) : new Date(),
+        dataOperazione: data.data || new Date().toISOString(),
         annullato: 0, // Initially not canceled
       }).returning();
 

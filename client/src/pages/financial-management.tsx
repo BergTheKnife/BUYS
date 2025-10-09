@@ -586,25 +586,6 @@ export default function FinancialManagement() {
         </Button>
       </div>
 
-      {/* Widget Prelievi Soci */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
-            Prelievi Soci (fuori bilancio)
-          </CardTitle>
-          <CardDescription>
-            Rimborsi investimenti e dividendi non impattano sul margine
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* TODO: Implementare query per equity withdrawals e mostrare totali */}
-          <div className="text-sm text-muted-foreground">
-            Funzionalità in fase di implementazione
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Export and Actions */}
       <div className="flex justify-center gap-4">
         <Dialog open={showTransferModal} onOpenChange={setShowTransferModal}>
