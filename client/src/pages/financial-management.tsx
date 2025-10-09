@@ -363,30 +363,35 @@ export default function FinancialManagement() {
       };
     }
     
-    // Check if it's an equity withdrawal (PRELIEVO_CASSA or DEPOSITO_CASSA with scope EQUITY)
-    if ((item.azione === "PRELIEVO_CASSA" || item.azione === "DEPOSITO_CASSA") && 
-        item.descrizione?.includes("Equity")) {
-      // Check if it's a withdrawal or cancellation
-      const isWithdrawal = item.azione === "PRELIEVO_CASSA";
-      
-      // Extract withdrawal ID from dettagli if available
+    // Check if it's an equity withdrawal/deposit (PRELIEVO_CASSA or DEPOSITO_CASSA)
+    // These can be identified by checking the azione type
+    if (item.azione === "PRELIEVO_CASSA" || item.azione === "DEPOSITO_CASSA") {
+      // Check if it's equity-related by looking at dettagli or description
+      let isEquityRelated = false;
       let withdrawalId = null;
+      
       try {
         const dettagli = JSON.parse(item.dettagli || '{}');
+        isEquityRelated = dettagli.scope === 'EQUITY';
         withdrawalId = dettagli.withdrawalId;
       } catch (e) {
-        console.error('Error parsing dettagli:', e);
+        // If parsing fails, check description for "Equity"
+        isEquityRelated = item.descrizione?.includes("Equity") || false;
       }
       
-      return {
-        canDelete: false,
-        page: null,
-        pageLabel: isWithdrawal ? "Prelievo Socio" : "Annullamento Prelievo",
-        icon: null,
-        isEquityWithdrawal: true,
-        withdrawalId,
-        isWithdrawal
-      };
+      if (isEquityRelated) {
+        const isWithdrawal = item.azione === "PRELIEVO_CASSA";
+        
+        return {
+          canDelete: false,
+          page: null,
+          pageLabel: isWithdrawal ? "Prelievo Socio" : "Annullamento Prelievo",
+          icon: null,
+          isEquityWithdrawal: true,
+          withdrawalId,
+          isWithdrawal
+        };
+      }
     }
     
     // Check if it's an inventory-related action
