@@ -28,6 +28,7 @@ import {
   Users,
   CreditCard,
   TrendingUp,
+  TrendingDown,
   ArrowRightLeft,
   History,
   Euro,
@@ -157,6 +158,12 @@ export default function FinancialManagement() {
     staleTime: 60 * 1000, // 1 minuto
   });
 
+  // Fetch equity withdrawals
+  const { data: equityWithdrawals = [] } = useQuery<EquityWithdrawal[]>({
+    queryKey: ["/api/equity/withdrawals"],
+    staleTime: 30 * 1000, // 30 secondi
+  });
+
   // Calculate financial summary from sales data
   const calculateFinancialSummary = (): FinancialSummary => {
     const memberBalances: { [member: string]: MemberBalance } = {};
@@ -229,6 +236,35 @@ export default function FinancialManagement() {
   };
 
   const financialSummary = calculateFinancialSummary();
+
+  // Calculate equity withdrawals summary
+  const calculateEquityWithdrawalsSummary = () => {
+    const activeWithdrawals = equityWithdrawals.filter(w => w.annullato === 0);
+    
+    const totalPrelevato = activeWithdrawals.reduce((sum, w) => sum + Number(w.importo), 0);
+    
+    const byTipo = activeWithdrawals.reduce((acc, w) => {
+      const tipo = w.tipo;
+      acc[tipo] = (acc[tipo] || 0) + Number(w.importo);
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const byMembro = activeWithdrawals.reduce((acc, w) => {
+      if (!w.memberId) return acc;
+      const member = activityMembers.find(m => m.id === w.memberId);
+      const memberName = member ? `${member.nome} ${member.cognome}` : 'Sconosciuto';
+      acc[memberName] = (acc[memberName] || 0) + Number(w.importo);
+      return acc;
+    }, {} as Record<string, number>);
+
+    const topMembers = Object.entries(byMembro)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+
+    return { totalPrelevato, byTipo, byMembro, topMembers };
+  };
+
+  const equitySummary = calculateEquityWithdrawalsSummary();
 
   const handleComprehensiveExport = async () => {
     try {
@@ -591,6 +627,76 @@ export default function FinancialManagement() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Equity Withdrawals Widget - Prelievi soci (fuori bilancio) */}
+      {equitySummary.totalPrelevato > 0 && (
+        <Card className="border-orange-200 dark:border-orange-800">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-400">
+              <TrendingDown className="h-5 w-5" />
+              Prelievi Soci (fuori bilancio)
+            </CardTitle>
+            <CardDescription>
+              Prelievi da Cassa Reinvestimento - Non inclusi nel bilancio operativo
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Totale Prelevato */}
+              <div className="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+                <p className="text-sm text-muted-foreground mb-1">Totale Prelevato</p>
+                <p className="text-2xl font-bold text-orange-700 dark:text-orange-400">
+                  {formatCurrency(equitySummary.totalPrelevato)}
+                </p>
+              </div>
+
+              {/* Breakdown per Tipo */}
+              <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg space-y-2">
+                <p className="text-sm font-medium mb-2">Per Tipo</p>
+                {Object.entries(equitySummary.byTipo).map(([tipo, importo]) => (
+                  <div key={tipo} className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">
+                      {tipo === 'RIMBORSO' ? 'Rimborsi' : tipo === 'DIVIDENDO' ? 'Dividendi' : 'Altro'}
+                    </span>
+                    <span className="font-medium">{formatCurrency(importo)}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Top Membri */}
+              <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg space-y-2">
+                <p className="text-sm font-medium mb-2">Top Membri</p>
+                {equitySummary.topMembers.length > 0 ? (
+                  equitySummary.topMembers.map(([membro, importo]) => (
+                    <div key={membro} className="flex justify-between text-sm">
+                      <span className="text-muted-foreground truncate">{membro}</span>
+                      <span className="font-medium ml-2">{formatCurrency(importo)}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">Nessun dato</p>
+                )}
+              </div>
+            </div>
+
+            {/* Link to history */}
+            <div className="pt-2 border-t">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  // TODO: Navigate to equity withdrawals history page
+                  toast({ title: "Storico prelievi", description: "Funzionalità in arrivo..." });
+                }}
+                data-testid="button-view-withdrawals-history"
+              >
+                <History className="h-4 w-4 mr-2" />
+                Vedi storico prelievi
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Pulsante Excel come in vendite */}
       <div className="flex justify-end mb-4">
