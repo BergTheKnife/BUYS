@@ -40,8 +40,9 @@ export function PrelevaCassaModal({ open, onOpenChange, saldoCassa, membri }: Pr
     },
     onSuccess: () => {
       toast({ title: "Prelievo effettuato con successo" });
-      queryClient.invalidateQueries({ queryKey: ["equity-withdrawals"] });
-      queryClient.invalidateQueries({ queryKey: ["cassa-reinvestimento"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/equity/withdrawals"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cassa-reinvestimento-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/financial-history"] });
       resetForm();
       onOpenChange(false);
     },
