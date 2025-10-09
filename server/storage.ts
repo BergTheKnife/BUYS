@@ -2366,7 +2366,11 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(financialHistory).where(
       and(
         eq(financialHistory.activityId, activityId),
-        eq(financialHistory.azione, "Riunisci fondi")
+        or(
+          eq(financialHistory.azione, "Riunisci fondi"),
+          eq(financialHistory.azione, "PRELIEVO_CASSA"),
+          eq(financialHistory.azione, "DEPOSITO_CASSA")
+        )
       )
     ).orderBy(desc(financialHistory.data));
   }
