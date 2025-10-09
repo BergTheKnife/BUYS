@@ -2574,11 +2574,14 @@ export class DatabaseStorage implements IStorage {
           .where(eq(users.id, data.memberId))
           .limit(1);
         if (member) {
-          memberName = ` – ${member.nome} ${member.cognome}`;
+          memberName = `${member.nome} ${member.cognome}`;
         }
       }
       
-      const descrizione = `${tipoLabel}${memberName} – €${data.importo.toFixed(2)}`;
+      // Build description: tipo - nome (se presente) - importo
+      const descrizione = memberName 
+        ? `${tipoLabel} – ${memberName} – €${data.importo.toFixed(2)}`
+        : `${tipoLabel} – €${data.importo.toFixed(2)}`;
 
       // Insert into financial history (this updates the cash balance)
       await tx.insert(financialHistory).values({
@@ -2663,11 +2666,14 @@ export class DatabaseStorage implements IStorage {
           .where(eq(users.id, withdrawal.memberId))
           .limit(1);
         if (member) {
-          memberName = ` – ${member.nome} ${member.cognome}`;
+          memberName = `${member.nome} ${member.cognome}`;
         }
       }
       
-      const descrizione = `Annullamento: ${tipoLabel}${memberName} – €${parseFloat(withdrawal.importo).toFixed(2)}`;
+      // Build description: Annullamento - tipo - nome (se presente) - importo
+      const descrizione = memberName
+        ? `Annullamento: ${tipoLabel} – ${memberName} – €${parseFloat(withdrawal.importo).toFixed(2)}`
+        : `Annullamento: ${tipoLabel} – €${parseFloat(withdrawal.importo).toFixed(2)}`;
 
       // Insert into financial history (this updates the cash balance)
       await tx.insert(financialHistory).values({
