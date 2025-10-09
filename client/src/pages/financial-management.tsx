@@ -360,6 +360,19 @@ export default function FinancialManagement() {
       };
     }
     
+    // Check if it's an equity withdrawal (PRELIEVO_CASSA or DEPOSITO_CASSA with scope EQUITY)
+    if ((item.azione === "PRELIEVO_CASSA" || item.azione === "DEPOSITO_CASSA") && 
+        item.descrizione?.includes("Equity")) {
+      // Check if it's a withdrawal or cancellation
+      const isWithdrawal = item.azione === "PRELIEVO_CASSA";
+      return {
+        canDelete: false,
+        page: null,
+        pageLabel: isWithdrawal ? "Prelievo Socio" : "Annullamento Prelievo",
+        icon: null
+      };
+    }
+    
     // Check if it's an inventory-related action
     if (item.descrizione.includes("Inventario") || 
         item.descrizione.includes("Rifornimento") || 
@@ -1192,7 +1205,7 @@ export default function FinancialManagement() {
                         >
                           Elimina
                         </Button>
-                      ) : (
+                      ) : actionInfo.page ? (
                         <Button
                           variant="outline"
                           size="sm"
@@ -1204,7 +1217,11 @@ export default function FinancialManagement() {
                           <ExternalLink className="h-3 w-3 mr-1" />
                           {actionInfo.pageLabel}
                         </Button>
-                      )}
+                      ) : actionInfo.pageLabel ? (
+                        <Badge variant="outline" className="min-w-[100px] text-center py-2">
+                          {actionInfo.pageLabel}
+                        </Badge>
+                      ) : null}
                     </div>
                   </div>
                 );
