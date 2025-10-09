@@ -83,6 +83,7 @@ interface FinancialHistoryItem {
   descrizione: string;
   importo: string | null;
   data: string;
+  dettagli: string | null;
 }
 
 interface ActivityMember {
@@ -112,6 +113,7 @@ export default function FinancialManagement() {
     dateFrom: "",
     dateTo: "",
   });
+  const [selectedHistoryFilter, setSelectedHistoryFilter] = useState<string | null>(null);
 
   // Fetch sales data to calculate balances
   const { data: sales = [], isLoading: salesLoading } = useQuery<Vendita[]>({
@@ -201,7 +203,7 @@ export default function FinancialManagement() {
 
         memberBalances[member].accounts[account] = (memberBalances[member].accounts[account] || 0) + amount;
         memberBalances[member].total += amount;
-        
+
         accountTotals[account] = (accountTotals[account] || 0) + amount;
       });
 
@@ -223,14 +225,14 @@ export default function FinancialManagement() {
       // Subtract from member's account balance
       memberBalances[fromMember].accounts[fromAccount] = (memberBalances[fromMember].accounts[fromAccount] || 0) - amount;
       memberBalances[fromMember].total -= amount;
-      
+
       // Update account totals
       accountTotals[fromAccount] = (accountTotals[fromAccount] || 0) - amount;
     });
 
     // Calculate total funds available in individual accounts (excluding cassa reinvestimento)
     const totalFundsInAccounts = Object.values(accountTotals).reduce((sum, amount) => sum + Math.max(0, amount), 0);
-    
+
     // Use cassa reinvestimento balance from API
     const cassaReinvestimento = cassaBalance?.balance || 0;
 
@@ -254,15 +256,15 @@ export default function FinancialManagement() {
   // Calculate equity withdrawals summary
   const calculateEquityWithdrawalsSummary = () => {
     const activeWithdrawals = equityWithdrawals.filter(w => w.annullato === 0);
-    
+
     const totalPrelevato = activeWithdrawals.reduce((sum, w) => sum + Number(w.importo), 0);
-    
+
     const byTipo = activeWithdrawals.reduce((acc, w) => {
       const tipo = w.tipo;
       acc[tipo] = (acc[tipo] || 0) + Number(w.importo);
       return acc;
     }, {} as Record<string, number>);
-    
+
     const byMembro = activeWithdrawals.reduce((acc, w) => {
       if (!w.memberId) return acc;
       const member = activityMembers.find(m => m.id === w.memberId);
@@ -362,14 +364,15 @@ export default function FinancialManagement() {
         isEquityWithdrawal: false
       };
     }
-    
+
     // Check if it's an equity withdrawal/deposit (PRELIEVO_CASSA or DEPOSITO_CASSA)
     // These can be identified by checking the azione type
     if (item.azione === "PRELIEVO_CASSA" || item.azione === "DEPOSITO_CASSA") {
       // Check if it's equity-related by looking at dettagli or description
       let isEquityRelated = false;
       let withdrawalId = null;
-      
+      let isWithdrawal = item.azione === "PRELIEVO_CASSA";
+
       try {
         const dettagli = JSON.parse(item.dettagli || '{}');
         isEquityRelated = dettagli.scope === 'EQUITY';
@@ -378,10 +381,8 @@ export default function FinancialManagement() {
         // If parsing fails, check description for "Equity"
         isEquityRelated = item.descrizione?.includes("Equity") || false;
       }
-      
+
       if (isEquityRelated) {
-        const isWithdrawal = item.azione === "PRELIEVO_CASSA";
-        
         return {
           canDelete: false,
           page: null,
@@ -393,12 +394,12 @@ export default function FinancialManagement() {
         };
       }
     }
-    
+
     // Check if it's an inventory-related action
-    if (item.descrizione.includes("Inventario") || 
-        item.descrizione.includes("Rifornimento") || 
-        item.descrizione.includes("Acquisto:") ||
-        item.descrizione.includes("Riduzione inventario")) {
+    if (item.descrizione?.includes("Inventario") || 
+        item.descrizione?.includes("Rifornimento") || 
+        item.descrizione?.includes("Acquisto:") ||
+        item.descrizione?.includes("Riduzione inventario")) {
       return {
         canDelete: false,
         page: "/inventario",
@@ -406,9 +407,9 @@ export default function FinancialManagement() {
         icon: Package
       };
     }
-    
+
     // Check if it's a sale-related action
-    if (item.descrizione.includes("Vendita") || item.azione === "Vendita") {
+    if (item.descrizione?.includes("Vendita") || item.azione === "Vendita") {
       return {
         canDelete: false,
         page: "/vendite",
@@ -416,7 +417,7 @@ export default function FinancialManagement() {
         icon: Receipt
       };
     }
-    
+
     // Default to expenses page for generic expenses
     return {
       canDelete: false,
@@ -455,7 +456,7 @@ export default function FinancialManagement() {
   const transferFunds = useMutation({
     mutationFn: async () => {
       const transfers = [];
-      
+
       // Validate that no transfer would result in negative balance
       for (const [member, accounts] of Object.entries(selectedTransfers)) {
         for (const [account, amount] of Object.entries(accounts)) {
@@ -463,11 +464,11 @@ export default function FinancialManagement() {
             // Find the available balance for this member and account
             const memberBalance = financialSummary.memberBalances.find(mb => mb.member === member);
             const availableAmount = memberBalance?.accounts[account] || 0;
-            
+
             if (amount > availableAmount) {
               throw new Error(`Importo non valido per ${member} - ${account}: €${amount.toFixed(2)} supera il saldo disponibile di €${availableAmount.toFixed(2)}`);
             }
-            
+
             transfers.push({
               fromMember: member,
               fromAccount: account,
@@ -512,11 +513,11 @@ export default function FinancialManagement() {
   const addPersonalFunds = useMutation({
     mutationFn: async () => {
       const amount = Number(addFundsAmount);
-      
+
       if (!addFundsMember.trim()) {
         throw new Error("Inserisci il nome del membro");
       }
-      
+
       if (isNaN(amount) || amount <= 0) {
         throw new Error("Inserisci un importo valido");
       }
@@ -785,7 +786,7 @@ export default function FinancialManagement() {
                 Seleziona gli importi da trasferire da ciascun membro e conto alla Cassa Reinvestimento
               </DialogDescription>
             </DialogHeader>
-            
+
             <div className="space-y-6">
               {financialSummary.memberBalances.map((memberBalance) => (
                 <div key={memberBalance.member} className="space-y-3">
@@ -810,7 +811,7 @@ export default function FinancialManagement() {
                             onChange={(e) => {
                               const value = e.target.value;
                               const numValue = Number(value);
-                              
+
                               // Prevent entering amounts higher than available balance
                               if (value === '' || (numValue >= 0 && numValue <= availableAmount)) {
                                 handleTransferChange(memberBalance.member, account, value);
@@ -912,7 +913,7 @@ export default function FinancialManagement() {
                 Aggiungi fondi personali direttamente alla Cassa Reinvestimento
               </DialogDescription>
             </DialogHeader>
-            
+
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="member">Membro</Label>
@@ -1000,7 +1001,7 @@ export default function FinancialManagement() {
               Cronologia completa dei prelievi equity - fuori bilancio
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             {/* Filtri */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
@@ -1094,7 +1095,7 @@ export default function FinancialManagement() {
                     .filter(w => {
                       if (withdrawalFilters.tipo && withdrawalFilters.tipo !== 'ALL' && w.tipo !== withdrawalFilters.tipo) return false;
                       if (withdrawalFilters.memberId && withdrawalFilters.memberId !== 'ALL' && w.memberId !== withdrawalFilters.memberId) return false;
-                      
+
                       const withdrawalDate = new Date(w.dataOperazione);
                       if (withdrawalFilters.dateFrom) {
                         const fromDate = new Date(withdrawalFilters.dateFrom);
@@ -1105,7 +1106,7 @@ export default function FinancialManagement() {
                         toDate.setHours(23, 59, 59, 999); // Include the entire day
                         if (withdrawalDate > toDate) return false;
                       }
-                      
+
                       return true;
                     })
                     .sort((a, b) => new Date(b.dataOperazione).getTime() - new Date(a.dataOperazione).getTime())
@@ -1113,7 +1114,7 @@ export default function FinancialManagement() {
                       const member = activityMembers.find(m => m.id === w.memberId);
                       const memberName = member ? `${member.nome} ${member.cognome}` : '-';
                       const tipoLabel = w.tipo === 'RIMBORSO' ? 'Rimborso' : w.tipo === 'DIVIDENDO' ? 'Dividendo' : 'Altro';
-                      
+
                       return (
                         <tr key={w.id} className="border-t hover:bg-gray-50 dark:hover:bg-gray-800">
                           <td className="px-4 py-2 text-sm">
@@ -1156,7 +1157,7 @@ export default function FinancialManagement() {
                     })}
                 </tbody>
               </table>
-              
+
               {equityWithdrawals.length === 0 && (
                 <div className="p-8 text-center text-muted-foreground">
                   Nessun prelievo registrato
@@ -1179,6 +1180,38 @@ export default function FinancialManagement() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Filtri per causale */}
+          <div className="flex flex-wrap gap-2 mb-4 pb-4 border-b">
+            <Button
+              variant={!selectedHistoryFilter ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSelectedHistoryFilter(null)}
+            >
+              Tutti
+            </Button>
+            <Button
+              variant={selectedHistoryFilter === "Riunisci fondi" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSelectedHistoryFilter("Riunisci fondi")}
+            >
+              Riunisci fondi
+            </Button>
+            <Button
+              variant={selectedHistoryFilter === "PRELIEVO_CASSA" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSelectedHistoryFilter("PRELIEVO_CASSA")}
+            >
+              Prelievi
+            </Button>
+            <Button
+              variant={selectedHistoryFilter === "DEPOSITO_CASSA" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSelectedHistoryFilter("DEPOSITO_CASSA")}
+            >
+              Depositi/Annullamenti
+            </Button>
+          </div>
+
           {historyLoading ? (
             <div className="space-y-3">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -1190,11 +1223,12 @@ export default function FinancialManagement() {
               Nessuna azione registrata ancora
             </p>
           ) : (
-            <div className="space-y-3">
-              {financialHistory.map((item) => {
+            <div className="space-y-3">{financialHistory
+              .filter(item => !selectedHistoryFilter || item.azione === selectedHistoryFilter)
+              .map((item) => {
                 const actionInfo = getActionInfo(item);
                 const IconComponent = actionInfo.icon;
-                
+
                 return (
                   <div key={item.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-4 border rounded-lg bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow">
                     <div className="space-y-2 flex-1">
@@ -1210,19 +1244,19 @@ export default function FinancialManagement() {
                         </span>
                       </div>
                       <p className="text-sm text-gray-700 dark:text-gray-300">{item.descrizione}</p>
-                      
+
                       {/* Show equity withdrawal details if available */}
                       {actionInfo.isEquityWithdrawal && actionInfo.withdrawalId && (
                         <div className="mt-2 p-2 bg-orange-50 dark:bg-orange-900/20 rounded text-xs space-y-1">
                           {(() => {
                             const withdrawal = equityWithdrawals.find(w => w.id === actionInfo.withdrawalId);
                             if (!withdrawal) return null;
-                            
+
                             const member = activityMembers.find(m => m.id === withdrawal.memberId);
                             const memberName = member ? `${member.nome} ${member.cognome}` : null;
                             const tipoLabel = withdrawal.tipo === 'RIMBORSO' ? 'Rimborso investimento' : 
                                             withdrawal.tipo === 'DIVIDENDO' ? 'Dividendi' : 'Altro';
-                            
+
                             return (
                               <>
                                 <div className="flex justify-between">
@@ -1265,7 +1299,7 @@ export default function FinancialManagement() {
                           </span>
                         </div>
                       )}
-                      
+
                       {actionInfo.canDelete ? (
                         <Button
                           variant="destructive"

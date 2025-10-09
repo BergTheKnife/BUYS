@@ -2565,7 +2565,7 @@ export class DatabaseStorage implements IStorage {
       const tipoLabel = data.tipo === 'RIMBORSO' ? 'Rimborso investimento iniziale' :
                         data.tipo === 'DIVIDENDO' ? 'Distribuzione margine (dividendi)' :
                         'Altro prelievo socio';
-      const descrizione = `Equity – Prelievo da cassa: ${tipoLabel}${data.memberId ? ` – Membro ${data.memberId}` : ''} – €${data.importo.toFixed(2)}`;
+      const descrizione = `Equity – Prelievo da cassa: ${tipoLabel} – €${data.importo.toFixed(2)}`;
 
       // Insert into financial history (this updates the cash balance)
       await tx.insert(financialHistory).values({
@@ -2638,7 +2638,10 @@ export class DatabaseStorage implements IStorage {
       }
 
       // Deposit amount back into cash and create financial history entry
-      const descrizione = `Equity – Annullamento prelievo: ref ${withdrawalId} – €${parseFloat(withdrawal.importo).toFixed(2)}`;
+      const tipoLabel = withdrawal.tipo === 'RIMBORSO' ? 'Rimborso investimento iniziale' :
+                        withdrawal.tipo === 'DIVIDENDO' ? 'Distribuzione margine (dividendi)' :
+                        'Altro prelievo socio';
+      const descrizione = `Equity – Annullamento prelievo: ${tipoLabel} – €${parseFloat(withdrawal.importo).toFixed(2)}`;
 
       // Insert into financial history (this updates the cash balance)
       await tx.insert(financialHistory).values({
