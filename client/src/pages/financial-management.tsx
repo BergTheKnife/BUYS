@@ -65,6 +65,16 @@ interface FundTransfer {
   data: string;
 }
 
+interface EquityWithdrawal {
+  id: string;
+  importo: string;
+  tipo: string;
+  memberId: string | null;
+  descrizione: string | null;
+  dataOperazione: string;
+  annullato: number;
+}
+
 interface FinancialHistoryItem {
   id: string;
   azione: string;

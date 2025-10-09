@@ -497,6 +497,31 @@ export const insertFinancialHistorySchema = createInsertSchema(financialHistory)
   userId: true,
   activityId: true,  // Excluded because it's added server-side
   data: true, // Will be set to current time
+})
+
+// Equity withdrawals table (fuori bilancio)
+export const equityWithdrawals = pgTable("equity_withdrawals", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  activityId: uuid("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  memberId: uuid("member_id").references(() => users.id, { onDelete: "set null" }),
+  importo: decimal("importo", { precision: 10, scale: 2 }).notNull(),
+  tipo: text("tipo").notNull().$type<'RIMBORSO' | 'DIVIDENDO' | 'ALTRO'>(),
+  descrizione: text("descrizione"),
+  dataOperazione: timestamp("data_operazione", { mode: 'string' }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  annullato: integer("annullato").default(0).notNull(),
+}, (table) => [
+  index("equity_withdrawals_activity_date_idx").on(table.activityId, table.dataOperazione),
+  index("equity_withdrawals_activity_tipo_idx").on(table.activityId, table.tipo),
+]);
+
+export const insertEquityWithdrawalSchema = createInsertSchema(equityWithdrawals).omit({
+  id: true,
+  userId: true,
+  activityId: true,
+  createdAt: true,
+  annullato: true,
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;

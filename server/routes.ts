@@ -2934,6 +2934,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Equity withdrawals routes
+  app.post('/api/equity/withdrawals', requireActivity, async (req, res) => {
+    try {
+      const { importo, tipo, memberId, descrizione, data } = req.body;
+      
+      if (!importo || importo <= 0) {
+        return res.status(400).json({ message: "Importo non valido" });
+      }
+      
+      if (!['RIMBORSO', 'DIVIDENDO', 'ALTRO'].includes(tipo)) {
+        return res.status(400).json({ message: "Tipo non valido" });
+      }
+
+      const result = await storage.createEquityWithdrawal(
+        req.session.activityId!,
+        req.session.userId!,
+        { importo, tipo, memberId, descrizione, data }
+      );
+      
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nella creazione del prelievo" });
+    }
+  });
+
+  app.get('/api/equity/withdrawals', requireActivity, async (req, res) => {
+    try {
+      const { from, to, tipo, memberId } = req.query;
+      const withdrawals = await storage.getEquityWithdrawals(
+        req.session.activityId!,
+        { from: from as string, to: to as string, tipo: tipo as string, memberId: memberId as string }
+      );
+      res.json(withdrawals);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nel recupero dei prelievi" });
+    }
+  });
+
+  app.post('/api/equity/withdrawals/:id/annulla', requireActivity, async (req, res) => {
+    try {
+      const result = await storage.annullaEquityWithdrawal(
+        req.params.id,
+        req.session.activityId!,
+        req.session.userId!
+      );
+      res.json(result);
+    } catch (error: any) {
+      const status = error.message.includes('già annullato') ? 409 : 500;
+      res.status(status).json({ message: error.message || "Errore nell'annullamento" });
+    }
+  });
+
   // Fund transfers routes
   app.get('/api/fund-transfers', requireActivity, async (req, res) => {
     try {

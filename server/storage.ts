@@ -11,6 +11,7 @@ import {
   passwordResetTokens,
   rememberTokens, // Import remember tokens table
   spedizioni, // Import spedizioni table
+  equityWithdrawals, // Import equityWithdrawals table
   type User,
   type InsertUser,
   type Inventario,
@@ -33,7 +34,9 @@ import {
   type InsertPasswordResetToken,
   type Spedizione,
   type InsertSpedizione,
-  type UpdateSpedizione
+  type UpdateSpedizione,
+  type EquityWithdrawal,
+  type InsertEquityWithdrawal,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sum, sql, gte, lt, lte, or, like, ilike, inArray, ne } from "drizzle-orm";
@@ -209,6 +212,20 @@ export interface IStorage {
       dataSpedizione: Date | null;
     };
   }>>;
+
+  // Equity Withdrawal Methods
+  getCassaReinvestimento(activityId: string): Promise<number>;
+  updateCassaReinvestimento(activityId: string, importo: number, descrizione: string, userId: string, tx?: any): Promise<number>;
+  createEquityWithdrawal(
+    activityId: string,
+    userId: string,
+    data: { importo: number; tipo: string; memberId?: string; descrizione?: string; data?: string }
+  ): Promise<{ withdrawal: EquityWithdrawal; nuovoSaldo: number }>;
+  getEquityWithdrawals(
+    activityId: string,
+    filters: { from?: string; to?: string; tipo?: string; memberId?: string }
+  ): Promise<{ withdrawals: EquityWithdrawal[]; totals: { totale: number; rimborsi: number; dividendi: number } }>;
+  annullaEquityWithdrawal(withdrawalId: string, activityId: string, userId: string): Promise<{ success: boolean; nuovoSaldo: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -769,7 +786,7 @@ export class DatabaseStorage implements IStorage {
           } else if (costDifference < 0) {
             // Costo diminuito - calcolo corretto del rimborso cassa
             const costReduction = Math.abs(costDifference);
-            
+
             // LOGICA CORRETTA: Rimborsa la differenza tra quello che la cassa aveva coperto 
             // e quello che dovrebbe coprire ora (limitato al nuovo costo totale)
             const maxCassaCoverageNeeded = Math.min(newCostTotal, originalCassaCoverage);
@@ -892,7 +909,7 @@ export class DatabaseStorage implements IStorage {
         const originalCostPerUnit = Number(currentItem.costo);
         const originalCostTotal = originalCostPerUnit * currentItem.quantita;
         const newCostTotal = costPerUnit * updates.quantita;
-        
+
         // Calcola quanto della cassa reinvestimento dovrebbe essere rimborsato
         // La logica è: se avevo 7 pezzi con 60€ di copertura cassa, e ora ho 5 pezzi,
         // dovrei rimborsare la quota proporzionale della cassa (2/7 * 60€)
@@ -1286,7 +1303,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Aggiorna saldo cassa reinvestimento
-  async updateCassaReinvestimento(activityId: string, importo: number, descrizione: string, userId: string) {
+  async updateCassaReinvestimento(activityId: string, importo: number, descrizione: string, userId: string, tx?: any) {
+    const dbInstance = tx || db; // Use transaction or main db instance
     const currentBalance = await this.getCassaReinvestimentoBalance(activityId);
 
     if (currentBalance + importo < 0) {
@@ -1294,7 +1312,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Registra nella cronologia finanziaria
-    const [newEntry] = await db.insert(financialHistory).values({
+    const [newEntry] = await dbInstance.insert(financialHistory).values({
       userId,
       activityId,
       azione: importo > 0 ? "DEPOSITO_CASSA" : "PRELIEVO_CASSA",
@@ -1331,9 +1349,6 @@ export class DatabaseStorage implements IStorage {
     // Calculate FIFO margin and update batches
     const { margine, batchesUsed, batchDetails } = await this.calculateFIFOMargin(saleData.inventarioId, saleData.quantita!, Number(saleData.prezzoVendita));
     await this.updateBatchesAfterSale(batchesUsed);
-
-    // Calculate weighted average cost for storage
-    const costoTotale = batchDetails.reduce((sum, detail) => sum + (detail.quantitaUsata * detail.costoUnitario), 0);
 
     // Create the sale record with calculated margin and new fields
     const [newSale] = await db
@@ -1706,7 +1721,7 @@ export class DatabaseStorage implements IStorage {
       const amountDiff = newAmount - originalAmount;
 
       // 2) Copertura cassa ATTUALE legata a QUESTA spesa
-      //    Somma PRELIEVI_CASSA - DEPOSITI_CASSA filtrando per descrizione che contiene la voce spesa.
+      //    Somma PRELIEVO_CASSA - DEPOSITO_CASSA filtrando per descrizione che contiene la voce spesa.
       const likeVoce = `%${original.voce}%`;
       const covRows = await tx
         .select({
@@ -2479,6 +2494,182 @@ export class DatabaseStorage implements IStorage {
         numeroTracking: row.numeroTracking,
       },
     }));
+  }
+
+  // Equity Withdrawal Methods
+  // Helper to get current cash balance
+  async getCassaReinvestimento(activityId: string): Promise<number> {
+    const balance = await this.getCassaReinvestimentoBalance(activityId);
+    return balance;
+  }
+
+  // Helper to update cash balance and create financial history entry
+  async updateCassaReinvestimento(activityId: string, importo: number, descrizione: string, userId: string, tx?: any): Promise<number> {
+    const dbInstance = tx || db; // Use transaction or main db instance
+    const currentBalance = await this.getCassaReinvestimentoBalance(activityId);
+
+    if (currentBalance + importo < 0) {
+      throw new Error("Fondi insufficienti nella cassa reinvestimento");
+    }
+
+    // Create financial history entry
+    await dbInstance.insert(financialHistory).values({
+      userId,
+      activityId,
+      azione: importo > 0 ? "DEPOSITO_CASSA" : "PRELIEVO_CASSA",
+      descrizione,
+      importo: Math.abs(importo).toString(),
+    });
+
+    return currentBalance + importo;
+  }
+
+  async createEquityWithdrawal(
+    activityId: string,
+    userId: string,
+    data: { importo: number; tipo: string; memberId?: string; descrizione?: string; data?: string }
+  ) {
+    return await db.transaction(async (tx) => {
+      // Verify activity exists
+      const activity = await tx.query.activities.findFirst({
+        where: eq(activities.id, activityId),
+      });
+
+      if (!activity) {
+        throw new Error("Attività non trovata");
+      }
+
+      // Check cash balance
+      const saldo = await this.getCassaReinvestimento(activityId);
+      if (saldo < data.importo) {
+        throw new Error("Saldo cassa reinvestimento insufficiente");
+      }
+
+      // Create withdrawal record
+      const [withdrawal] = await tx.insert(equityWithdrawals).values({
+        activityId,
+        userId,
+        importo: data.importo.toString(),
+        tipo: data.tipo,
+        memberId: data.memberId,
+        descrizione: data.descrizione,
+        dataOperazione: data.data || new Date().toISOString(),
+        annullato: 0, // Initially not canceled
+      }).returning();
+
+      // Update cash balance (debit from cash)
+      const tipoLabel = data.tipo === 'RIMBORSO' ? 'Rimborso investimento iniziale' :
+                        data.tipo === 'DIVIDENDO' ? 'Distribuzione margine (dividendi)' :
+                        'Altro prelievo socio';
+      const descrizione = `Equity – Prelievo da cassa: ${tipoLabel}${data.memberId ? ` – Membro ${data.memberId}` : ''} – €${data.importo.toFixed(2)}`;
+
+      await this.updateCassaReinvestimento(
+        activityId,
+        -data.importo, // Debit from cash
+        descrizione,
+        userId,
+        tx // Pass transaction to ensure atomicity
+      );
+
+      // Insert into financial history
+      await tx.insert(financialHistory).values({
+        userId,
+        activityId,
+        azione: 'PRELIEVO_CASSA',
+        descrizione,
+        importo: data.importo.toString(),
+        dettagli: JSON.stringify({ scope: 'EQUITY', kind: data.tipo, withdrawalId: withdrawal.id }),
+      });
+
+      const nuovoSaldo = await this.getCassaReinvestimento(activityId);
+      return { withdrawal, nuovoSaldo };
+    });
+  }
+
+  async getEquityWithdrawals(
+    activityId: string,
+    filters: { from?: string; to?: string; tipo?: string; memberId?: string }
+  ) {
+    const conditions = [eq(equityWithdrawals.activityId, activityId)];
+
+    if (filters.from) {
+      conditions.push(sql`${equityWithdrawals.dataOperazione} >= ${filters.from}`);
+    }
+    if (filters.to) {
+      conditions.push(sql`${equityWithdrawals.dataOperazione} <= ${filters.to}`);
+    }
+    if (filters.tipo) {
+      conditions.push(eq(equityWithdrawals.tipo, filters.tipo));
+    }
+    if (filters.memberId) {
+      conditions.push(eq(equityWithdrawals.memberId, filters.memberId));
+    }
+
+    const withdrawals = await db.query.equityWithdrawals.findMany({
+      where: and(...conditions),
+      orderBy: (equityWithdrawals, { desc }) => [desc(equityWithdrawals.dataOperazione)],
+    });
+
+    // Calculate totals for non-canceled withdrawals
+    const totals = withdrawals
+      .filter(w => !w.annullato)
+      .reduce((acc, w) => {
+        const importo = parseFloat(w.importo);
+        acc.totale += importo;
+        if (w.tipo === 'RIMBORSO') acc.rimborsi += importo;
+        if (w.tipo === 'DIVIDENDO') acc.dividendi += importo;
+        return acc;
+      }, { totale: 0, rimborsi: 0, dividendi: 0 });
+
+    return { withdrawals, totals };
+  }
+
+  async annullaEquityWithdrawal(withdrawalId: string, activityId: string, userId: string) {
+    return await db.transaction(async (tx) => {
+      const withdrawal = await tx.query.equityWithdrawals.findFirst({
+        where: and(
+          eq(equityWithdrawals.id, withdrawalId),
+          eq(equityWithdrawals.activityId, activityId)
+        ),
+      });
+
+      if (!withdrawal) {
+        throw new Error("Prelievo non trovato");
+      }
+
+      if (withdrawal.annullato) {
+        throw new Error("Prelievo già annullato");
+      }
+
+      // Deposit amount back into cash
+      const descrizione = `Equity – Annullamento prelievo: ref ${withdrawalId} – €${parseFloat(withdrawal.importo).toFixed(2)}`;
+
+      await this.updateCassaReinvestimento(
+        activityId,
+        parseFloat(withdrawal.importo), // Deposit back
+        descrizione,
+        userId,
+        tx // Pass transaction
+      );
+
+      // Insert into financial history
+      await tx.insert(financialHistory).values({
+        userId,
+        activityId,
+        azione: 'DEPOSITO_CASSA',
+        descrizione,
+        importo: withdrawal.importo,
+        dettagli: JSON.stringify({ scope: 'EQUITY', kind: 'ANNULLAMENTO', withdrawalId }),
+      });
+
+      // Mark as canceled
+      await tx.update(equityWithdrawals)
+        .set({ annullato: 1 })
+        .where(eq(equityWithdrawals.id, withdrawalId));
+
+      const nuovoSaldo = await this.getCassaReinvestimento(activityId);
+      return { success: true, nuovoSaldo };
+    });
   }
 }
 
