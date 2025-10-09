@@ -98,6 +98,7 @@ export default function FinancialManagement() {
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showAddFundsModal, setShowAddFundsModal] = useState(false);
   const [showPrelevaCassaModal, setShowPrelevaCassaModal] = useState(false);
+  const [showWithdrawalsHistoryModal, setShowWithdrawalsHistoryModal] = useState(false);
   const [selectedTransfers, setSelectedTransfers] = useState<{
     [member: string]: { [account: string]: number }
   }>({});
@@ -105,6 +106,12 @@ export default function FinancialManagement() {
   const [addFundsAmount, setAddFundsAmount] = useState("");
   const [addFundsMember, setAddFundsMember] = useState("");
   const [addFundsDescription, setAddFundsDescription] = useState("");
+  const [withdrawalFilters, setWithdrawalFilters] = useState({
+    tipo: "",
+    memberId: "",
+    dateFrom: "",
+    dateTo: "",
+  });
 
   // Fetch sales data to calculate balances
   const { data: sales = [], isLoading: salesLoading } = useQuery<Vendita[]>({
@@ -265,6 +272,26 @@ export default function FinancialManagement() {
   };
 
   const equitySummary = calculateEquityWithdrawalsSummary();
+
+  // Mutation to cancel equity withdrawal
+  const cancelWithdrawal = useMutation({
+    mutationFn: async (withdrawalId: string) => {
+      return await apiRequest("POST", `/api/equity/withdrawals/${withdrawalId}/annulla`);
+    },
+    onSuccess: () => {
+      toast({ title: "Prelievo annullato con successo" });
+      queryClient.invalidateQueries({ queryKey: ["/api/equity/withdrawals"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cassa-reinvestimento-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/financial-history"] });
+    },
+    onError: (error: Error) => {
+      toast({ 
+        title: "Errore", 
+        description: error.message, 
+        variant: "destructive" 
+      });
+    },
+  });
 
   const handleComprehensiveExport = async () => {
     try {
@@ -684,10 +711,7 @@ export default function FinancialManagement() {
               <Button 
                 variant="outline" 
                 size="sm"
-                onClick={() => {
-                  // TODO: Navigate to equity withdrawals history page
-                  toast({ title: "Storico prelievi", description: "Funzionalità in arrivo..." });
-                }}
+                onClick={() => setShowWithdrawalsHistoryModal(true)}
                 data-testid="button-view-withdrawals-history"
               >
                 <History className="h-4 w-4 mr-2" />
@@ -927,6 +951,182 @@ export default function FinancialManagement() {
         saldoCassa={cassaBalance?.balance || 0}
         membri={activityMembers}
       />
+
+      {/* Withdrawals History Modal */}
+      <Dialog open={showWithdrawalsHistoryModal} onOpenChange={setShowWithdrawalsHistoryModal}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Storico Prelievi da Cassa</DialogTitle>
+            <DialogDescription>
+              Cronologia completa dei prelievi equity - fuori bilancio
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Filtri */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <div className="space-y-2">
+                <Label>Data Da</Label>
+                <Input
+                  type="date"
+                  value={withdrawalFilters.dateFrom}
+                  onChange={(e) => setWithdrawalFilters({...withdrawalFilters, dateFrom: e.target.value})}
+                  data-testid="input-filter-date-from"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Data A</Label>
+                <Input
+                  type="date"
+                  value={withdrawalFilters.dateTo}
+                  onChange={(e) => setWithdrawalFilters({...withdrawalFilters, dateTo: e.target.value})}
+                  data-testid="input-filter-date-to"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Tipo</Label>
+                <Select 
+                  value={withdrawalFilters.tipo} 
+                  onValueChange={(value) => setWithdrawalFilters({...withdrawalFilters, tipo: value})}
+                >
+                  <SelectTrigger data-testid="select-filter-tipo">
+                    <SelectValue placeholder="Tutti i tipi" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Tutti i tipi</SelectItem>
+                    <SelectItem value="RIMBORSO">Rimborso investimento</SelectItem>
+                    <SelectItem value="DIVIDENDO">Dividendi</SelectItem>
+                    <SelectItem value="ALTRO">Altro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Membro</Label>
+                <Select 
+                  value={withdrawalFilters.memberId} 
+                  onValueChange={(value) => setWithdrawalFilters({...withdrawalFilters, memberId: value})}
+                >
+                  <SelectTrigger data-testid="select-filter-membro">
+                    <SelectValue placeholder="Tutti i membri" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Tutti i membri</SelectItem>
+                    {activityMembers.map(m => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.nome} {m.cognome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Reset Filtri */}
+            <div className="flex justify-end">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setWithdrawalFilters({ tipo: "", memberId: "", dateFrom: "", dateTo: "" })}
+                data-testid="button-reset-filters"
+              >
+                Azzera Filtri
+              </Button>
+            </div>
+
+            {/* Tabella Prelievi */}
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-100 dark:bg-gray-800">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-sm font-medium">Data</th>
+                    <th className="px-4 py-2 text-left text-sm font-medium">Tipo</th>
+                    <th className="px-4 py-2 text-left text-sm font-medium">Membro</th>
+                    <th className="px-4 py-2 text-right text-sm font-medium">Importo</th>
+                    <th className="px-4 py-2 text-left text-sm font-medium">Descrizione</th>
+                    <th className="px-4 py-2 text-center text-sm font-medium">Stato</th>
+                    <th className="px-4 py-2 text-center text-sm font-medium">Azioni</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {equityWithdrawals
+                    .filter(w => {
+                      if (withdrawalFilters.tipo && withdrawalFilters.tipo !== 'ALL' && w.tipo !== withdrawalFilters.tipo) return false;
+                      if (withdrawalFilters.memberId && withdrawalFilters.memberId !== 'ALL' && w.memberId !== withdrawalFilters.memberId) return false;
+                      
+                      const withdrawalDate = new Date(w.dataOperazione);
+                      if (withdrawalFilters.dateFrom) {
+                        const fromDate = new Date(withdrawalFilters.dateFrom);
+                        if (withdrawalDate < fromDate) return false;
+                      }
+                      if (withdrawalFilters.dateTo) {
+                        const toDate = new Date(withdrawalFilters.dateTo);
+                        toDate.setHours(23, 59, 59, 999); // Include the entire day
+                        if (withdrawalDate > toDate) return false;
+                      }
+                      
+                      return true;
+                    })
+                    .sort((a, b) => new Date(b.dataOperazione).getTime() - new Date(a.dataOperazione).getTime())
+                    .map(w => {
+                      const member = activityMembers.find(m => m.id === w.memberId);
+                      const memberName = member ? `${member.nome} ${member.cognome}` : '-';
+                      const tipoLabel = w.tipo === 'RIMBORSO' ? 'Rimborso' : w.tipo === 'DIVIDENDO' ? 'Dividendo' : 'Altro';
+                      
+                      return (
+                        <tr key={w.id} className="border-t hover:bg-gray-50 dark:hover:bg-gray-800">
+                          <td className="px-4 py-2 text-sm">
+                            {new Date(w.dataOperazione).toLocaleDateString('it-IT')}
+                          </td>
+                          <td className="px-4 py-2 text-sm">{tipoLabel}</td>
+                          <td className="px-4 py-2 text-sm">{memberName}</td>
+                          <td className="px-4 py-2 text-sm text-right font-medium">
+                            {formatCurrency(Number(w.importo))}
+                          </td>
+                          <td className="px-4 py-2 text-sm text-muted-foreground">
+                            {w.descrizione || '-'}
+                          </td>
+                          <td className="px-4 py-2 text-center">
+                            {w.annullato === 1 ? (
+                              <Badge variant="outline" className="text-red-600">Annullato</Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-green-600">Attivo</Badge>
+                            )}
+                          </td>
+                          <td className="px-4 py-2 text-center">
+                            {w.annullato === 0 && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  if (confirm('Sei sicuro di voler annullare questo prelievo? Il saldo verrà ripristinato.')) {
+                                    cancelWithdrawal.mutate(w.id);
+                                  }
+                                }}
+                                disabled={cancelWithdrawal.isPending}
+                                data-testid={`button-cancel-withdrawal-${w.id}`}
+                              >
+                                Annulla
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+              
+              {equityWithdrawals.length === 0 && (
+                <div className="p-8 text-center text-muted-foreground">
+                  Nessun prelievo registrato
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Financial History */}
       <Card>
