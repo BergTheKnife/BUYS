@@ -40,6 +40,7 @@ import {
 import { apiRequest } from "@/lib/queryClient";
 import type { Vendita, Spesa } from "@shared/schema";
 import { useLocation } from "wouter";
+import { PrelevaCassaModal } from "@/components/modals/preleva-cassa-modal";
 
 // Types for our financial data
 interface MemberBalance {
@@ -83,12 +84,19 @@ interface FinancialHistoryItem {
   data: string;
 }
 
+interface ActivityMember {
+  id: string;
+  nome: string;
+  cognome: string;
+}
+
 export default function FinancialManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showAddFundsModal, setShowAddFundsModal] = useState(false);
+  const [showPrelevaCassaModal, setShowPrelevaCassaModal] = useState(false);
   const [selectedTransfers, setSelectedTransfers] = useState<{
     [member: string]: { [account: string]: number }
   }>({});
@@ -141,6 +149,12 @@ export default function FinancialManagement() {
   const { data: cassaBalance } = useQuery<{ balance: number }>({
     queryKey: ["/api/cassa-reinvestimento-balance"],
     staleTime: 30 * 1000, // 30 secondi invece di 5 minuti
+  });
+
+  // Fetch activity members
+  const { data: activityMembers = [] } = useQuery<ActivityMember[]>({
+    queryKey: ["/api/activity-members"],
+    staleTime: 60 * 1000, // 1 minuto
   });
 
   // Calculate financial summary from sales data
@@ -717,7 +731,7 @@ export default function FinancialManagement() {
 
         <Dialog open={showAddFundsModal} onOpenChange={setShowAddFundsModal}>
           <DialogTrigger asChild>
-            <Button size="lg" className="px-8" variant="outline">
+            <Button size="lg" className="px-8" variant="outline" data-testid="button-add-funds">
               <Plus className="h-5 w-5 mr-2" />
               Aggiungi Fondi Personali
             </Button>
@@ -788,7 +802,25 @@ export default function FinancialManagement() {
             </div>
           </DialogContent>
         </Dialog>
+
+        <Button 
+          size="lg" 
+          className="px-8" 
+          variant="outline"
+          onClick={() => setShowPrelevaCassaModal(true)}
+          data-testid="button-preleva-cassa"
+        >
+          <Euro className="h-5 w-5 mr-2" />
+          Preleva da cassa
+        </Button>
       </div>
+
+      <PrelevaCassaModal 
+        open={showPrelevaCassaModal}
+        onOpenChange={setShowPrelevaCassaModal}
+        saldoCassa={cassaBalance?.balance || 0}
+        membri={activityMembers}
+      />
 
       {/* Financial History */}
       <Card>
