@@ -1236,12 +1236,9 @@ export default function FinancialManagement() {
                   <div key={item.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-4 border rounded-lg bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow">
                     <div className="space-y-2 flex-1">
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                        {/* Hide action badge for equity withdrawals */}
-                        {!actionInfo.isEquityWithdrawal && (
-                          <Badge variant="secondary" className="w-fit">
-                            {item.azione}
-                          </Badge>
-                        )}
+                        <Badge variant="secondary" className="w-fit">
+                          {item.azione}
+                        </Badge>
                         <span className="text-sm text-muted-foreground">
                           {formatDate(item.data)}
                         </span>
