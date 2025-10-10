@@ -82,6 +82,46 @@
     outline: none !important;
     box-shadow: none !important;
   }
+
+  /* Prevent color changes on active/tap states for badges and buttons */
+  div[class*="badge"]:active,
+  div[class*="Badge"]:active,
+  button:active,
+  [role="button"]:active {
+    opacity: 1 !important;
+  }
+
+  /* Ensure background colors stay on active state */
+  div[class*="bg-primary"]:active,
+  button[class*="bg-primary"]:active {
+    background-color: hsl(var(--primary)) !important;
+  }
+
+  div[class*="bg-secondary"]:active,
+  button[class*="bg-secondary"]:active {
+    background-color: hsl(var(--secondary)) !important;
+  }
+
+  div[class*="bg-destructive"]:active,
+  button[class*="bg-destructive"]:active {
+    background-color: hsl(var(--destructive)) !important;
+  }
+
+  /* Prevent text color changes on tap */
+  div[class*="text-primary-foreground"]:active,
+  button[class*="text-primary-foreground"]:active {
+    color: hsl(var(--primary-foreground)) !important;
+  }
+
+  div[class*="text-secondary-foreground"]:active,
+  button[class*="text-secondary-foreground"]:active {
+    color: hsl(var(--secondary-foreground)) !important;
+  }
+
+  div[class*="text-destructive-foreground"]:active,
+  button[class*="text-destructive-foreground"]:active {
+    color: hsl(var(--destructive-foreground)) !important;
+  }
 }
 
 :root {
