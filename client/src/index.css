@@ -72,15 +72,27 @@
   }
 
   /* Remove all focus states on touch devices */
-  *:focus:not(:focus-visible) {
-    outline: none !important;
-    box-shadow: none !important;
-  }
-
-  /* Force remove focus states completely */
+  *:focus,
+  *:focus:not(:focus-visible),
   *:focus-visible {
     outline: none !important;
     box-shadow: none !important;
+    ring: none !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  /* Force inputs to keep their styles on focus/active */
+  input:focus,
+  input:active,
+  textarea:focus,
+  textarea:active,
+  select:focus,
+  select:active {
+    outline: none !important;
+    box-shadow: none !important;
+    border-color: hsl(var(--input)) !important;
+    background-color: hsl(var(--background)) !important;
+    -webkit-tap-highlight-color: transparent !important;
   }
 
   /* Prevent color changes on active/tap states for badges and buttons */
@@ -89,6 +101,7 @@
   button:active,
   [role="button"]:active {
     opacity: 1 !important;
+    -webkit-tap-highlight-color: transparent !important;
   }
 
   /* Ensure background colors stay on active state */
@@ -107,6 +120,11 @@
     background-color: hsl(var(--destructive)) !important;
   }
 
+  div[class*="bg-white"]:active,
+  [class*="bg-white"]:active {
+    background-color: white !important;
+  }
+
   /* Prevent text color changes on tap */
   div[class*="text-primary-foreground"]:active,
   button[class*="text-primary-foreground"]:active {
@@ -121,6 +139,11 @@
   div[class*="text-destructive-foreground"]:active,
   button[class*="text-destructive-foreground"]:active {
     color: hsl(var(--destructive-foreground)) !important;
+  }
+
+  /* Remove webkit tap highlight completely */
+  * {
+    -webkit-tap-highlight-color: transparent !important;
   }
 }
 
@@ -211,7 +234,16 @@
   /* Better mobile touch targets */
   button, input, select, textarea, a {
     min-height: 44px; /* iOS recommended minimum touch target */
-    -webkit-tap-highlight-color: transparent;
+    -webkit-tap-highlight-color: transparent !important;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Allow text selection in inputs */
+  input, textarea {
+    -webkit-user-select: text;
+    user-select: text;
   }
 
   /* Smooth scrolling for better UX */
