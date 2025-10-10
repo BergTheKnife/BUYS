@@ -1246,7 +1246,10 @@ export default function FinancialManagement() {
                           {formatDate(item.data)}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-700 dark:text-gray-300">{item.descrizione}</p>
+                      {/* Hide description for equity withdrawals */}
+                      {!actionInfo.isEquityWithdrawal && (
+                        <p className="text-sm text-gray-700 dark:text-gray-300">{item.descrizione}</p>
+                      )}
 
                       {/* Show equity withdrawal details if available */}
                       {actionInfo.isEquityWithdrawal && actionInfo.withdrawalId && (
