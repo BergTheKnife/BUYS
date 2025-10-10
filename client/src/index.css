@@ -4,6 +4,38 @@
 @tailwind components;
 @tailwind utilities;
 
+/* GLOBAL: Remove all tap highlights and fix touch colors */
+* {
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0) !important;
+  -webkit-tap-highlight-color: transparent !important;
+  tap-highlight-color: transparent !important;
+}
+
+/* Force all elements to keep colors on touch/active/focus */
+*:active,
+*:focus,
+*:hover {
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+/* Inputs must keep background on focus/active */
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+input:focus,
+input:active,
+textarea:focus,
+textarea:active,
+select:focus,
+select:active {
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
 /* Remove hover effects on touch devices */
 @media (hover: none) {
   /* Remove all Tailwind hover effects */
@@ -259,19 +291,73 @@
 
   /* Specifically target input elements */
   input:focus,
+  input:active,
   textarea:focus,
-  select:focus {
+  textarea:active,
+  select:focus,
+  select:active {
     outline: none !important;
     box-shadow: none !important;
-    border-color: inherit !important;
+    border-color: hsl(var(--input)) !important;
+    background-color: hsl(var(--background)) !important;
+    -webkit-tap-highlight-color: transparent !important;
   }
 
   /* Remove focus states from buttons and interactive elements */
   button:focus,
+  button:active,
   [role="button"]:focus,
-  a:focus {
+  [role="button"]:active,
+  a:focus,
+  a:active {
     outline: none !important;
     box-shadow: none !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  /* Force bg-primary to stay blue */
+  .bg-primary,
+  [class*="bg-primary"] {
+    background-color: hsl(var(--primary)) !important;
+  }
+
+  .bg-primary:active,
+  .bg-primary:focus,
+  .bg-primary:hover,
+  [class*="bg-primary"]:active,
+  [class*="bg-primary"]:focus,
+  [class*="bg-primary"]:hover {
+    background-color: hsl(var(--primary)) !important;
+  }
+
+  /* Force all badge and button colors to stay */
+  div[class*="bg-primary"]:active,
+  button[class*="bg-primary"]:active {
+    background-color: hsl(var(--primary)) !important;
+    opacity: 1 !important;
+  }
+
+  div[class*="bg-secondary"]:active,
+  button[class*="bg-secondary"]:active {
+    background-color: hsl(var(--secondary)) !important;
+    opacity: 1 !important;
+  }
+
+  div[class*="bg-destructive"]:active,
+  button[class*="bg-destructive"]:active {
+    background-color: hsl(var(--destructive)) !important;
+    opacity: 1 !important;
+  }
+
+  /* Keep text colors on active */
+  div[class*="text-primary-foreground"]:active,
+  button[class*="text-primary-foreground"]:active {
+    color: hsl(var(--primary-foreground)) !important;
+  }
+
+  div[class*="text-secondary-foreground"]:active,
+  button[class*="text-secondary-foreground"]:active {
+    color: hsl(var(--secondary-foreground)) !important;
   }
 
   /* Mobile-specific optimizations */
