@@ -2366,7 +2366,11 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(financialHistory).where(
       and(
         eq(financialHistory.activityId, activityId),
-        eq(financialHistory.azione, "Riunisci fondi")
+        or(
+          eq(financialHistory.azione, "Riunisci fondi"),
+          eq(financialHistory.azione, "PRELIEVO_CASSA"),
+          eq(financialHistory.azione, "DEPOSITO_CASSA")
+        )
       )
     ).orderBy(desc(financialHistory.data));
   }
@@ -2561,7 +2565,23 @@ export class DatabaseStorage implements IStorage {
       const tipoLabel = data.tipo === 'RIMBORSO' ? 'Rimborso investimento iniziale' :
                         data.tipo === 'DIVIDENDO' ? 'Distribuzione margine (dividendi)' :
                         'Altro prelievo socio';
-      const descrizione = `Equity – Prelievo da cassa: ${tipoLabel}${data.memberId ? ` – Membro ${data.memberId}` : ''} – €${data.importo.toFixed(2)}`;
+      
+      // Get member name if memberId is provided
+      let memberName = '';
+      if (data.memberId) {
+        const [member] = await tx.select({ nome: users.nome, cognome: users.cognome })
+          .from(users)
+          .where(eq(users.id, data.memberId))
+          .limit(1);
+        if (member) {
+          memberName = `${member.nome} ${member.cognome}`;
+        }
+      }
+      
+      // Build description: tipo - nome (se presente) - importo
+      const descrizione = memberName 
+        ? `${tipoLabel} – ${memberName} – €${data.importo.toFixed(2)}`
+        : `${tipoLabel} – €${data.importo.toFixed(2)}`;
 
       // Insert into financial history (this updates the cash balance)
       await tx.insert(financialHistory).values({
@@ -2634,7 +2654,26 @@ export class DatabaseStorage implements IStorage {
       }
 
       // Deposit amount back into cash and create financial history entry
-      const descrizione = `Equity – Annullamento prelievo: ref ${withdrawalId} – €${parseFloat(withdrawal.importo).toFixed(2)}`;
+      const tipoLabel = withdrawal.tipo === 'RIMBORSO' ? 'Rimborso investimento iniziale' :
+                        withdrawal.tipo === 'DIVIDENDO' ? 'Distribuzione margine (dividendi)' :
+                        'Altro prelievo socio';
+      
+      // Get member name if memberId is provided
+      let memberName = '';
+      if (withdrawal.memberId) {
+        const [member] = await tx.select({ nome: users.nome, cognome: users.cognome })
+          .from(users)
+          .where(eq(users.id, withdrawal.memberId))
+          .limit(1);
+        if (member) {
+          memberName = `${member.nome} ${member.cognome}`;
+        }
+      }
+      
+      // Build description: Annullamento - tipo - nome (se presente) - importo
+      const descrizione = memberName
+        ? `Annullamento: ${tipoLabel} – ${memberName} – €${parseFloat(withdrawal.importo).toFixed(2)}`
+        : `Annullamento: ${tipoLabel} – €${parseFloat(withdrawal.importo).toFixed(2)}`;
 
       // Insert into financial history (this updates the cash balance)
       await tx.insert(financialHistory).values({
