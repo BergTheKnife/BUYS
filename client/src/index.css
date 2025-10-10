@@ -4,38 +4,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* GLOBAL: Remove all tap highlights and fix touch colors */
-* {
-  -webkit-tap-highlight-color: rgba(0, 0, 0, 0) !important;
-  -webkit-tap-highlight-color: transparent !important;
-  tap-highlight-color: transparent !important;
-}
-
-/* Force all elements to keep colors on touch/active/focus */
-*:active,
-*:focus,
-*:hover {
-  -webkit-tap-highlight-color: transparent !important;
-}
-
-/* Inputs must keep background on focus/active */
-input,
-textarea,
-select {
-  -webkit-tap-highlight-color: transparent !important;
-}
-
-input:focus,
-input:active,
-textarea:focus,
-textarea:active,
-select:focus,
-select:active {
-  outline: none !important;
-  box-shadow: none !important;
-  -webkit-tap-highlight-color: transparent !important;
-}
-
 /* Remove hover effects on touch devices */
 @media (hover: none) {
   /* Remove all Tailwind hover effects */
@@ -104,78 +72,15 @@ select:active {
   }
 
   /* Remove all focus states on touch devices */
-  *:focus,
-  *:focus:not(:focus-visible),
+  *:focus:not(:focus-visible) {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Force remove focus states completely */
   *:focus-visible {
     outline: none !important;
     box-shadow: none !important;
-    ring: none !important;
-    -webkit-tap-highlight-color: transparent !important;
-  }
-
-  /* Force inputs to keep their styles on focus/active */
-  input:focus,
-  input:active,
-  textarea:focus,
-  textarea:active,
-  select:focus,
-  select:active {
-    outline: none !important;
-    box-shadow: none !important;
-    border-color: hsl(var(--input)) !important;
-    background-color: hsl(var(--background)) !important;
-    -webkit-tap-highlight-color: transparent !important;
-  }
-
-  /* Prevent color changes on active/tap states for badges and buttons */
-  div[class*="badge"]:active,
-  div[class*="Badge"]:active,
-  button:active,
-  [role="button"]:active {
-    opacity: 1 !important;
-    -webkit-tap-highlight-color: transparent !important;
-  }
-
-  /* Ensure background colors stay on active state */
-  div[class*="bg-primary"]:active,
-  button[class*="bg-primary"]:active {
-    background-color: hsl(var(--primary)) !important;
-  }
-
-  div[class*="bg-secondary"]:active,
-  button[class*="bg-secondary"]:active {
-    background-color: hsl(var(--secondary)) !important;
-  }
-
-  div[class*="bg-destructive"]:active,
-  button[class*="bg-destructive"]:active {
-    background-color: hsl(var(--destructive)) !important;
-  }
-
-  div[class*="bg-white"]:active,
-  [class*="bg-white"]:active {
-    background-color: white !important;
-  }
-
-  /* Prevent text color changes on tap */
-  div[class*="text-primary-foreground"]:active,
-  button[class*="text-primary-foreground"]:active {
-    color: hsl(var(--primary-foreground)) !important;
-  }
-
-  div[class*="text-secondary-foreground"]:active,
-  button[class*="text-secondary-foreground"]:active {
-    color: hsl(var(--secondary-foreground)) !important;
-  }
-
-  div[class*="text-destructive-foreground"]:active,
-  button[class*="text-destructive-foreground"]:active {
-    color: hsl(var(--destructive-foreground)) !important;
-  }
-
-  /* Remove webkit tap highlight completely */
-  * {
-    -webkit-tap-highlight-color: transparent !important;
   }
 }
 
@@ -266,16 +171,7 @@ select:active {
   /* Better mobile touch targets */
   button, input, select, textarea, a {
     min-height: 44px; /* iOS recommended minimum touch target */
-    -webkit-tap-highlight-color: transparent !important;
-    -webkit-touch-callout: none;
-    -webkit-user-select: none;
-    user-select: none;
-  }
-
-  /* Allow text selection in inputs */
-  input, textarea {
-    -webkit-user-select: text;
-    user-select: text;
+    -webkit-tap-highlight-color: transparent;
   }
 
   /* Smooth scrolling for better UX */
@@ -291,73 +187,19 @@ select:active {
 
   /* Specifically target input elements */
   input:focus,
-  input:active,
   textarea:focus,
-  textarea:active,
-  select:focus,
-  select:active {
+  select:focus {
     outline: none !important;
     box-shadow: none !important;
-    border-color: hsl(var(--input)) !important;
-    background-color: hsl(var(--background)) !important;
-    -webkit-tap-highlight-color: transparent !important;
+    border-color: inherit !important;
   }
 
   /* Remove focus states from buttons and interactive elements */
   button:focus,
-  button:active,
   [role="button"]:focus,
-  [role="button"]:active,
-  a:focus,
-  a:active {
+  a:focus {
     outline: none !important;
     box-shadow: none !important;
-    -webkit-tap-highlight-color: transparent !important;
-  }
-
-  /* Force bg-primary to stay blue */
-  .bg-primary,
-  [class*="bg-primary"] {
-    background-color: hsl(var(--primary)) !important;
-  }
-
-  .bg-primary:active,
-  .bg-primary:focus,
-  .bg-primary:hover,
-  [class*="bg-primary"]:active,
-  [class*="bg-primary"]:focus,
-  [class*="bg-primary"]:hover {
-    background-color: hsl(var(--primary)) !important;
-  }
-
-  /* Force all badge and button colors to stay */
-  div[class*="bg-primary"]:active,
-  button[class*="bg-primary"]:active {
-    background-color: hsl(var(--primary)) !important;
-    opacity: 1 !important;
-  }
-
-  div[class*="bg-secondary"]:active,
-  button[class*="bg-secondary"]:active {
-    background-color: hsl(var(--secondary)) !important;
-    opacity: 1 !important;
-  }
-
-  div[class*="bg-destructive"]:active,
-  button[class*="bg-destructive"]:active {
-    background-color: hsl(var(--destructive)) !important;
-    opacity: 1 !important;
-  }
-
-  /* Keep text colors on active */
-  div[class*="text-primary-foreground"]:active,
-  button[class*="text-primary-foreground"]:active {
-    color: hsl(var(--primary-foreground)) !important;
-  }
-
-  div[class*="text-secondary-foreground"]:active,
-  button[class*="text-secondary-foreground"]:active {
-    color: hsl(var(--secondary-foreground)) !important;
   }
 
   /* Mobile-specific optimizations */
