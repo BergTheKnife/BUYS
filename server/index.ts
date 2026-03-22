@@ -11,6 +11,10 @@ app.use(cookieParser());
 
 // Serve static files from public directory (for PWA icons and manifest)
 app.use(express.static(path.join(process.cwd(), 'client/public')));
+app.use(
+  "/objects/inventory-images",
+  express.static(path.join(process.cwd(), "public", "inventory-images"))
+);
 
 app.use((req, res, next) => {
   const start = Date.now();
