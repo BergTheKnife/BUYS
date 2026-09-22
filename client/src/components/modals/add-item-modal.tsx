@@ -195,6 +195,7 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
                   <SelectItem value="L">L</SelectItem>
                   <SelectItem value="XL">XL</SelectItem>
                   <SelectItem value="XXL">XXL</SelectItem>
+                  <SelectItem value="XXXL">XXXL</SelectItem>
                   <SelectItem value="28">28</SelectItem>
                   <SelectItem value="30">30</SelectItem>
                   <SelectItem value="32">32</SelectItem>
