@@ -2400,7 +2400,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (delta < 0) {
           return res.status(400).json({
-            message: "Riduzione quantità non consentita da modifica articolo. Usa vendita o operazioni dedicate per mantenere il FIFO coerente."
+            message: "Riduzione quantità non consentita da modifica articolo. Usa vendita o 'Correggi lotto' per mantenere il FIFO coerente."
           });
         }
 
@@ -2563,22 +2563,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         quantita: parseInt(quantita),
       });
 
-      app.get('/api/inventario/:id/batches', requireActivity, async (req, res) => {
-        try {
-          const { id } = req.params;
-          const item = await storage.getInventoryItem(id, req.session.activityId!);
-          if (!item) {
-            return res.status(404).json({ message: "Articolo non trovato" });
-          }
-
-          const batches = await storage.getInventoryBatches(id);
-          const availableBatches = batches.filter((batch: any) => Number(batch.quantitaRimanente || 0) > 0);
-          res.json(availableBatches);
-        } catch (error: any) {
-          res.status(500).json({ message: error.message || "Errore nel recupero lotti articolo" });
-        }
-      });
-
       // Update inventory quantity
       const newQuantity = item.quantita + parseInt(quantita);
       await storage.updateInventoryQuantity(id, newQuantity);
@@ -2606,6 +2590,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error('Restock error:', error);
       res.status(500).json({ message: error.message || "Errore nel rifornimento" });
+    }
+  });
+
+  app.get('/api/inventario/:id/batches', requireActivity, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const item = await storage.getInventoryItem(id, req.session.activityId!);
+      if (!item) {
+        return res.status(404).json({ message: "Articolo non trovato" });
+      }
+
+      const batches = await storage.getInventoryBatches(id);
+      const availableBatches = batches.filter((batch: any) => Number(batch.quantitaRimanente || 0) > 0);
+      res.json(availableBatches);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nel recupero lotti articolo" });
+    }
+  });
+
+  app.post('/api/inventario/:id/remove-from-batch', requireActivity, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { batchId, quantita } = req.body;
+
+      if (!batchId || typeof batchId !== "string") {
+        return res.status(400).json({ message: "Lotto non valido" });
+      }
+
+      const quantitaDaRimuovere = Number(quantita);
+      if (!Number.isInteger(quantitaDaRimuovere) || quantitaDaRimuovere <= 0) {
+        return res.status(400).json({ message: "Quantità non valida" });
+      }
+
+      const item = await storage.getInventoryItem(id, req.session.activityId!);
+      if (!item) {
+        return res.status(404).json({ message: "Articolo non trovato" });
+      }
+
+      const updatedItem = await storage.removeInventoryQuantityFromBatch(
+        id,
+        req.session.activityId!,
+        batchId,
+        quantitaDaRimuovere
+      );
+
+      res.json(updatedItem);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Errore nella correzione quantità lotto" });
     }
   });
 

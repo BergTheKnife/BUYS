@@ -44,7 +44,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Package, Plus, Edit, Trash2, ImageIcon, PackagePlus, Filter, ArrowUpDown, ArrowUp, ArrowDown, Download, FolderArchive } from "lucide-react";
+import { Package, Plus, Edit, Trash2, ImageIcon, PackagePlus, Filter, ArrowUpDown, ArrowUp, ArrowDown, Download, FolderArchive, Minus } from "lucide-react";
 import type { Inventario } from "@shared/schema";
 // Hook undo/redo rimosso
 import { ImagePreview } from "@/components/ui/image-preview";
@@ -57,6 +57,9 @@ export default function Inventory() {
   const [restockItem, setRestockItem] = useState<Inventario | null>(null);
   const [restockQuantity, setRestockQuantity] = useState("1");
   const [restockNewCost, setRestockNewCost] = useState("");
+  const [batchAdjustItem, setBatchAdjustItem] = useState<Inventario | null>(null);
+  const [selectedBatchId, setSelectedBatchId] = useState("");
+  const [batchRemoveQuantity, setBatchRemoveQuantity] = useState("1");
   const [sortConfig, setSortConfig] = useState<{
     key: keyof Inventario | null;
     direction: 'asc' | 'desc';
@@ -97,6 +100,22 @@ export default function Inventory() {
   const { data: sales = [] } = useQuery<any[]>({
     queryKey: ["/api/vendite"],
     enabled: !!currentActivity?.id,
+  });
+
+  type InventoryBatch = {
+    id: string;
+    costo: string;
+    quantitaRimanente: number;
+    dataAcquisto?: string;
+  };
+
+  const { data: adjustableBatches = [], isLoading: isLoadingBatches } = useQuery<InventoryBatch[]>({
+    queryKey: ["/api/inventario", batchAdjustItem?.id, "batches"],
+    enabled: !!batchAdjustItem?.id,
+    queryFn: async () => {
+      const response = await apiRequest("GET", `/api/inventario/${batchAdjustItem!.id}/batches`);
+      return response.json();
+    },
   });
 
   // Sorting function
@@ -296,6 +315,34 @@ export default function Inventory() {
     },
   });
 
+  const batchAdjustMutation = useMutation({
+    mutationFn: async ({ id, batchId, quantita }: { id: string; batchId: string; quantita: number }) => {
+      const response = await apiRequest("POST", `/api/inventario/${id}/remove-from-batch`, {
+        batchId,
+        quantita,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/inventario"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      toast({
+        title: "Correzione completata",
+        description: "Quantità lotto aggiornata senza movimenti di bilancio.",
+      });
+      setBatchAdjustItem(null);
+      setSelectedBatchId("");
+      setBatchRemoveQuantity("1");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore nella correzione quantità del lotto",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleRestock = () => {
     if (restockItem && restockQuantity) {
       restockMutation.mutate({ 
@@ -304,6 +351,20 @@ export default function Inventory() {
         costo: restockNewCost || undefined
       });
     }
+  };
+
+  const handleBatchAdjust = () => {
+    if (!batchAdjustItem || !selectedBatchId) return;
+    const quantita = Number(batchRemoveQuantity);
+    if (!Number.isInteger(quantita) || quantita <= 0) {
+      toast({
+        title: "Errore",
+        description: "Inserisci una quantità valida da rimuovere",
+        variant: "destructive",
+      });
+      return;
+    }
+    batchAdjustMutation.mutate({ id: batchAdjustItem.id, batchId: selectedBatchId, quantita });
   };
 
   // Handler che apre il dialog di scelta dual-mode
@@ -666,6 +727,19 @@ export default function Inventory() {
                             <Button
                               size="sm"
                               variant="outline"
+                              onClick={() => {
+                                setBatchAdjustItem(item);
+                                setSelectedBatchId("");
+                                setBatchRemoveQuantity("1");
+                              }}
+                              title="Correggi lotto"
+                              className="min-w-[36px] h-9 p-2"
+                            >
+                              <Minus className="h-6 w-6 text-orange-600" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
                               onClick={() => setEditingItem(item)}
                               title="Modifica"
                               className="min-w-[36px] h-9 p-2"
@@ -773,6 +847,74 @@ export default function Inventory() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <Dialog
+          open={!!batchAdjustItem}
+          onOpenChange={(open) => {
+            if (!open) {
+              setBatchAdjustItem(null);
+              setSelectedBatchId("");
+              setBatchRemoveQuantity("1");
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Correggi quantità da lotto</DialogTitle>
+              <DialogDescription>
+                Seleziona il lotto da cui rimuovere pezzi per correggere giacenze errate senza generare movimenti di bilancio.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Articolo</Label>
+                <div className="text-sm text-muted-foreground">
+                  {batchAdjustItem?.nomeArticolo} - {batchAdjustItem?.taglia || "N/A"}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="batch-select">Lotto</Label>
+                <Select value={selectedBatchId} onValueChange={setSelectedBatchId}>
+                  <SelectTrigger id="batch-select">
+                    <SelectValue placeholder={isLoadingBatches ? "Caricamento lotti..." : "Seleziona lotto"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {adjustableBatches.map((batch) => (
+                      <SelectItem key={batch.id} value={batch.id}>
+                        {`Lotto ${batch.id.slice(0, 8)} • Rim: ${batch.quantitaRimanente} • Costo: ${formatCurrency(batch.costo)}${batch.dataAcquisto ? ` • ${new Date(batch.dataAcquisto).toLocaleDateString("it-IT")}` : ""}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="batch-remove-quantity">Quantità da rimuovere</Label>
+                <Input
+                  id="batch-remove-quantity"
+                  type="number"
+                  min="1"
+                  value={batchRemoveQuantity}
+                  onChange={(e) => setBatchRemoveQuantity(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setBatchAdjustItem(null)}>
+                Annulla
+              </Button>
+              <Button
+                onClick={handleBatchAdjust}
+                disabled={!selectedBatchId || batchAdjustMutation.isPending}
+              >
+                {batchAdjustMutation.isPending ? "Correzione..." : "Conferma correzione"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={!!restockItem} onOpenChange={() => setRestockItem(null)}>
           <DialogContent className="sm:max-w-[425px]">

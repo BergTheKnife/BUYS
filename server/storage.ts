@@ -88,6 +88,12 @@ export interface IStorage {
   getInventoryItem(id: string, activityId: string): Promise<Inventario | undefined>;
   createInventoryItem(item: InsertInventario & { userId: string; activityId: string; immagineUrl?: string | null }): Promise<Inventario>;
   updateInventoryItem(id: string, activityId: string, updates: Partial<InsertInventario>): Promise<Inventario | undefined>;
+  removeInventoryQuantityFromBatch(
+    inventarioId: string,
+    activityId: string,
+    batchId: string,
+    quantitaDaRimuovere: number
+  ): Promise<Inventario | undefined>;
 
   // 🗂️ MODALITÀ 1: ARCHIVIAZIONE - Solo soft-delete, nessun ripristino cassa
   archiveInventoryItem(id: string, activityId: string): Promise<boolean>;
@@ -886,6 +892,85 @@ export class DatabaseStorage implements IStorage {
     }
 
     return updatedItem || undefined;
+  }
+
+  async removeInventoryQuantityFromBatch(
+    inventarioId: string,
+    activityId: string,
+    batchId: string,
+    quantitaDaRimuovere: number
+  ): Promise<Inventario | undefined> {
+    if (!Number.isInteger(quantitaDaRimuovere) || quantitaDaRimuovere <= 0) {
+      throw new Error("Quantità da rimuovere non valida");
+    }
+
+    const { inventoryBatches } = await import('../migrations/schema');
+
+    return await db.transaction(async (tx) => {
+      const [item] = await tx
+        .select()
+        .from(inventario)
+        .where(and(eq(inventario.id, inventarioId), eq(inventario.activityId, activityId)))
+        .limit(1);
+
+      if (!item) {
+        throw new Error("Articolo non trovato");
+      }
+
+      const [batch] = await tx
+        .select()
+        .from(inventoryBatches)
+        .where(
+          and(
+            eq(inventoryBatches.id, batchId),
+            eq(inventoryBatches.inventarioId, inventarioId),
+            eq(inventoryBatches.activityId, activityId)
+          )
+        )
+        .limit(1);
+
+      if (!batch) {
+        throw new Error("Lotto non trovato");
+      }
+
+      const quantitaDisponibile = Number(batch.quantitaRimanente || 0);
+      if (quantitaDisponibile <= 0) {
+        throw new Error("Il lotto selezionato è già esaurito");
+      }
+
+      if (quantitaDaRimuovere > quantitaDisponibile) {
+        throw new Error(`Quantità richiesta superiore alla disponibilità del lotto (${quantitaDisponibile})`);
+      }
+
+      const nuovaQuantitaLotto = quantitaDisponibile - quantitaDaRimuovere;
+      await tx
+        .update(inventoryBatches)
+        .set({ quantitaRimanente: nuovaQuantitaLotto })
+        .where(eq(inventoryBatches.id, batchId));
+
+      const [totaleLotti] = await tx
+        .select({
+          totale: sql<number>`COALESCE(SUM(${inventoryBatches.quantitaRimanente}), 0)`,
+        })
+        .from(inventoryBatches)
+        .where(
+          and(
+            eq(inventoryBatches.inventarioId, inventarioId),
+            eq(inventoryBatches.activityId, activityId),
+            sql`${inventoryBatches.quantitaRimanente} > 0`
+          )
+        );
+
+      const nuovaQuantitaInventario = Number(totaleLotti?.totale || 0);
+
+      const [updatedItem] = await tx
+        .update(inventario)
+        .set({ quantita: nuovaQuantitaInventario })
+        .where(and(eq(inventario.id, inventarioId), eq(inventario.activityId, activityId)))
+        .returning();
+
+      return updatedItem;
+    });
   }
 
   async archiveInventoryItem(id: string, activityId: string): Promise<boolean> {
