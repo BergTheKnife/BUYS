@@ -57,8 +57,21 @@ export class ObjectStorageService {
 
   normalizeObjectEntityPath(rawPath: string): string {
     if (!rawPath) return rawPath;
-    if (publicUrl && rawPath.startsWith(publicUrl)) return rawPath.split("?")[0];
-    return rawPath.split("?")[0];
+    const cleanPath = rawPath.split("?")[0];
+    if (publicUrl && cleanPath.startsWith(publicUrl)) return cleanPath;
+
+    // Inventory uploads use a presigned R2 endpoint. Store the stable public URL,
+    // not the expiring query string or the internal R2 endpoint.
+    try {
+      const url = new URL(cleanPath);
+      if (url.hostname.endsWith(".r2.cloudflarestorage.com")) {
+        return this.publicObjectUrl(decodeURIComponent(url.pathname.replace(/^\//, "")));
+      }
+    } catch {
+      // Keep legacy/local paths unchanged.
+    }
+
+    return cleanPath;
   }
 
   async getObjectEntityFile(objectPath: string) {
@@ -74,7 +87,11 @@ export class ObjectStorageService {
 
   async downloadObject(object: any, res: any, cacheTtlSec = 3600) {
     if (!object.Body) return res.status(404).json({ error: "File not found" });
-    res.set({ "Content-Type": object.ContentType || "application/octet-stream", ...(object.ContentLength ? { "Content-Length": String(object.ContentLength) } : {}), "Cache-Control": `public, max-age=${cacheTtlSec}` });
+    res.set({
+      "Content-Type": object.ContentType || "application/octet-stream",
+      ...(object.ContentLength ? { "Content-Length": String(object.ContentLength) } : {}),
+      "Cache-Control": `public, max-age=${cacheTtlSec}`,
+    });
     object.Body.pipe(res);
   }
 }
