@@ -38,6 +38,7 @@ interface AddSaleModalProps {
 
 const saleFormSchema = z.object({
   inventarioId: z.string().optional(),
+  selectedBatchId: z.string().optional(),
   productionProductId: z.string().nullable().optional(),
   quantita: z.number().min(1, "Quantità richiesta"),
   prezzoVendita: z.string().min(1, "Prezzo richiesto"),
@@ -82,6 +83,13 @@ interface SalePreview {
   batchDetails: BatchDetail[];
 }
 
+interface InventoryBatch {
+  id: string;
+  costo: string;
+  quantitaRimanente: number;
+  dataAcquisto?: string;
+}
+
 type VetrinaProduct = {
   id: string; nome: string; categoria?: string; costoOverride?: string;
   imageUrl?: string; bom?: any[];
@@ -119,6 +127,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
     resolver: zodResolver(saleFormSchema),
     defaultValues: {
       inventarioId: "",
+      selectedBatchId: "",
       productionProductId: undefined,
       quantita: 1,
       prezzoVendita: "0",
@@ -139,6 +148,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
       setOrigine(editOrigine as "magazzino" | "vetrina");
       form.reset({
         inventarioId: editingSale.inventarioId,
+        selectedBatchId: "",
         productionProductId: (editingSale as any).productionProductId,
         quantita: editingSale.quantita,
         prezzoVendita: editingSale.prezzoVendita.toString(),
@@ -153,6 +163,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
     } else {
       form.reset({
         inventarioId: "",
+        selectedBatchId: "",
         productionProductId: undefined,
         quantita: 1,
         prezzoVendita: "0",
@@ -168,9 +179,20 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
     }
   }, [editingSale, form]);
 
+  const currentInventarioId = form.watch("inventarioId");
+
   const selectedItem = origine === "magazzino" 
-    ? inventory.find((item: Inventario) => item.id === form.watch("inventarioId"))
+    ? inventory.find((item: Inventario) => item.id === currentInventarioId)
     : null;
+
+  const { data: inventoryBatches = [] } = useQuery<InventoryBatch[]>({
+    queryKey: ["/api/inventario", currentInventarioId, "batches"],
+    enabled: isOpen && !editingSale && origine === "magazzino" && !!currentInventarioId,
+    queryFn: async () => {
+      const response = await apiRequest("GET", `/api/inventario/${currentInventarioId}/batches`);
+      return response.json();
+    },
+  });
 
   const selectedVetrina = origine === "vetrina"
     ? vetrinaProducts.find(p => p.id === form.watch("productionProductId"))
@@ -178,7 +200,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
 
   // Watch form values for preview calculation
   const watchedValues = form.watch();
-  const { inventarioId, productionProductId, quantita, prezzoVendita } = watchedValues;
+  const { inventarioId, selectedBatchId, productionProductId, quantita, prezzoVendita } = watchedValues;
 
   // Calculate preview when relevant values change
   useEffect(() => {
@@ -208,7 +230,8 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
           response = await apiRequest("POST", "/api/vendite/preview", {
             inventarioId,
             quantita: parseInt(quantita.toString()),
-            prezzoVendita: prezzoVendita
+            prezzoVendita: prezzoVendita,
+            selectedBatchId: selectedBatchId || undefined
           });
         } else {
           response = await apiRequest("POST", "/api/vendite/preview-vetrina", {
@@ -229,7 +252,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
 
     const timeoutId = setTimeout(calculatePreview, 500); // Debounce
     return () => clearTimeout(timeoutId);
-  }, [inventarioId, productionProductId, quantita, prezzoVendita, editingSale, origine]);
+  }, [inventarioId, selectedBatchId, productionProductId, quantita, prezzoVendita, editingSale, origine]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("it-IT", {
@@ -257,6 +280,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
 
       if (data.origine === "magazzino") {
         payload.inventarioId = data.inventarioId;
+        payload.selectedBatchId = data.selectedBatchId || undefined;
       } else {
         payload.productionProductId = data.productionProductId;
       }
@@ -276,6 +300,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
       onClose();
       form.reset({
         inventarioId: "",
+        selectedBatchId: "",
         productionProductId: undefined,
         quantita: 1,
         prezzoVendita: "0",
@@ -326,6 +351,7 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
                   setOrigine(value as "magazzino" | "vetrina");
                   form.setValue("origine", value);
                   form.setValue("inventarioId", "");
+                  form.setValue("selectedBatchId", "");
                   form.setValue("productionProductId", undefined);
                 }}
               >
@@ -348,7 +374,10 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
                 <Label htmlFor="inventarioId">Articolo Magazzino</Label>
                 <Select 
                   value={form.watch("inventarioId")} 
-                  onValueChange={(value) => form.setValue("inventarioId", value)}
+                  onValueChange={(value) => {
+                    form.setValue("inventarioId", value);
+                    form.setValue("selectedBatchId", "");
+                  }}
                 >
                   <SelectTrigger data-testid="select-articolo">
                     <SelectValue placeholder="Seleziona articolo" />
@@ -390,6 +419,31 @@ export function AddSaleModal({ isOpen, onClose, editingSale }: AddSaleModalProps
                         (+ {editingSale.quantita} dalla vendita corrente)
                       </span>
                     )}
+                  </p>
+                </div>
+              )}
+
+              {!editingSale && selectedItem && inventoryBatches.length > 1 && (
+                <div className="space-y-2">
+                  <Label htmlFor="selectedBatchId">Lotto da utilizzare (opzionale)</Label>
+                  <Select
+                    value={form.watch("selectedBatchId") || "__auto__"}
+                    onValueChange={(value) => form.setValue("selectedBatchId", value === "__auto__" ? "" : value)}
+                  >
+                    <SelectTrigger data-testid="select-lotto-preferito">
+                      <SelectValue placeholder="Automatico (FIFO)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__auto__">Automatico (FIFO)</SelectItem>
+                      {inventoryBatches.map((batch, index) => (
+                        <SelectItem key={batch.id} value={batch.id}>
+                          Lotto {index + 1} • Qta: {batch.quantitaRimanente} • Costo: {formatCurrency(Number(batch.costo))}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Se selezioni un lotto, la vendita attingerà prima da quello; l'eventuale residuo seguirà l'ordine FIFO.
                   </p>
                 </div>
               )}

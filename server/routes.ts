@@ -2558,6 +2558,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         quantita: parseInt(quantita),
       });
 
+      app.get('/api/inventario/:id/batches', requireActivity, async (req, res) => {
+        try {
+          const { id } = req.params;
+          const item = await storage.getInventoryItem(id, req.session.activityId!);
+          if (!item) {
+            return res.status(404).json({ message: "Articolo non trovato" });
+          }
+
+          const batches = await storage.getInventoryBatches(id);
+          const availableBatches = batches.filter((batch: any) => Number(batch.quantitaRimanente || 0) > 0);
+          res.json(availableBatches);
+        } catch (error: any) {
+          res.status(500).json({ message: error.message || "Errore nel recupero lotti articolo" });
+        }
+      });
+
       // Update inventory quantity
       const newQuantity = item.quantita + parseInt(quantita);
       await storage.updateInventoryQuantity(id, newQuantity);
@@ -2605,7 +2621,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Preview sale calculation endpoint
   app.post('/api/vendite/preview', requireActivity, async (req, res) => {
     try {
-      const { inventarioId, quantita, prezzoVendita } = req.body;
+      const { inventarioId, quantita, prezzoVendita, selectedBatchId } = req.body;
 
       if (!inventarioId || !quantita || !prezzoVendita) {
         return res.status(400).json({ message: "Dati mancanti per il calcolo del preview" });
@@ -2626,7 +2642,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const fifoResult = await storage.calculateFIFOMargin(
         inventarioId,
         quantitaVenduta,
-        Number(prezzoVendita)
+        Number(prezzoVendita),
+        { preferredBatchId: selectedBatchId || undefined }
       );
 
       res.json({
@@ -2721,6 +2738,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const origine = req.body.origine || "magazzino";
       let inventarioId = req.body.inventarioId;
       let productionProductId = req.body.productionProductId;
+      const preferredBatchId = req.body.selectedBatchId || null;
       
       // If selling from vetrina, prepare inventory first
       if (origine === "vetrina") {
@@ -2772,7 +2790,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         taglia: inventoryItem.taglia || '',
         margine: "0", // Will be calculated internally by createSale
         origine,
-        productionProductId: origine === "vetrina" ? productionProductId : null
+        productionProductId: origine === "vetrina" ? productionProductId : null,
+        preferredBatchId: origine === "magazzino" ? preferredBatchId : null
       });
 
       res.json(sale);

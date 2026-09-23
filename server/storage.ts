@@ -103,7 +103,7 @@ export interface IStorage {
 
   // Sales methods (now with activity context)
   getSalesByActivity(activityId: string): Promise<Vendita[]>;
-  createSale(sale: InsertVendita & { userId: string; activityId: string; nomeArticolo: string; taglia: string; margine: string; origine?: string; productionProductId?: string | null }): Promise<Vendita>;
+  createSale(sale: InsertVendita & { userId: string; activityId: string; nomeArticolo: string; taglia: string; margine: string; origine?: string; productionProductId?: string | null; preferredBatchId?: string | null }): Promise<Vendita>;
   getSaleById(id: string, activityId: string): Promise<Vendita | null>;
   updateSale(id: string, activityId: string, updates: Partial<InsertVendita> & { nomeArticolo?: string; taglia?: string | null; margine?: string }): Promise<Vendita | null>;
   deleteSale(id: string, activityId: string): Promise<boolean>;
@@ -1117,7 +1117,12 @@ export class DatabaseStorage implements IStorage {
     return updatedBatch;
   }
 
-  async calculateFIFOMargin(inventarioId: string, quantitaVenduta: number, prezzoVendita: number) {
+  async calculateFIFOMargin(
+    inventarioId: string,
+    quantitaVenduta: number,
+    prezzoVendita: number,
+    options?: { preferredBatchId?: string | null }
+  ) {
     const [inventoryItem] = await db
       .select()
       .from(inventario)
@@ -1142,12 +1147,23 @@ export class DatabaseStorage implements IStorage {
       throw new Error("Quantità insufficiente in magazzino per completare la vendita");
     }
 
+    let orderedBatches = batches;
+    if (options?.preferredBatchId) {
+      const preferredIndex = batches.findIndex((batch) => batch.id === options.preferredBatchId);
+      if (preferredIndex === -1) {
+        throw new Error("Il lotto selezionato non è disponibile per questa vendita");
+      }
+      const preferredBatch = batches[preferredIndex];
+      const remainingBatches = batches.filter((batch) => batch.id !== options.preferredBatchId);
+      orderedBatches = [preferredBatch, ...remainingBatches];
+    }
+
     let rimanenteVendita = quantitaVenduta;
     let costoTotale = 0;
     const batchesUsed: { id: string; quantitaUsata: number }[] = [];
     const batchDetails: { batchId: string | null; costoUnitario: number; quantitaUsata: number; marginePartial: number }[] = [];
 
-    for (const batch of batches) {
+    for (const batch of orderedBatches) {
       if (rimanenteVendita <= 0) break;
 
       const quantitaDisponibile = Number(batch.quantitaRimanente || 0);
@@ -1325,7 +1341,7 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(vendite).where(eq(vendite.activityId, activityId)).orderBy(desc(vendite.data));
   }
 
-  async createSale(saleData: InsertVendita & { userId: string; activityId: string; nomeArticolo: string; taglia: string; margine: string; origine?: string; productionProductId?: string | null }): Promise<Vendita> {
+  async createSale(saleData: InsertVendita & { userId: string; activityId: string; nomeArticolo: string; taglia: string; margine: string; origine?: string; productionProductId?: string | null; preferredBatchId?: string | null }): Promise<Vendita> {
     const [inventoryItem] = await db
       .select()
       .from(inventario)
@@ -1342,7 +1358,12 @@ export class DatabaseStorage implements IStorage {
       throw new Error("Quantità insufficiente in magazzino");
     }
 
-    const { margine, batchesUsed, batchDetails } = await this.calculateFIFOMargin(saleData.inventarioId, saleData.quantita!, Number(saleData.prezzoVendita));
+    const { margine, batchesUsed, batchDetails } = await this.calculateFIFOMargin(
+      saleData.inventarioId,
+      saleData.quantita!,
+      Number(saleData.prezzoVendita),
+      { preferredBatchId: saleData.preferredBatchId }
+    );
     await this.updateBatchesAfterSale(batchesUsed);
 
     const [newSale] = await db
