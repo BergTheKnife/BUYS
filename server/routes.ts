@@ -2362,6 +2362,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/inventario/:id', requireActivity, upload.single('immagine'), async (req, res) => {
     try {
       const { id } = req.params;
+      const existingItem = await storage.getInventoryItem(id, req.session.activityId!);
+      if (!existingItem) {
+        return res.status(404).json({ message: "Articolo non trovato" });
+      }
 
       // Convert form data types properly for updates
       const formData: any = {};
@@ -2370,7 +2374,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.body.costo !== undefined) formData.costo = req.body.costo;
       if (req.body.quantita !== undefined) formData.quantita = parseInt(req.body.quantita);
 
-      const updates = insertInventarioSchema.partial().parse(formData);
+      const updates = insertInventarioSchema.partial().parse(formData) as any;
+      const hasQuantityUpdate = req.body.quantita !== undefined;
+      const hasCostUpdate = req.body.costo !== undefined;
+
+      if (hasQuantityUpdate) {
+        const nuovaQuantita = Number(updates.quantita);
+        if (!Number.isInteger(nuovaQuantita) || nuovaQuantita < 0) {
+          return res.status(400).json({ message: "Quantità non valida" });
+        }
+
+        const delta = nuovaQuantita - existingItem.quantita;
+
+        if (delta < 0) {
+          return res.status(400).json({
+            message: "Riduzione quantità non consentita da modifica articolo. Usa vendita o operazioni dedicate per mantenere il FIFO coerente."
+          });
+        }
+
+        if (delta > 0) {
+          const costoNuovoLotto = hasCostUpdate ? String(updates.costo) : String(existingItem.costo);
+
+          await storage.createInventoryBatch({
+            inventarioId: id,
+            activityId: req.session.activityId!,
+            userId: req.session.userId!,
+            costo: costoNuovoLotto,
+            quantita: delta,
+          });
+
+          const valorePrecedente = Number(existingItem.costo) * existingItem.quantita;
+          const valoreNuovoLotto = Number(costoNuovoLotto) * delta;
+          const costoMedio = (valorePrecedente + valoreNuovoLotto) / nuovaQuantita;
+          updates.costo = costoMedio.toFixed(2);
+        } else if (hasCostUpdate && Number(updates.costo) !== Number(existingItem.costo)) {
+          return res.status(400).json({
+            message: "Cambio costo non consentito senza nuovo rifornimento: usa 'Rifornisci' o aumenta la quantità per creare un nuovo lotto."
+          });
+        }
+      } else if (hasCostUpdate && Number(updates.costo) !== Number(existingItem.costo)) {
+        return res.status(400).json({
+          message: "Cambio costo non consentito senza nuovo rifornimento: usa 'Rifornisci' per mantenere il FIFO coerente."
+        });
+      }
 
       // Solo aggiorna l'immagine se è stata fornita una nuova immagine
       if (req.file) {
@@ -2410,9 +2456,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Se non è stata fornita una nuova immagine, l'immagineUrl esistente rimane invariata
 
       const item = await storage.updateInventoryItem(id, req.session.activityId!, updates);
-      if (!item) {
-        return res.status(404).json({ message: "Articolo non trovato" });
-      }
 
       // Invalidate expenses query to reflect the automatic expense update
       res.json(item);
