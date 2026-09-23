@@ -2999,7 +2999,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { from, to, tipo, memberId } = req.query;
       const withdrawals = await storage.getEquityWithdrawals(
         req.session.activityId!,
-        { from: from as string, to: to as string, tipo: tipo as string, memberId: memberId as string }
+        {
+          from: from as string,
+          to: to as string,
+          tipo: tipo as "RIMBORSO" | "DIVIDENDO" | "ALTRO" | undefined,
+          memberId: memberId as string
+        }
       );
       res.json(withdrawals);
     } catch (error: any) {
@@ -3214,7 +3219,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get material name for expense description
       const materials = await svc.listProductionMaterials(req.session.activityId!);
       const material = materials.find((m: any) => m.id === id);
-      const materialName = material?.nome || 'Materiale';
+      const materialName = String(material?.nome ?? 'Materiale');
       
       const out = await svc.refillProductionMaterial({
         userId: req.session.userId!, activityId: req.session.activityId!,

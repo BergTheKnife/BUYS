@@ -35,11 +35,11 @@ import {
   type Spedizione,
   type InsertSpedizione,
   type UpdateSpedizione,
-  type EquityWithdrawal,
-  type InsertEquityWithdrawal,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sum, sql, gte, lt, lte, or, like, ilike, inArray, ne } from "drizzle-orm";
+
+type EquityWithdrawal = typeof equityWithdrawals.$inferSelect;
 
 export interface IStorage {
   // User methods
@@ -1184,25 +1184,6 @@ export class DatabaseStorage implements IStorage {
     return balance;
   }
 
-  async updateCassaReinvestimento(activityId: string, importo: number, descrizione: string, userId: string, tx?: any) {
-    const dbInstance = tx || db;
-    const currentBalance = await this.getCassaReinvestimentoBalance(activityId);
-
-    if (currentBalance + importo < 0) {
-      throw new Error("Fondi insufficienti nella cassa reinvestimento");
-    }
-
-    await dbInstance.insert(financialHistory).values({
-      userId,
-      activityId,
-      azione: importo > 0 ? "DEPOSITO_CASSA" : "PRELIEVO_CASSA",
-      descrizione,
-      importo: Math.abs(importo).toString(),
-    }).returning();
-
-    return currentBalance + importo;
-  }
-
   async getSalesByActivity(activityId: string): Promise<Vendita[]> {
     return await db.select().from(vendite).where(eq(vendite.activityId, activityId)).orderBy(desc(vendite.data));
   }
@@ -2289,7 +2270,7 @@ export class DatabaseStorage implements IStorage {
   async createEquityWithdrawal(
     activityId: string,
     userId: string,
-    data: { importo: number; tipo: string; memberId?: string; descrizione?: string; data?: string }
+    data: { importo: number; tipo: "RIMBORSO" | "DIVIDENDO" | "ALTRO"; memberId?: string; descrizione?: string; data?: string }
   ) {
     return await db.transaction(async (tx) => {
       const activity = await tx.query.activities.findFirst({
@@ -2351,7 +2332,7 @@ export class DatabaseStorage implements IStorage {
 
   async getEquityWithdrawals(
     activityId: string,
-    filters: { from?: string; to?: string; tipo?: string; memberId?: string }
+    filters: { from?: string; to?: string; tipo?: "RIMBORSO" | "DIVIDENDO" | "ALTRO"; memberId?: string }
   ) {
     const conditions = [eq(equityWithdrawals.activityId, activityId)];
 

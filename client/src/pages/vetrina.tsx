@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Edit, Trash2, Package, Search } from "lucide-react";
 import { useState, useMemo } from "react";
 
-type MaterialRow = { id: string; nome: string; unita: string; costo_unit_medio: string; q_residua: string };
+type MaterialRow = { id: string; nome: string; unita: string; colore?: string | null; costo_unit_medio: string; q_residua: string };
 type BomRow = { materialId: string; quantita: string };
 type VetrinaProduct = { 
   id: string; nome: string; categoria?: string; imageUrl?: string; 
