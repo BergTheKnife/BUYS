@@ -2402,11 +2402,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             costo: costoNuovoLotto,
             quantita: delta,
           });
-
-          const valorePrecedente = Number(existingItem.costo) * existingItem.quantita;
-          const valoreNuovoLotto = Number(costoNuovoLotto) * delta;
-          const costoMedio = (valorePrecedente + valoreNuovoLotto) / nuovaQuantita;
-          updates.costo = costoMedio.toFixed(2);
         } else if (hasCostUpdate && Number(updates.costo) !== Number(existingItem.costo)) {
           return res.status(400).json({
             message: "Cambio costo non consentito senza nuovo rifornimento: usa 'Rifornisci' o aumenta la quantità per creare un nuovo lotto."
@@ -2560,13 +2555,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const newQuantity = item.quantita + parseInt(quantita);
       await storage.updateInventoryQuantity(id, newQuantity);
 
-      // Aggiorna costo medio nell'inventario se diverso
+      // Aggiorna il costo riferimento all'ultimo rifornimento (non media lotti)
       if (Number(newCost) !== Number(item.costo)) {
-        const totalValue = (Number(item.costo) * item.quantita) + (Number(newCost) * parseInt(quantita));
-        const avgCost = totalValue / newQuantity;
-
         await storage.updateInventoryItem(id, req.session.activityId!, {
-          costo: avgCost.toFixed(2)
+          costo: String(newCost)
         });
       }
 
