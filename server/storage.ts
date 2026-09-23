@@ -27,7 +27,7 @@
 
     const totalAvailableFromBatches = batches.reduce((sum, batch) => sum + Number(batch.quantitaRimanente || 0), 0);
 
-    if (totalAvailableFromBatches !== inventoryItem.quantita) {
+    if (inventoryItem.quantita !== totalAvailableFromBatches) {
       await db
         .update(inventario)
         .set({ quantita: totalAvailableFromBatches })
