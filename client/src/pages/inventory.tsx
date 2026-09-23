@@ -60,6 +60,7 @@ export default function Inventory() {
   const [batchAdjustItem, setBatchAdjustItem] = useState<Inventario | null>(null);
   const [selectedBatchId, setSelectedBatchId] = useState("");
   const [batchRemoveQuantity, setBatchRemoveQuantity] = useState("1");
+  const [generateFinancialReturn, setGenerateFinancialReturn] = useState(false);
   const [sortConfig, setSortConfig] = useState<{
     key: keyof Inventario | null;
     direction: 'asc' | 'desc';
@@ -316,10 +317,11 @@ export default function Inventory() {
   });
 
   const batchAdjustMutation = useMutation({
-    mutationFn: async ({ id, batchId, quantita }: { id: string; batchId: string; quantita: number }) => {
+    mutationFn: async ({ id, batchId, quantita, generaRientroEconomico }: { id: string; batchId: string; quantita: number; generaRientroEconomico: boolean }) => {
       const response = await apiRequest("POST", `/api/inventario/${id}/remove-from-batch`, {
         batchId,
         quantita,
+        generaRientroEconomico,
       });
       return response.json();
     },
@@ -333,6 +335,7 @@ export default function Inventory() {
       setBatchAdjustItem(null);
       setSelectedBatchId("");
       setBatchRemoveQuantity("1");
+      setGenerateFinancialReturn(false);
     },
     onError: (error: any) => {
       toast({
@@ -364,8 +367,14 @@ export default function Inventory() {
       });
       return;
     }
-    batchAdjustMutation.mutate({ id: batchAdjustItem.id, batchId: selectedBatchId, quantita });
+    batchAdjustMutation.mutate({
+      id: batchAdjustItem.id,
+      batchId: selectedBatchId,
+      quantita,
+      generaRientroEconomico: generateFinancialReturn,
+    });
   };
+  
 
   // Handler che apre il dialog di scelta dual-mode
   const handleDeleteClick = (item: Inventario) => {
@@ -731,6 +740,7 @@ export default function Inventory() {
                                 setBatchAdjustItem(item);
                                 setSelectedBatchId("");
                                 setBatchRemoveQuantity("1");
+                                setGenerateFinancialReturn(false);
                               }}
                               title="Correggi lotto"
                               className="min-w-[36px] h-9 p-2"
@@ -855,6 +865,7 @@ export default function Inventory() {
               setBatchAdjustItem(null);
               setSelectedBatchId("");
               setBatchRemoveQuantity("1");
+              setGenerateFinancialReturn(false);
             }
           }}
         >
@@ -898,6 +909,20 @@ export default function Inventory() {
                   min="1"
                   value={batchRemoveQuantity}
                   onChange={(e) => setBatchRemoveQuantity(e.target.value)}
+                />
+              </div>
+
+              <div className="flex items-center justify-between rounded-md border p-3">
+                <div className="space-y-1">
+                  <Label htmlFor="generate-financial-return">Genera rientro economico</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Attivalo solo se i pezzi rimossi derivano da un acquisto che ha generato spesa.
+                  </p>
+                </div>
+                <Switch
+                  id="generate-financial-return"
+                  checked={generateFinancialReturn}
+                  onCheckedChange={setGenerateFinancialReturn}
                 />
               </div>
             </div>

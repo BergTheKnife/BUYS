@@ -2612,7 +2612,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/inventario/:id/remove-from-batch', requireActivity, async (req, res) => {
     try {
       const { id } = req.params;
-      const { batchId, quantita } = req.body;
+      const { batchId, quantita, generaRientroEconomico } = req.body;
 
       if (!batchId || typeof batchId !== "string") {
         return res.status(400).json({ message: "Lotto non valido" });
@@ -2632,7 +2632,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         id,
         req.session.activityId!,
         batchId,
-        quantitaDaRimuovere
+        quantitaDaRimuovere,
+        {
+          applyFinancialReturn: !!generaRientroEconomico,
+          userId: req.session.userId!,
+        }
       );
 
       res.json(updatedItem);

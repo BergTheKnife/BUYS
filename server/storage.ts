@@ -92,7 +92,8 @@ export interface IStorage {
     inventarioId: string,
     activityId: string,
     batchId: string,
-    quantitaDaRimuovere: number
+    quantitaDaRimuovere: number,
+    options?: { applyFinancialReturn?: boolean; userId?: string }
   ): Promise<Inventario | undefined>;
 
   // 🗂️ MODALITÀ 1: ARCHIVIAZIONE - Solo soft-delete, nessun ripristino cassa
@@ -898,7 +899,8 @@ export class DatabaseStorage implements IStorage {
     inventarioId: string,
     activityId: string,
     batchId: string,
-    quantitaDaRimuovere: number
+    quantitaDaRimuovere: number,
+    options?: { applyFinancialReturn?: boolean; userId?: string }
   ): Promise<Inventario | undefined> {
     if (!Number.isInteger(quantitaDaRimuovere) || quantitaDaRimuovere <= 0) {
       throw new Error("Quantità da rimuovere non valida");
@@ -942,6 +944,32 @@ export class DatabaseStorage implements IStorage {
         throw new Error(`Quantità richiesta superiore alla disponibilità del lotto (${quantitaDisponibile})`);
       }
 
+      const applyFinancialReturn = !!options?.applyFinancialReturn;
+      const currentCassaCoverage = Number(item.cassaCoverage || 0);
+      const costoUnitarioLotto = Number(batch.costo || 0);
+      const costoRimozione = costoUnitarioLotto * quantitaDaRimuovere;
+
+      let valoreTotaleStockPrima = 0;
+      if (applyFinancialReturn) {
+        const allBatches = await tx
+          .select({
+            quantitaRimanente: inventoryBatches.quantitaRimanente,
+            costo: inventoryBatches.costo,
+          })
+          .from(inventoryBatches)
+          .where(
+            and(
+              eq(inventoryBatches.inventarioId, inventarioId),
+              eq(inventoryBatches.activityId, activityId),
+              sql`${inventoryBatches.quantitaRimanente} > 0`
+            )
+          );
+
+        valoreTotaleStockPrima = allBatches.reduce((sum, b) => {
+          return sum + (Number(b.quantitaRimanente || 0) * Number(b.costo || 0));
+        }, 0);
+      }
+
       const nuovaQuantitaLotto = quantitaDisponibile - quantitaDaRimuovere;
       await tx
         .update(inventoryBatches)
@@ -968,6 +996,41 @@ export class DatabaseStorage implements IStorage {
         .set({ quantita: nuovaQuantitaInventario })
         .where(and(eq(inventario.id, inventarioId), eq(inventario.activityId, activityId)))
         .returning();
+
+      if (applyFinancialReturn && costoRimozione > 0) {
+        if (!options?.userId) {
+          throw new Error("Utente non valido per il rientro economico");
+        }
+
+        const quotaRientroCassa = valoreTotaleStockPrima > 0
+          ? Math.min(currentCassaCoverage, (costoRimozione / valoreTotaleStockPrima) * currentCassaCoverage)
+          : 0;
+
+        if (quotaRientroCassa > 0) {
+          await this.updateCassaReinvestimento(
+            activityId,
+            quotaRientroCassa,
+            `Correzione lotto con rientro: ${item.nomeArticolo}${item.taglia ? ` - ${item.taglia}` : ''} (-${quantitaDaRimuovere} pz)`,
+            options.userId
+          );
+        }
+
+        const nuovaCoverage = Math.max(0, currentCassaCoverage - quotaRientroCassa);
+        await tx
+          .update(inventario)
+          .set({ cassaCoverage: nuovaCoverage.toFixed(2) })
+          .where(and(eq(inventario.id, inventarioId), eq(inventario.activityId, activityId)));
+
+        await tx.insert(spese).values({
+          userId: options.userId,
+          activityId,
+          voce: `Rientro correzione lotto: ${item.nomeArticolo}${item.taglia ? ` - ${item.taglia}` : ''} (-${quantitaDaRimuovere} pz)`,
+          importo: (-costoRimozione).toFixed(2),
+          categoria: "Inventario",
+          data: new Date(),
+          itemId: inventarioId,
+        });
+      }
 
       return updatedItem;
     });
