@@ -52,8 +52,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginUser & { rememberMe?: boolean }) => {
-      const response = await apiRequest("POST", "/api/auth/login", credentials);
-      return response.json();
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(credentials),
+        credentials: "include",
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status === 403 && payload?.needsVerification && payload?.userEmail) {
+          const verificationError = new Error(
+            payload?.message || "Account non verificato. Controlla la tua email per il link di verifica.",
+          ) as Error & { code?: string; email?: string };
+          verificationError.code = "EMAIL_NOT_VERIFIED";
+          verificationError.email = payload.userEmail;
+          throw verificationError;
+        }
+
+        throw new Error(payload?.message || `Errore login (${response.status})`);
+      }
+
+      return payload;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });

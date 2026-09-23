@@ -62,7 +62,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     throw new Error("SESSION_SECRET must be set in production");
   }
 
+  if (isProduction) {
+    app.set("trust proxy", 1);
+  }
+
   app.use(session({
+    proxy: isProduction,
     secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
