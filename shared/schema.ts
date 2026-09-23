@@ -180,6 +180,20 @@ export const vendite = pgTable("vendite", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const saleBatchConsumptions = pgTable("sale_batch_consumptions", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  saleId: uuid("sale_id").notNull().references(() => vendite.id, { onDelete: "cascade" }),
+  inventarioId: uuid("inventario_id").notNull().references(() => inventario.id, { onDelete: "cascade" }),
+  batchId: uuid("batch_id").notNull(),
+  quantita: integer("quantita").notNull(),
+  costoUnitario: decimal("costo_unitario", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("sale_batch_consumptions_sale_idx").on(table.saleId),
+  index("sale_batch_consumptions_inventario_idx").on(table.inventarioId),
+  index("sale_batch_consumptions_batch_idx").on(table.batchId),
+]);
+
 export const spese = pgTable("spese", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -299,6 +313,7 @@ export const inventarioRelations = relations(inventario, ({ one, many }) => ({
     references: [activities.id],
   }),
   vendite: many(vendite),
+  saleBatchConsumptions: many(saleBatchConsumptions),
 }));
 
 export const venditeRelations = relations(vendite, ({ one, many }) => ({
@@ -317,6 +332,18 @@ export const venditeRelations = relations(vendite, ({ one, many }) => ({
   spedizione: one(spedizioni, {
     fields: [vendite.id],
     references: [spedizioni.venditaId],
+  }),
+  batchConsumptions: many(saleBatchConsumptions),
+}));
+
+export const saleBatchConsumptionsRelations = relations(saleBatchConsumptions, ({ one }) => ({
+  sale: one(vendite, {
+    fields: [saleBatchConsumptions.saleId],
+    references: [vendite.id],
+  }),
+  inventario: one(inventario, {
+    fields: [saleBatchConsumptions.inventarioId],
+    references: [inventario.id],
   }),
 }));
 
@@ -534,6 +561,8 @@ export type InsertInventario = z.infer<typeof insertInventarioSchema>;
 export type Inventario = typeof inventario.$inferSelect;
 export type InsertVendita = z.infer<typeof insertVenditaSchema>;
 export type Vendita = typeof vendite.$inferSelect;
+export type SaleBatchConsumption = typeof saleBatchConsumptions.$inferSelect;
+export type InsertSaleBatchConsumption = typeof saleBatchConsumptions.$inferInsert;
 export type InsertSpesa = z.infer<typeof insertSpesaSchema>;
 export type Spesa = typeof spese.$inferSelect;
 export type InsertFundTransfer = z.infer<typeof insertFundTransferSchema>;

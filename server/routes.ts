@@ -56,13 +56,20 @@ const upload = multer({
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Session configuration
+  const isProduction = app.get("env") === "production";
+  const sessionSecret = process.env.SESSION_SECRET || (!isProduction ? 'davalb-secret-key' : undefined);
+  if (!sessionSecret) {
+    throw new Error("SESSION_SECRET must be set in production");
+  }
+
   app.use(session({
-    secret: process.env.SESSION_SECRET || 'davalb-secret-key',
+    secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: false, // Set to true in production with HTTPS
+      secure: isProduction,
       httpOnly: true,
+      sameSite: isProduction ? "none" : "lax",
       maxAge: 24 * 60 * 60 * 1000, // 24 hours default (will be extended if rememberMe is true)
     },
   }));
@@ -3091,8 +3098,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Data integrity check endpoints
   app.get('/api/data-integrity/check', requireActivity, async (req, res) => {
     try {
-      // TODO: Implement inventory integrity check
-      res.json({ isValid: true, issues: [] });
+      const result = await storage.checkInventoryIntegrity(req.session.activityId!);
+      res.json(result);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nella verifica dell'integrità dei dati" });
     }
@@ -3100,11 +3107,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/data-integrity/fix', requireActivity, async (req, res) => {
     try {
-      // TODO: Implement inventory integrity fix
-      res.json({
-        message: "Funzionalità non ancora implementata",
-        details: []
-      });
+      const result = await storage.fixInventoryIntegrity(req.session.activityId!);
+      res.json(result);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Errore nella correzione dell'integrità dei dati" });
     }

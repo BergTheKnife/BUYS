@@ -12,6 +12,7 @@ import {
   rememberTokens,
   spedizioni,
   equityWithdrawals,
+  saleBatchConsumptions,
   type User,
   type InsertUser,
   type Inventario,
@@ -97,6 +98,8 @@ export interface IStorage {
   // Mantieni per compatibilità (ora rimappa ad archiviazione di default)
   deleteInventoryItem(id: string, activityId: string): Promise<boolean>;
   updateInventoryQuantity(id: string, newQuantity: number): Promise<Inventario | undefined>;
+  checkInventoryIntegrity(activityId: string): Promise<{ isValid: boolean; issues: Array<{ inventarioId: string; nomeArticolo: string; taglia: string | null; quantitaInventario: number; quantitaLotti: number; diff: number }> }>;
+  fixInventoryIntegrity(activityId: string): Promise<{ fixed: boolean; details: string[] }>;
 
   // Sales methods (now with activity context)
   getSalesByActivity(activityId: string): Promise<Vendita[]>;
@@ -969,6 +972,67 @@ export class DatabaseStorage implements IStorage {
     return updatedItem;
   }
 
+  async checkInventoryIntegrity(activityId: string): Promise<{ isValid: boolean; issues: Array<{ inventarioId: string; nomeArticolo: string; taglia: string | null; quantitaInventario: number; quantitaLotti: number; diff: number }> }> {
+    const { inventoryBatches } = await import('../migrations/schema');
+
+    const items = await db
+      .select()
+      .from(inventario)
+      .where(and(eq(inventario.activityId, activityId), eq(inventario.archiviato, 0)));
+
+    const issues: Array<{ inventarioId: string; nomeArticolo: string; taglia: string | null; quantitaInventario: number; quantitaLotti: number; diff: number }> = [];
+
+    for (const item of items) {
+      const [totals] = await db
+        .select({
+          quantitaLotti: sql<number>`COALESCE(SUM(${inventoryBatches.quantitaRimanente}), 0)`,
+        })
+        .from(inventoryBatches)
+        .where(and(
+          eq(inventoryBatches.inventarioId, item.id),
+          sql`${inventoryBatches.quantitaRimanente} > 0`
+        ));
+
+      const quantitaLotti = Number(totals?.quantitaLotti || 0);
+      const quantitaInventario = Number(item.quantita || 0);
+      if (quantitaInventario !== quantitaLotti) {
+        issues.push({
+          inventarioId: item.id,
+          nomeArticolo: item.nomeArticolo,
+          taglia: item.taglia ?? null,
+          quantitaInventario,
+          quantitaLotti,
+          diff: quantitaInventario - quantitaLotti,
+        });
+      }
+    }
+
+    return {
+      isValid: issues.length === 0,
+      issues,
+    };
+  }
+
+  async fixInventoryIntegrity(activityId: string): Promise<{ fixed: boolean; details: string[] }> {
+    const items = await db
+      .select()
+      .from(inventario)
+      .where(and(eq(inventario.activityId, activityId), eq(inventario.archiviato, 0)));
+
+    const details: string[] = [];
+
+    for (const item of items) {
+      const before = Number(item.quantita || 0);
+      const batches = await this.reconcileInventoryBatches(item.id);
+      const after = batches.reduce((sum, batch) => sum + Number(batch.quantitaRimanente || 0), 0);
+      if (before !== after) {
+        details.push(`${item.nomeArticolo}${item.taglia ? ` - ${item.taglia}` : ''}: ${before} -> ${after}`);
+      }
+    }
+
+    return { fixed: details.length > 0, details };
+  }
+
   private async reconcileInventoryBatches(inventarioId: string) {
     const { inventoryBatches } = await import('../migrations/schema');
 
@@ -1153,6 +1217,79 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  private async saveSaleBatchConsumptions(
+    saleId: string,
+    inventarioId: string,
+    batchesUsed: { id: string; quantitaUsata: number }[],
+    batchDetails: { batchId: string | null; costoUnitario: number; quantitaUsata: number; marginePartial: number }[]
+  ) {
+    if (batchesUsed.length === 0) return;
+
+    const costByBatchId = new Map(
+      batchDetails
+        .filter((detail) => detail.batchId)
+        .map((detail) => [detail.batchId as string, detail.costoUnitario])
+    );
+
+    await db.insert(saleBatchConsumptions).values(
+      batchesUsed.map((usage) => ({
+        saleId,
+        inventarioId,
+        batchId: usage.id,
+        quantita: usage.quantitaUsata,
+        costoUnitario: String(costByBatchId.get(usage.id) ?? 0),
+      }))
+    );
+  }
+
+  private async restoreBatchesForSale(saleId: string, inventarioId: string, fallbackQuantity: number) {
+    const { inventoryBatches } = await import('../migrations/schema');
+
+    const consumptions = await db
+      .select()
+      .from(saleBatchConsumptions)
+      .where(eq(saleBatchConsumptions.saleId, saleId))
+      .orderBy(desc(saleBatchConsumptions.createdAt), desc(saleBatchConsumptions.id));
+
+    if (consumptions.length === 0) {
+      await this.restoreBatchesAfterSaleDelete(inventarioId, fallbackQuantity, 0);
+      return;
+    }
+
+    const [inventoryItem] = await db
+      .select()
+      .from(inventario)
+      .where(eq(inventario.id, inventarioId));
+
+    for (const consumption of consumptions) {
+      const [batch] = await db
+        .select()
+        .from(inventoryBatches)
+        .where(eq(inventoryBatches.id, consumption.batchId));
+
+      if (batch) {
+        await db
+          .update(inventoryBatches)
+          .set({
+            quantitaRimanente: sql`LEAST(${inventoryBatches.quantitaIniziale}, ${inventoryBatches.quantitaRimanente} + ${consumption.quantita})`
+          })
+          .where(eq(inventoryBatches.id, consumption.batchId));
+      } else if (inventoryItem) {
+        await this.createInventoryBatch({
+          inventarioId,
+          activityId: inventoryItem.activityId,
+          userId: inventoryItem.userId,
+          costo: consumption.costoUnitario,
+          quantita: consumption.quantita,
+        });
+      }
+    }
+
+    await db
+      .delete(saleBatchConsumptions)
+      .where(eq(saleBatchConsumptions.saleId, saleId));
+  }
+
   async getCassaReinvestimentoBalance(activityId: string): Promise<number> {
     const movements = await db
       .select({
@@ -1229,6 +1366,8 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
 
+    await this.saveSaleBatchConsumptions(newSale.id, saleData.inventarioId, batchesUsed, batchDetails);
+
     await db
       .update(inventario)
       .set({
@@ -1280,7 +1419,7 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(inventario.id, oldInventarioId));
 
-    await this.restoreBatchesAfterSaleDelete(oldInventarioId, oldQuantity, Number(existingSale.prezzoVendita));
+    await this.restoreBatchesForSale(existingSale.id, oldInventarioId, oldQuantity);
 
     if (newInventarioId !== oldInventarioId || newQuantity !== oldQuantity) {
       const [targetItem] = await db
@@ -1323,18 +1462,14 @@ export class DatabaseStorage implements IStorage {
         .where(eq(inventario.id, oldInventarioId));
     }
 
-    if ((updates.quantita && updates.quantita !== oldQuantity) ||
-        (updates.inventarioId && updates.inventarioId !== oldInventarioId) ||
-        (updates.prezzoVendita && updates.prezzoVendita !== existingSale.prezzoVendita)) {
+    const finalInventarioId = updates.inventarioId || oldInventarioId;
+    const finalQuantity = updates.quantita || oldQuantity;
+    const finalPrice = Number(updates.prezzoVendita || existingSale.prezzoVendita);
 
-      const finalInventarioId = updates.inventarioId || oldInventarioId;
-      const finalQuantity = updates.quantita || oldQuantity;
-      const finalPrice = Number(updates.prezzoVendita || existingSale.prezzoVendita);
-
-      const { margine, batchesUsed } = await this.calculateFIFOMargin(finalInventarioId, finalQuantity, finalPrice);
-      await this.updateBatchesAfterSale(batchesUsed);
-      updates.margine = margine.toString();
-    }
+    const { margine, batchesUsed, batchDetails } = await this.calculateFIFOMargin(finalInventarioId, finalQuantity, finalPrice);
+    await this.updateBatchesAfterSale(batchesUsed);
+    await this.saveSaleBatchConsumptions(existingSale.id, finalInventarioId, batchesUsed, batchDetails);
+    updates.margine = margine.toString();
 
     if (updates.incassato !== undefined) {
       if (updates.incassato === 0) {
@@ -1391,7 +1526,7 @@ export class DatabaseStorage implements IStorage {
           })
           .where(eq(inventario.id, saleToDelete.inventarioId));
 
-        await this.restoreBatchesAfterSaleDelete(saleToDelete.inventarioId, saleToDelete.quantita, Number(saleToDelete.prezzoVendita));
+        await this.restoreBatchesForSale(saleToDelete.id, saleToDelete.inventarioId, saleToDelete.quantita);
       }
 
       if (saleToDelete.incassato === 1) {
