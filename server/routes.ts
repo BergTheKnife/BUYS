@@ -14,7 +14,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
-import { cleanupTempUpload, deleteStoredArticleImageByUrl, registerArticleImageRoutes, storeArticleImage } from "./articleImageStorage";
+import { deleteStoredArticleImageIfUnreferenced, registerArticleImageRoutes, storeArticleImage } from "./articleImageStorage";
 import { DataProtectionService, dataProtectionMiddleware } from './dataProtection';
 import { z } from "zod";
 import {
@@ -44,7 +44,7 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 const upload = multer({
-  dest: uploadDir,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
@@ -56,8 +56,6 @@ const upload = multer({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  registerArticleImageRoutes(app);
-
   // Session configuration
   app.use(session({
     secret: process.env.SESSION_SECRET || 'davalb-secret-key',
@@ -185,6 +183,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.log('DEBUG: Activity middleware passed for user:', req.session.userId, 'activity:', req.session.activityId);
     next();
   };
+
+  registerArticleImageRoutes(app, requireActivity);
 
   // Google OAuth routes
   app.get('/api/auth/google',
@@ -2320,10 +2320,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const uploadURL = await objectStorageService.getInventoryImageUploadURL();
 
           // Upload file to Object Storage
-          const fileBuffer = fs.readFileSync(req.file.path);
           const uploadResponse = await fetch(uploadURL, {
             method: 'PUT',
-            body: fileBuffer,
+            body: req.file.buffer,
             headers: {
               'Content-Type': req.file.mimetype,
             }
@@ -2335,7 +2334,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } else {
             console.error('Failed to upload to Object Storage:', uploadResponse.status);
             immagineUrl = await storeArticleImage({
-              filePath: req.file.path,
+              fileBuffer: req.file.buffer,
               mimeType: req.file.mimetype,
               originalName: req.file.originalname,
               userId: req.session.userId!,
@@ -2346,15 +2345,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } catch (storageError) {
           console.error('Object Storage error:', storageError);
           immagineUrl = await storeArticleImage({
-            filePath: req.file.path,
+            fileBuffer: req.file.buffer,
             mimeType: req.file.mimetype,
             originalName: req.file.originalname,
             userId: req.session.userId!,
             activityId: req.session.activityId!,
             scope: "inventory",
           });
-        } finally {
-          await cleanupTempUpload(req.file.path);
         }
       }
 
@@ -2377,7 +2374,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const existingItem = await storage.getInventoryItem(id, req.session.activityId!);
       if (!existingItem) {
-        await cleanupTempUpload(req.file?.path);
         return res.status(404).json({ message: "Articolo non trovato" });
       }
 
@@ -2398,10 +2394,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const uploadURL = await objectStorageService.getInventoryImageUploadURL();
 
           // Upload file to Object Storage
-          const fileBuffer = fs.readFileSync(req.file.path);
           const uploadResponse = await fetch(uploadURL, {
             method: 'PUT',
-            body: fileBuffer,
+            body: req.file.buffer,
             headers: {
               'Content-Type': req.file.mimetype,
             }
@@ -2413,7 +2408,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } else {
             console.error('Failed to upload to Object Storage:', uploadResponse.status);
             (updates as any).immagineUrl = await storeArticleImage({
-              filePath: req.file.path,
+              fileBuffer: req.file.buffer,
               mimeType: req.file.mimetype,
               originalName: req.file.originalname,
               userId: req.session.userId!,
@@ -2424,15 +2419,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } catch (storageError) {
           console.error('Object Storage error:', storageError);
           (updates as any).immagineUrl = await storeArticleImage({
-            filePath: req.file.path,
+            fileBuffer: req.file.buffer,
             mimeType: req.file.mimetype,
             originalName: req.file.originalname,
             userId: req.session.userId!,
             activityId: req.session.activityId!,
             scope: "inventory",
           });
-        } finally {
-          await cleanupTempUpload(req.file.path);
         }
       }
       // Se non è stata fornita una nuova immagine, l'immagineUrl esistente rimane invariata
@@ -2443,7 +2436,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if ((updates as any).immagineUrl && existingItem.immagineUrl && existingItem.immagineUrl !== (updates as any).immagineUrl) {
-        await deleteStoredArticleImageByUrl(existingItem.immagineUrl);
+        await deleteStoredArticleImageIfUnreferenced(existingItem.immagineUrl);
       }
 
       // Invalidate expenses query to reflect the automatic expense update
@@ -2489,7 +2482,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (existingItem?.immagineUrl) {
-        await deleteStoredArticleImageByUrl(existingItem.immagineUrl);
+        await deleteStoredArticleImageIfUnreferenced(existingItem.immagineUrl);
       }
 
       res.json({
@@ -3270,18 +3263,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let imageUrl = null;
       
       if (req.file) {
-        try {
-          imageUrl = await storeArticleImage({
-            filePath: req.file.path,
-            mimeType: req.file.mimetype,
-            originalName: req.file.originalname,
-            userId: req.session.userId!,
-            activityId: req.session.activityId!,
-            scope: "production",
-          });
-        } finally {
-          await cleanupTempUpload(req.file.path);
-        }
+        imageUrl = await storeArticleImage({
+          fileBuffer: req.file.buffer,
+          mimeType: req.file.mimetype,
+          originalName: req.file.originalname,
+          userId: req.session.userId!,
+          activityId: req.session.activityId!,
+          scope: "production",
+        });
       }
 
       const svc = await import('./production');
@@ -3310,23 +3299,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(and(eq(productionProducts.id, id), eq(productionProducts.activityId, req.session.activityId!)));
 
       if (!existingProduct) {
-        await cleanupTempUpload(req.file?.path);
         return res.status(404).json({ message: 'Scheda vetrina non trovata' });
       }
 
       if (req.file) {
-        try {
-          imageUrl = await storeArticleImage({
-            filePath: req.file.path,
-            mimeType: req.file.mimetype,
-            originalName: req.file.originalname,
-            userId: req.session.userId!,
-            activityId: req.session.activityId!,
-            scope: "production",
-          });
-        } finally {
-          await cleanupTempUpload(req.file.path);
-        }
+        imageUrl = await storeArticleImage({
+          fileBuffer: req.file.buffer,
+          mimeType: req.file.mimetype,
+          originalName: req.file.originalname,
+          userId: req.session.userId!,
+          activityId: req.session.activityId!,
+          scope: "production",
+        });
       }
 
       const svc = await import('./production');
@@ -3341,7 +3325,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       if (imageUrl && existingProduct?.imageUrl && existingProduct.imageUrl !== imageUrl) {
-        await deleteStoredArticleImageByUrl(existingProduct.imageUrl);
+        await deleteStoredArticleImageIfUnreferenced(existingProduct.imageUrl);
       }
 
       res.json({ ok: true });
@@ -3366,7 +3350,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const out = await svc.deleteProductionProductIfUnused(id, req.session.activityId!);
       if (!out.success) return res.status(409).json({ message: 'Scheda già utilizzata: archiviare invece.' });
       if (existingProduct?.imageUrl) {
-        await deleteStoredArticleImageByUrl(existingProduct.imageUrl);
+        await deleteStoredArticleImageIfUnreferenced(existingProduct.imageUrl);
       }
       res.json({ ok: true });
     } catch (e: any) { res.status(400).json({ message: e.message || 'Errore eliminazione vetrina' }); }

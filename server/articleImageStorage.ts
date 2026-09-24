@@ -1,15 +1,14 @@
-import fs from "fs/promises";
-import { eq } from "drizzle-orm";
-import type { Express, Response } from "express";
-import { uploadedImages } from "@shared/schema";
+import { and, eq, sql } from "drizzle-orm";
+import type { Express, RequestHandler } from "express";
+import { inventario, productionProducts, uploadedImages } from "@shared/schema";
 import { db } from "./db";
 
 const DB_IMAGE_PREFIX = "/article-images/";
 
-export function registerArticleImageRoutes(app: Express) {
-  app.get(`${DB_IMAGE_PREFIX}:id`, async (req, res) => {
+export function registerArticleImageRoutes(app: Express, requireActivity: RequestHandler) {
+  app.get(`${DB_IMAGE_PREFIX}:id`, requireActivity, async (req: any, res) => {
     try {
-      const image = await getStoredImageById(req.params.id);
+      const image = await getStoredImageById(req.params.id, req.session.activityId!);
       if (!image) {
         return res.status(404).end();
       }
@@ -29,28 +28,28 @@ export function registerArticleImageRoutes(app: Express) {
 }
 
 export async function storeArticleImage(params: {
-  filePath: string;
+  fileBuffer: Buffer;
   mimeType: string;
   originalName?: string;
   userId: string;
   activityId: string;
   scope: "inventory" | "production";
 }) {
-  const fileBuffer = await fs.readFile(params.filePath);
   const [image] = await db.insert(uploadedImages).values({
     userId: params.userId,
     activityId: params.activityId,
     scope: params.scope,
     originalName: params.originalName || null,
     mimeType: params.mimeType,
-    dataBase64: fileBuffer.toString("base64"),
+    dataBase64: params.fileBuffer.toString("base64"),
   }).returning();
 
   return `${DB_IMAGE_PREFIX}${image.id}`;
 }
 
-export async function getStoredImageById(id: string) {
-  const [image] = await db.select().from(uploadedImages).where(eq(uploadedImages.id, id));
+export async function getStoredImageById(id: string, activityId: string) {
+  const [image] = await db.select().from(uploadedImages)
+    .where(and(eq(uploadedImages.id, id), eq(uploadedImages.activityId, activityId)));
   return image || null;
 }
 
@@ -68,14 +67,22 @@ export async function deleteStoredArticleImageByUrl(url?: string | null) {
   return true;
 }
 
-export async function cleanupTempUpload(filePath?: string | null) {
-  if (!filePath) {
-    return;
+export async function deleteStoredArticleImageIfUnreferenced(url?: string | null) {
+  if (!isStoredArticleImageUrl(url)) {
+    return false;
   }
 
-  try {
-    await fs.unlink(filePath);
-  } catch {
-    // noop
+  const references = await db.execute(sql`
+    SELECT (
+      (SELECT COUNT(*)::int FROM ${inventario} WHERE ${inventario.immagineUrl} = ${url}) +
+      (SELECT COUNT(*)::int FROM ${productionProducts} WHERE ${productionProducts.imageUrl} = ${url})
+    ) AS total
+  `);
+
+  const total = Number(references.rows[0]?.total || 0);
+  if (total > 0) {
+    return false;
   }
+
+  return deleteStoredArticleImageByUrl(url);
 }
