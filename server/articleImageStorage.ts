@@ -13,13 +13,12 @@ export function registerArticleImageRoutes(app: Express, requireActivity: Reques
         return res.status(404).end();
       }
 
-      const buffer = Buffer.from(image.dataBase64, "base64");
       res.set({
         "Content-Type": image.mimeType,
-        "Content-Length": buffer.length.toString(),
+        "Content-Length": image.data.length.toString(),
         "Cache-Control": "private, max-age=3600",
       });
-      res.end(buffer);
+      res.end(image.data);
     } catch (error) {
       console.error("Article image download error:", error);
       res.status(500).json({ message: "Errore nel recupero dell'immagine" });
@@ -41,7 +40,7 @@ export async function storeArticleImage(params: {
     scope: params.scope,
     originalName: params.originalName || null,
     mimeType: params.mimeType,
-    dataBase64: params.fileBuffer.toString("base64"),
+    data: params.fileBuffer,
   }).returning();
 
   return `${DB_IMAGE_PREFIX}${image.id}`;

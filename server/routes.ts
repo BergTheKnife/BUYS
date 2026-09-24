@@ -3310,7 +3310,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(and(eq(productionProducts.id, id), eq(productionProducts.activityId, req.session.activityId!)));
 
       if (!existingProduct) {
-        return res.status(404).json({ message: 'Scheda vetrina non trovata' });
+        return res.status(404).json({ message: 'Prodotto vetrina non trovato' });
       }
 
       if (req.file) {

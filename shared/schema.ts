@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, decimal, integer, timestamp, uuid, index, numeric, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, decimal, integer, timestamp, uuid, index, numeric, jsonb, customType } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
@@ -17,6 +17,12 @@ export const users = pgTable("users", {
   isActive: integer("is_active").default(0), // 0 = pending verification, 1 = verified/active
   lastActivityId: uuid("last_activity_id"),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() {
+    return "bytea";
+  },
 });
 
 // Email verification tokens
@@ -164,7 +170,7 @@ export const uploadedImages = pgTable("uploaded_images", {
   scope: text("scope").notNull(),
   originalName: text("original_name"),
   mimeType: text("mime_type").notNull(),
-  dataBase64: text("data_base64").notNull(),
+  data: bytea("data").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("uploaded_images_activity_idx").on(table.activityId),
