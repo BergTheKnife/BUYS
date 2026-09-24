@@ -9,11 +9,12 @@ import { db } from "./db";
 import bcrypt from "bcrypt";
 import { randomBytes } from "crypto";
 import { eq, sql, and, asc } from "drizzle-orm";
-import { activities, activityUsers, vendite, spese, inventario, users, financialHistory, fundTransfers, productionBatches } from "@shared/schema";
+import { activities, activityUsers, vendite, spese, inventario, users, financialHistory, fundTransfers, productionBatches, productionProducts } from "@shared/schema";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import { cleanupTempUpload, deleteStoredArticleImageByUrl, registerArticleImageRoutes, storeArticleImage } from "./articleImageStorage";
 import { DataProtectionService, dataProtectionMiddleware } from './dataProtection';
 import { z } from "zod";
 import {
@@ -55,6 +56,8 @@ const upload = multer({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  registerArticleImageRoutes(app);
+
   // Session configuration
   app.use(session({
     secret: process.env.SESSION_SECRET || 'davalb-secret-key',
@@ -2331,17 +2334,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
             immagineUrl = objectStorageService.normalizeObjectEntityPath(uploadURL.split('?')[0]);
           } else {
             console.error('Failed to upload to Object Storage:', uploadResponse.status);
+            immagineUrl = await storeArticleImage({
+              filePath: req.file.path,
+              mimeType: req.file.mimetype,
+              originalName: req.file.originalname,
+              userId: req.session.userId!,
+              activityId: req.session.activityId!,
+              scope: "inventory",
+            });
           }
-
-          // Clean up temp file
-          fs.unlinkSync(req.file.path);
         } catch (storageError) {
           console.error('Object Storage error:', storageError);
-          // Fallback to local storage for now
-          const filename = `${Date.now()}-${req.file.originalname}`;
-          const filepath = path.join(uploadDir, filename);
-          fs.renameSync(req.file.path, filepath);
-          immagineUrl = `/uploads/${filename}`;
+          immagineUrl = await storeArticleImage({
+            filePath: req.file.path,
+            mimeType: req.file.mimetype,
+            originalName: req.file.originalname,
+            userId: req.session.userId!,
+            activityId: req.session.activityId!,
+            scope: "inventory",
+          });
+        } finally {
+          await cleanupTempUpload(req.file.path);
         }
       }
 
@@ -2362,6 +2375,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/inventario/:id', requireActivity, upload.single('immagine'), async (req, res) => {
     try {
       const { id } = req.params;
+      const existingItem = await storage.getInventoryItem(id, req.session.activityId!);
+      if (!existingItem) {
+        await cleanupTempUpload(req.file?.path);
+        return res.status(404).json({ message: "Articolo non trovato" });
+      }
 
       // Convert form data types properly for updates
       const formData: any = {};
@@ -2394,17 +2412,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
             (updates as any).immagineUrl = objectStorageService.normalizeObjectEntityPath(uploadURL.split('?')[0]);
           } else {
             console.error('Failed to upload to Object Storage:', uploadResponse.status);
+            (updates as any).immagineUrl = await storeArticleImage({
+              filePath: req.file.path,
+              mimeType: req.file.mimetype,
+              originalName: req.file.originalname,
+              userId: req.session.userId!,
+              activityId: req.session.activityId!,
+              scope: "inventory",
+            });
           }
-
-          // Clean up temp file
-          fs.unlinkSync(req.file.path);
         } catch (storageError) {
           console.error('Object Storage error:', storageError);
-          // Fallback to local storage for now
-          const filename = `${Date.now()}-${req.file.originalname}`;
-          const filepath = path.join(uploadDir, filename);
-          fs.renameSync(req.file.path, filepath);
-          (updates as any).immagineUrl = `/uploads/${filename}`;
+          (updates as any).immagineUrl = await storeArticleImage({
+            filePath: req.file.path,
+            mimeType: req.file.mimetype,
+            originalName: req.file.originalname,
+            userId: req.session.userId!,
+            activityId: req.session.activityId!,
+            scope: "inventory",
+          });
+        } finally {
+          await cleanupTempUpload(req.file.path);
         }
       }
       // Se non è stata fornita una nuova immagine, l'immagineUrl esistente rimane invariata
@@ -2412,6 +2440,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const item = await storage.updateInventoryItem(id, req.session.activityId!, updates);
       if (!item) {
         return res.status(404).json({ message: "Articolo non trovato" });
+      }
+
+      if ((updates as any).immagineUrl && existingItem.immagineUrl && existingItem.immagineUrl !== (updates as any).immagineUrl) {
+        await deleteStoredArticleImageByUrl(existingItem.immagineUrl);
       }
 
       // Invalidate expenses query to reflect the automatic expense update
@@ -2445,6 +2477,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/inventario/:id/permanent-delete', requireActivity, async (req, res) => {
     try {
       const { id } = req.params;
+      const existingItem = await storage.getInventoryItem(id, req.session.activityId!);
       const result = await storage.permanentlyDeleteInventoryItem(id, req.session.activityId!);
 
       if (!result.success) {
@@ -2453,6 +2486,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           type: "blocked",
           suggestArchive: true
         });
+      }
+
+      if (existingItem?.immagineUrl) {
+        await deleteStoredArticleImageByUrl(existingItem.immagineUrl);
       }
 
       res.json({
@@ -3233,11 +3270,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let imageUrl = null;
       
       if (req.file) {
-        const ext = path.extname(req.file.originalname);
-        const newFileName = `${Date.now()}-${Math.random().toString(36).substring(7)}${ext}`;
-        const newPath = path.join(uploadDir, newFileName);
-        fs.renameSync(req.file.path, newPath);
-        imageUrl = `/uploads/${newFileName}`;
+        try {
+          imageUrl = await storeArticleImage({
+            filePath: req.file.path,
+            mimeType: req.file.mimetype,
+            originalName: req.file.originalname,
+            userId: req.session.userId!,
+            activityId: req.session.activityId!,
+            scope: "production",
+          });
+        } finally {
+          await cleanupTempUpload(req.file.path);
+        }
       }
 
       const svc = await import('./production');
@@ -3260,13 +3304,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const { nome, categoria, altezza, larghezza, lunghezza, costoOverride, bom } = req.body;
       let imageUrl = undefined;
+      const [existingProduct] = await db
+        .select({ imageUrl: productionProducts.imageUrl })
+        .from(productionProducts)
+        .where(and(eq(productionProducts.id, id), eq(productionProducts.activityId, req.session.activityId!)));
+
+      if (!existingProduct) {
+        await cleanupTempUpload(req.file?.path);
+        return res.status(404).json({ message: 'Scheda vetrina non trovata' });
+      }
 
       if (req.file) {
-        const ext = path.extname(req.file.originalname);
-        const newFileName = `${Date.now()}-${Math.random().toString(36).substring(7)}${ext}`;
-        const newPath = path.join(uploadDir, newFileName);
-        fs.renameSync(req.file.path, newPath);
-        imageUrl = `/uploads/${newFileName}`;
+        try {
+          imageUrl = await storeArticleImage({
+            filePath: req.file.path,
+            mimeType: req.file.mimetype,
+            originalName: req.file.originalname,
+            userId: req.session.userId!,
+            activityId: req.session.activityId!,
+            scope: "production",
+          });
+        } finally {
+          await cleanupTempUpload(req.file.path);
+        }
       }
 
       const svc = await import('./production');
@@ -3279,6 +3339,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         imageUrl,
         bom: bom ? JSON.parse(bom).map((r:any)=>({ materialId: r.materialId, quantita: Number(r.quantita) })) : []
       });
+
+      if (imageUrl && existingProduct?.imageUrl && existingProduct.imageUrl !== imageUrl) {
+        await deleteStoredArticleImageByUrl(existingProduct.imageUrl);
+      }
+
       res.json({ ok: true });
     } catch (e: any) { res.status(400).json({ message: e.message || 'Errore modifica scheda vetrina' }); }
   });
@@ -3295,9 +3360,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/production/vetrina/:id', requireActivity, async (req, res) => {
     try {
       const { id } = req.params;
+      const [existingProduct] = await db.select({ imageUrl: productionProducts.imageUrl }).from(productionProducts)
+        .where(and(eq(productionProducts.id, id), eq(productionProducts.activityId, req.session.activityId!)));
       const svc = await import('./production');
       const out = await svc.deleteProductionProductIfUnused(id, req.session.activityId!);
       if (!out.success) return res.status(409).json({ message: 'Scheda già utilizzata: archiviare invece.' });
+      if (existingProduct?.imageUrl) {
+        await deleteStoredArticleImageByUrl(existingProduct.imageUrl);
+      }
       res.json({ ok: true });
     } catch (e: any) { res.status(400).json({ message: e.message || 'Errore eliminazione vetrina' }); }
   });

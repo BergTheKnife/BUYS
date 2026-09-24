@@ -157,6 +157,19 @@ export const inventario = pgTable("inventario", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const uploadedImages = pgTable("uploaded_images", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  activityId: uuid("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
+  scope: text("scope").notNull(),
+  originalName: text("original_name"),
+  mimeType: text("mime_type").notNull(),
+  dataBase64: text("data_base64").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("uploaded_images_activity_idx").on(table.activityId),
+]);
+
 export const vendite = pgTable("vendite", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
