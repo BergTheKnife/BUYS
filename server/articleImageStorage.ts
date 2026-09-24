@@ -17,7 +17,7 @@ export function registerArticleImageRoutes(app: Express, requireActivity: Reques
       res.set({
         "Content-Type": image.mimeType,
         "Content-Length": buffer.length.toString(),
-        "Cache-Control": "public, max-age=31536000, immutable",
+        "Cache-Control": "private, max-age=3600",
       });
       res.end(buffer);
     } catch (error) {
@@ -72,17 +72,33 @@ export async function deleteStoredArticleImageIfUnreferenced(url?: string | null
     return false;
   }
 
-  const references = await db.execute(sql`
-    SELECT (
-      (SELECT COUNT(*)::int FROM ${inventario} WHERE ${inventario.immagineUrl} = ${url}) +
-      (SELECT COUNT(*)::int FROM ${productionProducts} WHERE ${productionProducts.imageUrl} = ${url})
-    ) AS total
-  `);
+  const imageId = url!.slice(DB_IMAGE_PREFIX.length);
 
-  const total = Number(references.rows[0]?.total || 0);
-  if (total > 0) {
-    return false;
-  }
+  return await db.transaction(async (tx) => {
+    const locked = await tx.execute(sql`
+      SELECT ${uploadedImages.id}
+      FROM ${uploadedImages}
+      WHERE ${uploadedImages.id} = ${imageId}
+      FOR UPDATE
+    `);
 
-  return deleteStoredArticleImageByUrl(url);
+    if (!locked.rows[0]) {
+      return false;
+    }
+
+    const references = await tx.execute(sql`
+      SELECT (
+        (SELECT COUNT(*)::int FROM ${inventario} WHERE ${inventario.immagineUrl} = ${url}) +
+        (SELECT COUNT(*)::int FROM ${productionProducts} WHERE ${productionProducts.imageUrl} = ${url})
+      ) AS total
+    `);
+
+    const total = Number(references.rows[0]?.total || 0);
+    if (total > 0) {
+      return false;
+    }
+
+    await tx.delete(uploadedImages).where(eq(uploadedImages.id, imageId));
+    return true;
+  });
 }
