@@ -14,7 +14,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
-import { deleteStoredArticleImageIfUnreferenced, registerArticleImageRoutes, storeArticleImage } from "./articleImageStorage";
+import { registerArticleImageRoutes, storeArticleImage } from "./articleImageStorage";
 import { DataProtectionService, dataProtectionMiddleware } from './dataProtection';
 import { z } from "zod";
 import {
@@ -44,7 +44,7 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 const upload = multer({
-  storage: multer.memoryStorage(),
+  dest: uploadDir,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
@@ -2314,15 +2314,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       let immagineUrl = null;
       if (req.file) {
+        const tempFilePath = path.join(uploadDir, req.file.filename);
         try {
           // Use Object Storage for inventory images
           const objectStorageService = new ObjectStorageService();
           const uploadURL = await objectStorageService.getInventoryImageUploadURL();
 
           // Upload file to Object Storage
+          const fileBuffer = fs.readFileSync(tempFilePath);
           const uploadResponse = await fetch(uploadURL, {
             method: 'PUT',
-            body: req.file.buffer,
+            body: fileBuffer,
             headers: {
               'Content-Type': req.file.mimetype,
             }
@@ -2334,7 +2336,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } else {
             console.error('Failed to upload to Object Storage:', uploadResponse.status);
             immagineUrl = await storeArticleImage({
-              fileBuffer: req.file.buffer,
+              fileBuffer,
               mimeType: req.file.mimetype,
               originalName: req.file.originalname,
               userId: req.session.userId!,
@@ -2344,14 +2346,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         } catch (storageError) {
           console.error('Object Storage error:', storageError);
+          const fileBuffer = fs.readFileSync(tempFilePath);
           immagineUrl = await storeArticleImage({
-            fileBuffer: req.file.buffer,
+            fileBuffer,
             mimeType: req.file.mimetype,
             originalName: req.file.originalname,
             userId: req.session.userId!,
             activityId: req.session.activityId!,
             scope: "inventory",
           });
+        } finally {
+          if (fs.existsSync(tempFilePath)) {
+            fs.unlinkSync(tempFilePath);
+          }
         }
       }
 
@@ -2388,15 +2395,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Solo aggiorna l'immagine se è stata fornita una nuova immagine
       if (req.file) {
+        const tempFilePath = path.join(uploadDir, req.file.filename);
         try {
           // Use Object Storage for inventory images
           const objectStorageService = new ObjectStorageService();
           const uploadURL = await objectStorageService.getInventoryImageUploadURL();
 
           // Upload file to Object Storage
+          const fileBuffer = fs.readFileSync(tempFilePath);
           const uploadResponse = await fetch(uploadURL, {
             method: 'PUT',
-            body: req.file.buffer,
+            body: fileBuffer,
             headers: {
               'Content-Type': req.file.mimetype,
             }
@@ -2408,7 +2417,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } else {
             console.error('Failed to upload to Object Storage:', uploadResponse.status);
             (updates as any).immagineUrl = await storeArticleImage({
-              fileBuffer: req.file.buffer,
+              fileBuffer,
               mimeType: req.file.mimetype,
               originalName: req.file.originalname,
               userId: req.session.userId!,
@@ -2418,14 +2427,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         } catch (storageError) {
           console.error('Object Storage error:', storageError);
+          const fileBuffer = fs.readFileSync(tempFilePath);
           (updates as any).immagineUrl = await storeArticleImage({
-            fileBuffer: req.file.buffer,
+            fileBuffer,
             mimeType: req.file.mimetype,
             originalName: req.file.originalname,
             userId: req.session.userId!,
             activityId: req.session.activityId!,
             scope: "inventory",
           });
+        } finally {
+          if (fs.existsSync(tempFilePath)) {
+            fs.unlinkSync(tempFilePath);
+          }
         }
       }
       // Se non è stata fornita una nuova immagine, l'immagineUrl esistente rimane invariata
@@ -2434,11 +2448,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!item) {
         return res.status(404).json({ message: "Articolo non trovato" });
       }
-
-      if ((updates as any).immagineUrl && existingItem.immagineUrl && existingItem.immagineUrl !== (updates as any).immagineUrl) {
-        await deleteStoredArticleImageIfUnreferenced(existingItem.immagineUrl);
-      }
-
       // Invalidate expenses query to reflect the automatic expense update
       res.json(item);
     } catch (error: any) {
@@ -2470,7 +2479,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/inventario/:id/permanent-delete', requireActivity, async (req, res) => {
     try {
       const { id } = req.params;
-      const existingItem = await storage.getInventoryItem(id, req.session.activityId!);
       const result = await storage.permanentlyDeleteInventoryItem(id, req.session.activityId!);
 
       if (!result.success) {
@@ -2480,11 +2488,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           suggestArchive: true
         });
       }
-
-      if (existingItem?.immagineUrl) {
-        await deleteStoredArticleImageIfUnreferenced(existingItem.immagineUrl);
-      }
-
       res.json({
         message: "Articolo eliminato definitivamente",
         type: "permanent-delete",
@@ -3263,14 +3266,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let imageUrl = null;
       
       if (req.file) {
-        imageUrl = await storeArticleImage({
-          fileBuffer: req.file.buffer,
-          mimeType: req.file.mimetype,
-          originalName: req.file.originalname,
-          userId: req.session.userId!,
-          activityId: req.session.activityId!,
-          scope: "production",
-        });
+        const tempFilePath = path.join(uploadDir, req.file.filename);
+        try {
+          const fileBuffer = fs.readFileSync(tempFilePath);
+          imageUrl = await storeArticleImage({
+            fileBuffer,
+            mimeType: req.file.mimetype,
+            originalName: req.file.originalname,
+            userId: req.session.userId!,
+            activityId: req.session.activityId!,
+            scope: "production",
+          });
+        } finally {
+          if (fs.existsSync(tempFilePath)) {
+            fs.unlinkSync(tempFilePath);
+          }
+        }
       }
 
       const svc = await import('./production');
@@ -3303,14 +3314,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (req.file) {
-        imageUrl = await storeArticleImage({
-          fileBuffer: req.file.buffer,
-          mimeType: req.file.mimetype,
-          originalName: req.file.originalname,
-          userId: req.session.userId!,
-          activityId: req.session.activityId!,
-          scope: "production",
-        });
+        const tempFilePath = path.join(uploadDir, req.file.filename);
+        try {
+          const fileBuffer = fs.readFileSync(tempFilePath);
+          imageUrl = await storeArticleImage({
+            fileBuffer,
+            mimeType: req.file.mimetype,
+            originalName: req.file.originalname,
+            userId: req.session.userId!,
+            activityId: req.session.activityId!,
+            scope: "production",
+          });
+        } finally {
+          if (fs.existsSync(tempFilePath)) {
+            fs.unlinkSync(tempFilePath);
+          }
+        }
       }
 
       const svc = await import('./production');
@@ -3323,10 +3342,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         imageUrl,
         bom: bom ? JSON.parse(bom).map((r:any)=>({ materialId: r.materialId, quantita: Number(r.quantita) })) : []
       });
-
-      if (imageUrl && existingProduct?.imageUrl && existingProduct.imageUrl !== imageUrl) {
-        await deleteStoredArticleImageIfUnreferenced(existingProduct.imageUrl);
-      }
 
       res.json({ ok: true });
     } catch (e: any) { res.status(400).json({ message: e.message || 'Errore modifica scheda vetrina' }); }
@@ -3344,14 +3359,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/production/vetrina/:id', requireActivity, async (req, res) => {
     try {
       const { id } = req.params;
-      const [existingProduct] = await db.select({ imageUrl: productionProducts.imageUrl }).from(productionProducts)
-        .where(and(eq(productionProducts.id, id), eq(productionProducts.activityId, req.session.activityId!)));
       const svc = await import('./production');
       const out = await svc.deleteProductionProductIfUnused(id, req.session.activityId!);
       if (!out.success) return res.status(409).json({ message: 'Scheda già utilizzata: archiviare invece.' });
-      if (existingProduct?.imageUrl) {
-        await deleteStoredArticleImageIfUnreferenced(existingProduct.imageUrl);
-      }
       res.json({ ok: true });
     } catch (e: any) { res.status(400).json({ message: e.message || 'Errore eliminazione vetrina' }); }
   });

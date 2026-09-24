@@ -1,6 +1,6 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { Express, RequestHandler } from "express";
-import { inventario, productionProducts, uploadedImages } from "@shared/schema";
+import { uploadedImages } from "@shared/schema";
 import { db } from "./db";
 
 const DB_IMAGE_PREFIX = "/article-images/";
@@ -51,54 +51,4 @@ export async function getStoredImageById(id: string, activityId: string) {
   const [image] = await db.select().from(uploadedImages)
     .where(and(eq(uploadedImages.id, id), eq(uploadedImages.activityId, activityId)));
   return image || null;
-}
-
-export function isStoredArticleImageUrl(url?: string | null) {
-  return Boolean(url && url.startsWith(DB_IMAGE_PREFIX));
-}
-
-export async function deleteStoredArticleImageByUrl(url?: string | null) {
-  if (!isStoredArticleImageUrl(url)) {
-    return false;
-  }
-
-  const imageId = url!.slice(DB_IMAGE_PREFIX.length);
-  await db.delete(uploadedImages).where(eq(uploadedImages.id, imageId));
-  return true;
-}
-
-export async function deleteStoredArticleImageIfUnreferenced(url?: string | null) {
-  if (!isStoredArticleImageUrl(url)) {
-    return false;
-  }
-
-  const imageId = url!.slice(DB_IMAGE_PREFIX.length);
-
-  return await db.transaction(async (tx) => {
-    const locked = await tx.execute(sql`
-      SELECT ${uploadedImages.id}
-      FROM ${uploadedImages}
-      WHERE ${uploadedImages.id} = ${imageId}
-      FOR UPDATE
-    `);
-
-    if (!locked.rows[0]) {
-      return false;
-    }
-
-    const references = await tx.execute(sql`
-      SELECT (
-        (SELECT COUNT(*)::int FROM ${inventario} WHERE ${inventario.immagineUrl} = ${url}) +
-        (SELECT COUNT(*)::int FROM ${productionProducts} WHERE ${productionProducts.imageUrl} = ${url})
-      ) AS total
-    `);
-
-    const total = Number(references.rows[0]?.total || 0);
-    if (total > 0) {
-      return false;
-    }
-
-    await tx.delete(uploadedImages).where(eq(uploadedImages.id, imageId));
-    return true;
-  });
 }
