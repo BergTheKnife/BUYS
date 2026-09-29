@@ -117,7 +117,8 @@ export async function recordInventoryStockIn(trx: any, params: StockInParams): P
       params.activityId,
       -fromCassa,
       `Spesa coperta da cassa reinvestimento: ${params.nomeArticolo}`,
-      params.userId
+      params.userId,
+      trx
     );
   }
 

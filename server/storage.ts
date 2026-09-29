@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { eq, and, or, desc, sql, ne } from "drizzle-orm";
+import { InventoryAccountingError } from "./inventoryAccounting";
 import {
   users,
   activities,
@@ -582,7 +583,7 @@ class DatabaseStorage {
     if (quantitaChanged) {
       const delta = updates.quantita! - item.quantita;
       if (delta < 0) {
-        throw new Error(
+        throw new InventoryAccountingError(
           "Non è possibile ridurre direttamente la quantità in magazzino: la riduzione deve avvenire tramite una vendita o un'operazione dedicata, per non alterare la storia contabile dei lotti."
         );
       }
@@ -621,7 +622,7 @@ class DatabaseStorage {
       // associated movement to attribute an expense to, and silently
       // rewriting `costo` would desynchronize it from every historical
       // batch/expense. Reject it explicitly instead of guessing.
-      throw new Error(
+      throw new InventoryAccountingError(
         "Non è possibile modificare solo il costo di un articolo: usa il rifornimento per registrare un nuovo ingresso di magazzino con il relativo costo."
       );
     }
@@ -702,7 +703,8 @@ class DatabaseStorage {
             activityId,
             quota,
             "Rollback eliminazione articolo inventario (mai venduto)",
-            item.userId
+            item.userId,
+            trx
           );
         }
         if (batch.spesaId) {
@@ -804,7 +806,7 @@ class DatabaseStorage {
       const touchesProtectedField =
         updates.importo !== undefined || updates.categoria !== undefined || updates.itemId !== undefined || updates.nonEliminabile !== undefined;
       if (touchesProtectedField) {
-        throw new Error(
+        throw new InventoryAccountingError(
           "Questa spesa è stata generata automaticamente da un movimento di magazzino: importo/categoria non sono modificabili direttamente. Usa il rifornimento/modifica dell'articolo."
         );
       }
@@ -840,7 +842,7 @@ class DatabaseStorage {
     }
 
     if (expense.nonEliminabile === 1) {
-      throw new Error(
+      throw new InventoryAccountingError(
         "Questa spesa è stata generata automaticamente da un movimento di magazzino e non può essere eliminata direttamente. Elimina definitivamente l'articolo collegato per rimuoverla."
       );
     }
@@ -1474,8 +1476,8 @@ class DatabaseStorage {
   }
 
   /** Records a signed adjustment (negative = withdrawal, positive = refund/restore) to the reinvestment cash box. */
-  async updateCassaReinvestimento(activityId: string, amount: number, descrizione: string, userId: string) {
-    const [entry] = await db
+  async updateCassaReinvestimento(activityId: string, amount: number, descrizione: string, userId: string, dbClient: any = db) {
+    const [entry] = await dbClient
       .insert(financialHistory)
       .values({
         userId,

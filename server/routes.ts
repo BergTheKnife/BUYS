@@ -15,6 +15,7 @@ import path from "path";
 import fs from "fs";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { DataProtectionService, dataProtectionMiddleware } from './dataProtection';
+import { InventoryAccountingError } from './inventoryAccounting';
 import { z } from "zod";
 import {
   insertUserSchema,
@@ -2507,7 +2508,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(result.item);
     } catch (error: any) {
       console.error('Restock error:', error);
-      res.status(400).json({ message: error.message || "Errore nel rifornimento" });
+      const status = error instanceof InventoryAccountingError ? 400 : 500;
+      res.status(status).json({ message: error.message || "Errore nel rifornimento" });
     }
   });
 
@@ -2895,7 +2897,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ message: "Spesa eliminata con successo" });
     } catch (error: any) {
-      res.status(400).json({ message: error.message || "Errore nell'eliminazione della spesa" });
+      const status = error instanceof InventoryAccountingError ? 400 : 500;
+      res.status(status).json({ message: error.message || "Errore nell'eliminazione della spesa" });
     }
   });
 
