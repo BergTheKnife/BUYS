@@ -1462,15 +1462,16 @@ class DatabaseStorage {
    * always re-derivable and auditable.
    */
   async getCassaReinvestimentoBalance(activityId: string, dbClient: any = db): Promise<number> {
-    const [deposits] = await dbClient
-      .select({ total: sql<number>`COALESCE(SUM(CAST(${fundTransfers.importo} AS numeric)), 0)` })
-      .from(fundTransfers)
-      .where(and(eq(fundTransfers.activityId, activityId), eq(fundTransfers.toAccount, "Cassa Reinvestimento")));
-
-    const [adjustments] = await dbClient
-      .select({ total: sql<number>`COALESCE(SUM(CAST(${financialHistory.importo} AS numeric)), 0)` })
-      .from(financialHistory)
-      .where(and(eq(financialHistory.activityId, activityId), eq(financialHistory.azione, "Cassa Reinvestimento")));
+    const [[deposits], [adjustments]] = await Promise.all([
+      dbClient
+        .select({ total: sql<number>`COALESCE(SUM(CAST(${fundTransfers.importo} AS numeric)), 0)` })
+        .from(fundTransfers)
+        .where(and(eq(fundTransfers.activityId, activityId), eq(fundTransfers.toAccount, "Cassa Reinvestimento"))),
+      dbClient
+        .select({ total: sql<number>`COALESCE(SUM(CAST(${financialHistory.importo} AS numeric)), 0)` })
+        .from(financialHistory)
+        .where(and(eq(financialHistory.activityId, activityId), eq(financialHistory.azione, "Cassa Reinvestimento"))),
+    ]);
 
     return Number(deposits?.total || 0) + Number(adjustments?.total || 0);
   }

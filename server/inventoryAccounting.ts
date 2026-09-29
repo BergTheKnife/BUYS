@@ -82,18 +82,36 @@ export function computeStockInAmount(quantita: number, costoUnitario: number): s
  * `db.transaction(async (trx) => { ... })` so that the batch, the expense and
  * the caller's inventory quantity update all succeed or fail together.
  *
+/** Transactional (or plain) drizzle db client used for reads/writes in this module. */
+export type DbClient = any;
+
+export interface StockInDeps {
+  getCassaReinvestimentoBalance: (activityId: string, dbClient: DbClient) => Promise<number>;
+  updateCassaReinvestimento: (
+    activityId: string,
+    amount: number,
+    descrizione: string,
+    userId: string,
+    dbClient: DbClient
+  ) => Promise<any>;
+}
+
+/**
+ * Atomically records one inventory stock-in movement: a "spese" row (the
+ * generated expense) and an "inventory_batches" row linked to it via spesa_id.
+ * Must be called with the transactional db handle (`trx`) obtained from
+ * `db.transaction(async (trx) => { ... })` so that the batch, the expense and
+ * the caller's inventory quantity update all succeed or fail together.
+ *
  * `deps` is only for unit tests, so `getCassaReinvestimentoBalance`/
  * `updateCassaReinvestimento` can be stubbed without a real database; callers
  * in application code should omit it and let it default to the real storage
  * module.
  */
 export async function recordInventoryStockIn(
-  trx: any,
+  trx: DbClient,
   params: StockInParams,
-  deps?: {
-    getCassaReinvestimentoBalance: (activityId: string, dbClient: any) => Promise<number>;
-    updateCassaReinvestimento: (activityId: string, amount: number, descrizione: string, userId: string, dbClient: any) => Promise<any>;
-  }
+  deps?: StockInDeps
 ): Promise<StockInResult> {
   const { inventoryBatches } = await import("../migrations/schema");
 
@@ -129,8 +147,15 @@ export async function recordInventoryStockIn(
 
   // Reinvestment cash coverage, consistent with the production-material purchase flow
   // in server/production.ts (informational only - never affects the expense amount).
-  const { getCassaReinvestimentoBalance, updateCassaReinvestimento } =
-    deps ?? (await import("./storage")).storage;
+  let resolvedDeps = deps;
+  if (!resolvedDeps) {
+    const { storage } = await import("./storage");
+    resolvedDeps = {
+      getCassaReinvestimentoBalance: storage.getCassaReinvestimentoBalance.bind(storage),
+      updateCassaReinvestimento: storage.updateCassaReinvestimento.bind(storage),
+    };
+  }
+  const { getCassaReinvestimentoBalance, updateCassaReinvestimento } = resolvedDeps;
   const cassaBalance = await getCassaReinvestimentoBalance(params.activityId, trx);
   const fromCassa = clampCassaCoverage(cassaBalance, Number(importo));
 
