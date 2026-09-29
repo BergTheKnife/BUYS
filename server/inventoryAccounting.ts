@@ -46,6 +46,15 @@ export interface StockInResult {
 }
 
 /**
+ * How much of a stock-in expense the reinvestment cash box can cover, clamped
+ * to [0, importo] and never negative even if the balance itself is negative.
+ * Pure function so the clamping logic can be unit-tested without a database.
+ */
+export function clampCassaCoverage(cassaBalance: number, importo: number): number {
+  return Math.min(Math.max(cassaBalance, 0), importo);
+}
+
+/**
  * Computes quantita * costoUnitario using integer cents to avoid floating point
  * drift, returning a fixed 2-decimal string suitable for a numeric(10,2) column.
  * Throws InventoryAccountingError for non-positive/invalid inputs.
@@ -72,8 +81,20 @@ export function computeStockInAmount(quantita: number, costoUnitario: number): s
  * Must be called with the transactional db handle (`trx`) obtained from
  * `db.transaction(async (trx) => { ... })` so that the batch, the expense and
  * the caller's inventory quantity update all succeed or fail together.
+ *
+ * `deps` is only for unit tests, so `getCassaReinvestimentoBalance`/
+ * `updateCassaReinvestimento` can be stubbed without a real database; callers
+ * in application code should omit it and let it default to the real storage
+ * module.
  */
-export async function recordInventoryStockIn(trx: any, params: StockInParams): Promise<StockInResult> {
+export async function recordInventoryStockIn(
+  trx: any,
+  params: StockInParams,
+  deps?: {
+    getCassaReinvestimentoBalance: (activityId: string, dbClient: any) => Promise<number>;
+    updateCassaReinvestimento: (activityId: string, amount: number, descrizione: string, userId: string, dbClient: any) => Promise<any>;
+  }
+): Promise<StockInResult> {
   const { inventoryBatches } = await import("../migrations/schema");
 
   // Idempotency: a retried/duplicated request with the same key returns the
@@ -108,12 +129,13 @@ export async function recordInventoryStockIn(trx: any, params: StockInParams): P
 
   // Reinvestment cash coverage, consistent with the production-material purchase flow
   // in server/production.ts (informational only - never affects the expense amount).
-  const { storage } = await import("./storage");
-  const cassaBalance = await storage.getCassaReinvestimentoBalance(params.activityId);
-  const fromCassa = Math.min(Math.max(cassaBalance, 0), Number(importo));
+  const { getCassaReinvestimentoBalance, updateCassaReinvestimento } =
+    deps ?? (await import("./storage")).storage;
+  const cassaBalance = await getCassaReinvestimentoBalance(params.activityId, trx);
+  const fromCassa = clampCassaCoverage(cassaBalance, Number(importo));
 
   if (fromCassa > 0) {
-    await storage.updateCassaReinvestimento(
+    await updateCassaReinvestimento(
       params.activityId,
       -fromCassa,
       `Spesa coperta da cassa reinvestimento: ${params.nomeArticolo}`,

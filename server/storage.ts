@@ -1461,13 +1461,13 @@ class DatabaseStorage {
    * entry in financial_history under a stable "azione" tag so the balance is
    * always re-derivable and auditable.
    */
-  async getCassaReinvestimentoBalance(activityId: string): Promise<number> {
-    const [deposits] = await db
+  async getCassaReinvestimentoBalance(activityId: string, dbClient: any = db): Promise<number> {
+    const [deposits] = await dbClient
       .select({ total: sql<number>`COALESCE(SUM(CAST(${fundTransfers.importo} AS numeric)), 0)` })
       .from(fundTransfers)
       .where(and(eq(fundTransfers.activityId, activityId), eq(fundTransfers.toAccount, "Cassa Reinvestimento")));
 
-    const [adjustments] = await db
+    const [adjustments] = await dbClient
       .select({ total: sql<number>`COALESCE(SUM(CAST(${financialHistory.importo} AS numeric)), 0)` })
       .from(financialHistory)
       .where(and(eq(financialHistory.activityId, activityId), eq(financialHistory.azione, "Cassa Reinvestimento")));
