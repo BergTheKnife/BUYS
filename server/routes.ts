@@ -15,6 +15,7 @@ import path from "path";
 import fs from "fs";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { DataProtectionService, dataProtectionMiddleware } from './dataProtection';
+import { InventoryAccountingError } from './inventoryAccounting';
 import { z } from "zod";
 import {
   insertUserSchema,
@@ -2488,61 +2489,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/inventario/:id/restock', requireActivity, async (req, res) => {
     try {
       const { id } = req.params;
-      const { quantita, costo } = req.body;
+      const { quantita, costo, idempotencyKey } = req.body;
 
       if (!quantita || quantita <= 0) {
         return res.status(400).json({ message: "Quantità non valida" });
       }
 
-      const item = await storage.getInventoryItem(id, req.session.activityId!);
-      if (!item) {
+      const result = await storage.restockInventoryItem(id, req.session.activityId!, req.session.userId!, {
+        quantita: parseInt(quantita),
+        costo: costo || undefined,
+        idempotencyKey: idempotencyKey || null,
+      });
+
+      if (!result) {
         return res.status(404).json({ message: "Articolo non trovato" });
       }
 
-      const newCost = costo || item.costo;
-      const totalCost = Number(newCost) * parseInt(quantita);
-
-      // La scala dalla cassa reinvestimento verrà gestita automaticamente da createExpense
-
-      // Crea nuovo lotto di inventario
-      await storage.createInventoryBatch({
-        inventarioId: id,
-        activityId: req.session.activityId!,
-        userId: req.session.userId!,
-        costo: newCost,
-        quantita: parseInt(quantita),
-      });
-
-      // Update inventory quantity
-      const newQuantity = item.quantita + parseInt(quantita);
-      await storage.updateInventoryQuantity(id, newQuantity);
-
-      // Aggiorna costo medio nell'inventario se diverso
-      if (Number(newCost) !== Number(item.costo)) {
-        const totalValue = (Number(item.costo) * item.quantita) + (Number(newCost) * parseInt(quantita));
-        const avgCost = totalValue / newQuantity;
-
-        await storage.updateInventoryItem(id, req.session.activityId!, {
-          costo: avgCost.toFixed(2)
-        });
-      }
-
-      // Crea la spesa (con scala automatica dalla cassa reinvestimento se disponibile)
-      await storage.createExpense({
-        userId: req.session.userId!,
-        activityId: req.session.activityId!,
-        voce: `Rifornimento: ${item.nomeArticolo} - ${item.taglia} (${quantita} pz)`,
-        importo: totalCost.toString(),
-        categoria: "Inventario",
-        data: new Date(),
-      });
-
-      // Get updated item
-      const updatedItem = await storage.getInventoryItem(id, req.session.activityId!);
-      res.json(updatedItem);
+      res.json(result.item);
     } catch (error: any) {
       console.error('Restock error:', error);
-      res.status(500).json({ message: error.message || "Errore nel rifornimento" });
+      const status = error instanceof InventoryAccountingError ? 400 : 500;
+      res.status(status).json({ message: error.message || "Errore nel rifornimento" });
     }
   });
 
@@ -2930,7 +2897,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ message: "Spesa eliminata con successo" });
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Errore nell'eliminazione della spesa" });
+      const status = error instanceof InventoryAccountingError ? 400 : 500;
+      res.status(status).json({ message: error.message || "Errore nell'eliminazione della spesa" });
     }
   });
 
