@@ -221,6 +221,8 @@ export const inventoryBatches = pgTable("inventory_batches", {
 	quantitaIniziale: integer("quantita_iniziale").notNull(),
 	quantitaRimanente: integer("quantita_rimanente").notNull(),
 	dataAcquisto: timestamp("data_acquisto", { mode: 'string' }).defaultNow(),
+	spesaId: uuid("spesa_id"),
+	idempotencyKey: uuid("idempotency_key"),
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
@@ -238,6 +240,13 @@ export const inventoryBatches = pgTable("inventory_batches", {
 			foreignColumns: [users.id],
 			name: "inventory_batches_user_fk"
 		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.spesaId],
+			foreignColumns: [spese.id],
+			name: "inventory_batches_spesa_fk"
+		}).onDelete("set null"),
+	unique("inventory_batches_spesa_unique").on(table.spesaId),
+	unique("inventory_batches_idempotency_key_unique").on(table.idempotencyKey),
 	index("inventory_batches_inventario_idx").using("btree", table.inventarioId.asc().nullsLast().op("uuid_ops")),
 	index("inventory_batches_date_idx").using("btree", table.dataAcquisto.asc().nullsLast()),
 ]);
