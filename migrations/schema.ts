@@ -222,15 +222,6 @@ export const inventoryBatches = pgTable("inventory_batches", {
 	quantitaRimanente: integer("quantita_rimanente").notNull(),
 	dataAcquisto: timestamp("data_acquisto", { mode: 'string' }).defaultNow(),
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	// Durable linkage to the generated inventory expense for this stock-in movement.
-	// One batch <-> one expense (enforced by the unique constraint below), used both
-	// as the audit trail and as the idempotency anchor for the stock-in workflow.
-	spesaId: uuid("spesa_id"),
-	// Portion of this stock-in covered by the reinvestment cash box (informational,
-	// mirrors production_batches.quotaCassa).
-	quotaCassa: numeric("quota_cassa", { precision: 10, scale: 2 }).default("0"),
-	// Optional caller-supplied key used to deduplicate retried/duplicate stock-in requests.
-	idempotencyKey: text("idempotency_key"),
 }, (table) => [
 	foreignKey({
 			columns: [table.inventarioId],
@@ -247,13 +238,6 @@ export const inventoryBatches = pgTable("inventory_batches", {
 			foreignColumns: [users.id],
 			name: "inventory_batches_user_fk"
 		}).onDelete("cascade"),
-	foreignKey({
-			columns: [table.spesaId],
-			foreignColumns: [spese.id],
-			name: "inventory_batches_spesa_fk"
-		}).onDelete("set null"),
 	index("inventory_batches_inventario_idx").using("btree", table.inventarioId.asc().nullsLast().op("uuid_ops")),
 	index("inventory_batches_date_idx").using("btree", table.dataAcquisto.asc().nullsLast()),
-	unique("inventory_batches_spesa_unique").on(table.spesaId),
-	unique("inventory_batches_idempotency_unique").on(table.inventarioId, table.idempotencyKey),
 ]);
