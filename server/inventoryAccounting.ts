@@ -3,7 +3,7 @@
 // Every code path that increases inventory quantity (new item creation, restock,
 // or an edit that raises the quantity) MUST go through `recordInventoryStockIn`
 // inside the SAME database transaction that writes the inventory row. This keeps
-// warehouse movements, generated expenses and the balance in sync and makes the
+// warehouse movements and generated expenses in sync and makes the
 // retroactive reconciliation tool (scripts/reconcile-inventory-expenses.ts) able
 // to reason about a single, predictable shape of data.
 //

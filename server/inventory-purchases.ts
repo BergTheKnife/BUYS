@@ -3,7 +3,8 @@ import { db } from "./db";
 import { inventoryBatches, inventario, spese } from "@shared/schema";
 import type { InsertInventario } from "@shared/schema";
 
-const MAX_AMOUNT_CENTS = 9_999_999_999n;
+const MAX_AMOUNT_CENTS = BigInt("9999999999");
+const CENTS_PER_UNIT = BigInt(100);
 
 export function normalizeUnitCost(value: unknown) {
   const text = String(value ?? "").trim();
@@ -12,7 +13,7 @@ export function normalizeUnitCost(value: unknown) {
   }
 
   const [whole, fraction = ""] = text.split(".");
-  const cents = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, "0"));
+  const cents = BigInt(whole) * CENTS_PER_UNIT + BigInt(fraction.padEnd(2, "0"));
   if (cents > MAX_AMOUNT_CENTS) {
     throw new Error("Il costo unitario supera il limite consentito");
   }
@@ -28,7 +29,7 @@ function totalAmount(cents: bigint, quantity: number) {
   if (totalCents > MAX_AMOUNT_CENTS) {
     throw new Error("Il costo totale supera il limite consentito");
   }
-  return `${totalCents / 100n}.${String(totalCents % 100n).padStart(2, "0")}`;
+  return `${totalCents / CENTS_PER_UNIT}.${String(totalCents % CENTS_PER_UNIT).padStart(2, "0")}`;
 }
 
 export function inventoryPurchaseDescription(
@@ -56,7 +57,7 @@ type InventoryDatabase = Pick<typeof db, "transaction">;
 
 async function findPriorPurchase(
   identity: PurchaseIdentity,
-  expected: { quantitaIniziale: number; costo: string; inventarioId?: string },
+  expected: { quantitaIniziale: number; costo: string; inventarioId?: string; nomeArticolo?: string; taglia?: string | null },
 ) {
   const [batch] = await db
     .select({ inventarioId: inventoryBatches.inventarioId })
@@ -80,7 +81,10 @@ async function findPriorPurchase(
       eq(inventario.activityId, identity.activityId),
     ))
     .limit(1);
-  return item?.userId === identity.userId ? item : null;
+  if (!item || item.userId !== identity.userId) return null;
+  if (expected.nomeArticolo !== undefined && item.nomeArticolo !== expected.nomeArticolo) return null;
+  if (expected.taglia !== undefined && (item.taglia || null) !== expected.taglia) return null;
+  return item;
 }
 
 function isUniqueViolation(error: unknown) {
@@ -116,7 +120,9 @@ export async function createInitialInventoryPurchase(
           priorItem?.activityId === data.activityId &&
           priorItem.userId === data.userId &&
           priorBatch.costo === unitCost.decimal &&
-          priorBatch.quantitaIniziale === quantity
+          priorBatch.quantitaIniziale === quantity &&
+          priorItem.nomeArticolo === data.nomeArticolo &&
+          (priorItem.taglia || null) === (data.taglia || null)
         ) return priorItem;
         throw new Error("Chiave di idempotenza già utilizzata per un carico diverso");
       }
@@ -160,7 +166,12 @@ export async function createInitialInventoryPurchase(
     });
   } catch (error) {
     if (isUniqueViolation(error)) {
-      const prior = await findPriorPurchase(data, { quantitaIniziale: quantity, costo: unitCost.decimal });
+      const prior = await findPriorPurchase(data, {
+        quantitaIniziale: quantity,
+        costo: unitCost.decimal,
+        nomeArticolo: data.nomeArticolo,
+        taglia: data.taglia || null,
+      });
       if (prior) return prior;
     }
     throw error;

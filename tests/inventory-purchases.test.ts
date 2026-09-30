@@ -4,6 +4,7 @@ import { getTableName } from "drizzle-orm";
 
 process.env.DATABASE_URL ??= "postgresql://localhost/test";
 const { createInitialInventoryPurchase, restockInventoryPurchase } = await import("../server/inventory-purchases");
+const { recordInventoryStockIn } = await import("../server/inventoryAccounting");
 
 const activityId = "activity-1";
 const userId = "user-1";
@@ -196,4 +197,51 @@ test("purchase writes roll back when an expense or lot insert fails", async () =
     );
     assert.deepEqual(database.state, { inventario: [], spese: [], inventory_batches: [] });
   }
+});
+
+test("restock is fully rolled back when the lot insert fails", async () => {
+  const database = new FakeDatabase();
+  const item = await createInitialInventoryPurchase(initialData("00000000-0000-4000-8000-000000000001"), database as any);
+  const before = clone(database.state);
+  const failingDatabase = {
+    transaction: async (callback: (tx: any) => Promise<unknown>) => {
+      const nextState = clone(database.state);
+      const result = await callback(new FakeTransaction(nextState, "inventory_batches"));
+      database.state = nextState;
+      return result;
+    },
+  };
+
+  await assert.rejects(
+    restockInventoryPurchase({
+      inventarioId: item.id,
+      userId,
+      activityId,
+      quantita: 5,
+      costo: "10.00",
+      idempotencyKey: "00000000-0000-4000-8000-000000000005",
+    }, failingDatabase as any),
+    /simulated inventory_batches insert failure/,
+  );
+
+  assert.deepEqual(database.state, before);
+});
+
+test("legacy stock-in helper links the expense without a cash-box movement", async () => {
+  const database = new FakeDatabase();
+  const result = await database.transaction((tx) => recordInventoryStockIn(tx, {
+    inventarioId: "inventory-1",
+    userId,
+    activityId,
+    nomeArticolo: "Maglia Azzurra",
+    taglia: "XL",
+    quantita: 10,
+    costoUnitario: 13.5,
+    idempotencyKey: "00000000-0000-4000-8000-000000000006",
+  }));
+
+  assert.equal(result.fromCassa, 0);
+  assert.equal(result.batch.spesaId, result.expense.id);
+  assert.equal(result.batch.quotaCassa, "0.00");
+  assert.equal(database.state.spese.length, 1);
 });

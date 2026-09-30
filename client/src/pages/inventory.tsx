@@ -58,7 +58,7 @@ export default function Inventory() {
   const [restockQuantity, setRestockQuantity] = useState("1");
   const [restockNewCost, setRestockNewCost] = useState("");
   const [batchHistoryItem, setBatchHistoryItem] = useState<Inventario | null>(null);
-  const restockIdempotencyKey = useRef<string | null>(null);
+  const restockIdempotencyKey = useRef<{ key: string; payload: string } | null>(null);
   const [sortConfig, setSortConfig] = useState<{
     key: keyof Inventario | null;
     direction: 'asc' | 'desc';
@@ -314,14 +314,19 @@ export default function Inventory() {
 
   const handleRestock = () => {
     if (restockItem && restockQuantity && restockNewCost) {
-      if (!restockIdempotencyKey.current) {
-        restockIdempotencyKey.current = crypto.randomUUID();
+      const payload = JSON.stringify({
+        id: restockItem.id,
+        quantita: parseInt(restockQuantity),
+        costo: restockNewCost,
+      });
+      if (!restockIdempotencyKey.current || restockIdempotencyKey.current.payload !== payload) {
+        restockIdempotencyKey.current = { key: crypto.randomUUID(), payload };
       }
       restockMutation.mutate({ 
         id: restockItem.id, 
         quantita: parseInt(restockQuantity),
         costo: restockNewCost,
-        idempotencyKey: restockIdempotencyKey.current,
+        idempotencyKey: restockIdempotencyKey.current.key,
       });
     }
   };
