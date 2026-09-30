@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, decimal, integer, timestamp, uuid, index, numeric, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, decimal, integer, timestamp, uuid, index, numeric, jsonb, unique } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
@@ -189,9 +189,29 @@ export const spese = pgTable("spese", {
   categoria: text("categoria").notNull(),
   data: timestamp("data").notNull(),
   nonEliminabile: integer("non_eliminabile").default(0),
-  itemId: uuid("item_id").references(() => inventario.id), // Riferimento puntuale all'articolo (se applicabile)
+  itemId: uuid("item_id").references(() => inventario.id, { onDelete: "set null" }), // Riferimento puntuale all'articolo (se applicabile)
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+export const inventoryBatches = pgTable("inventory_batches", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  inventarioId: uuid("inventario_id").notNull().references(() => inventario.id, { onDelete: "cascade" }),
+  activityId: uuid("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  costo: numeric("costo", { precision: 10, scale: 2 }).notNull(),
+  quantitaIniziale: integer("quantita_iniziale").notNull(),
+  quantitaRimanente: integer("quantita_rimanente").notNull(),
+  dataAcquisto: timestamp("data_acquisto").defaultNow().notNull(),
+  quotaCassa: numeric("quota_cassa", { precision: 10, scale: 2 }).default("0").notNull(),
+  spesaId: uuid("spesa_id").references(() => spese.id, { onDelete: "set null" }),
+  idempotencyKey: uuid("idempotency_key").unique(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("inventory_batches_inventario_idx").on(table.inventarioId),
+  index("inventory_batches_date_idx").on(table.dataAcquisto),
+  unique("inventory_batches_spesa_unique").on(table.spesaId),
+  unique("inventory_batches_idempotency_key_unique").on(table.idempotencyKey),
+]);
 
 // Fund transfers table for "Riunisci fondi" functionality
 export const fundTransfers = pgTable("fund_transfers", {
@@ -440,6 +460,8 @@ export const inventoryBatchSchema = z.object({
   quantitaIniziale: z.number(),
   quantitaRimanente: z.number(),
   dataAcquisto: z.string(),
+  spesaId: z.string().nullable().optional(),
+  idempotencyKey: z.string().uuid().nullable().optional(),
   createdAt: z.string().optional(),
 });
 
@@ -447,7 +469,7 @@ export type InventoryBatch = z.infer<typeof inventoryBatchSchema>;
 
 export const restockItemSchema = z.object({
   quantita: z.number().min(1),
-  costo: z.string().optional(), // Nuovo costo opzionale
+  costo: z.string().min(1),
 });
 
 export const insertInventarioSchema = createInsertSchema(inventario, {

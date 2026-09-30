@@ -23,7 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { insertInventarioSchema } from "@shared/schema";
 import type { InsertInventario, Inventario } from "@shared/schema";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { capitalizeWords } from "@/lib/utils";
 import { useStoreProfile } from "@/contexts/store-profile";
 
@@ -37,6 +37,7 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const storeProfile = useStoreProfile();
+  const idempotencyKey = useRef<string | null>(null);
 
   const form = useForm<InsertInventario & { immagine?: FileList }>({
     resolver: zodResolver(insertInventarioSchema.extend({
@@ -85,6 +86,9 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
       const response = await fetch(url, {
         method,
         credentials: "include",
+        headers: !editingItem && idempotencyKey.current
+          ? { "Idempotency-Key": idempotencyKey.current }
+          : undefined,
         body: data,
       });
 
@@ -102,6 +106,7 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/spese"] });
       queryClient.invalidateQueries({ queryKey: ["/api/activity-history"] });
+      if (!editingItem) idempotencyKey.current = null;
       toast({
         title: "Successo",
         description: editingItem ? "Articolo aggiornato con successo" : "Articolo aggiunto con successo",
@@ -128,11 +133,16 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
     console.log('Form errors:', form.formState.errors);
 
     const formData = new FormData();
+    if (!editingItem && !idempotencyKey.current) {
+      idempotencyKey.current = crypto.randomUUID();
+    }
     formData.append("nomeArticolo", data.nomeArticolo);
     const taglia = data.taglia === "none" ? "" : (data.taglia || "");
     formData.append("taglia", taglia);
-    formData.append("costo", data.costo);
-    formData.append("quantita", data.quantita.toString());
+    if (!editingItem) {
+      formData.append("costo", data.costo);
+      formData.append("quantita", data.quantita.toString());
+    }
     if (data.lunghezza) formData.append("lunghezza", data.lunghezza.toString());
     if (data.larghezza) formData.append("larghezza", data.larghezza.toString());
     if (data.altezza) formData.append("altezza", data.altezza.toString());
@@ -224,8 +234,10 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
                 type="number"
                 step="0.01"
                 placeholder="15.00"
+                disabled={!!editingItem}
                 {...form.register("costo")}
               />
+              {editingItem && <p className="text-xs text-muted-foreground">Il costo d'acquisto è conservato per lotto.</p>}
               {form.formState.errors.costo && (
                 <p className="text-sm text-destructive">
                   {form.formState.errors.costo.message}
@@ -239,10 +251,12 @@ export function AddItemModal({ isOpen, onClose, editingItem }: AddItemModalProps
                 id="quantita"
                 data-testid="input-quantita"
                 type="number"
-                min="0"
+                min="1"
                 placeholder="10"
+                disabled={!!editingItem}
                 {...form.register("quantita", { valueAsNumber: true })}
               />
+              {editingItem && <p className="text-xs text-muted-foreground">Per aumentare la disponibilità usa Rifornisci.</p>}
               {form.formState.errors.quantita && (
                 <p className="text-sm text-destructive">
                   {form.formState.errors.quantita.message}

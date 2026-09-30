@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,7 +44,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Package, Plus, Edit, Trash2, ImageIcon, PackagePlus, Filter, ArrowUpDown, ArrowUp, ArrowDown, Download, FolderArchive } from "lucide-react";
+import { Package, Plus, Edit, Trash2, ImageIcon, PackagePlus, Filter, ArrowUpDown, ArrowUp, ArrowDown, Download, FolderArchive, History } from "lucide-react";
 import type { Inventario } from "@shared/schema";
 // Hook undo/redo rimosso
 import { ImagePreview } from "@/components/ui/image-preview";
@@ -57,6 +57,8 @@ export default function Inventory() {
   const [restockItem, setRestockItem] = useState<Inventario | null>(null);
   const [restockQuantity, setRestockQuantity] = useState("1");
   const [restockNewCost, setRestockNewCost] = useState("");
+  const [batchHistoryItem, setBatchHistoryItem] = useState<Inventario | null>(null);
+  const restockIdempotencyKey = useRef<{ key: string; payload: string } | null>(null);
   const [sortConfig, setSortConfig] = useState<{
     key: keyof Inventario | null;
     direction: 'asc' | 'desc';
@@ -97,6 +99,10 @@ export default function Inventory() {
   const { data: sales = [] } = useQuery<any[]>({
     queryKey: ["/api/vendite"],
     enabled: !!currentActivity?.id,
+  });
+  const { data: batchHistory = [], isLoading: isBatchHistoryLoading } = useQuery<any[]>({
+    queryKey: ["/api/inventario", batchHistoryItem?.id, "batches"],
+    enabled: !!batchHistoryItem,
   });
 
   // Sorting function
@@ -270,8 +276,17 @@ export default function Inventory() {
   });
 
   const restockMutation = useMutation({
-    mutationFn: async ({ id, quantita, costo }: { id: string; quantita: number; costo?: string }) => {
-      const response = await apiRequest("POST", `/api/inventario/${id}/restock`, { quantita, costo });
+    mutationFn: async ({ id, quantita, costo, idempotencyKey }: { id: string; quantita: number; costo: string; idempotencyKey: string }) => {
+      const response = await fetch(`/api/inventario/${id}/restock`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
+        body: JSON.stringify({ quantita, costo }),
+      });
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.message || "Errore nel rifornimento");
+      }
       return response.json();
     },
     onSuccess: () => {
@@ -286,6 +301,7 @@ export default function Inventory() {
       setRestockItem(null);
       setRestockQuantity("1");
       setRestockNewCost("");
+      restockIdempotencyKey.current = null;
     },
     onError: (error: any) => {
       toast({
@@ -297,11 +313,20 @@ export default function Inventory() {
   });
 
   const handleRestock = () => {
-    if (restockItem && restockQuantity) {
+    if (restockItem && restockQuantity && restockNewCost) {
+      const payload = JSON.stringify({
+        id: restockItem.id,
+        quantita: parseInt(restockQuantity),
+        costo: restockNewCost,
+      });
+      if (!restockIdempotencyKey.current || restockIdempotencyKey.current.payload !== payload) {
+        restockIdempotencyKey.current = { key: crypto.randomUUID(), payload };
+      }
       restockMutation.mutate({ 
         id: restockItem.id, 
         quantita: parseInt(restockQuantity),
-        costo: restockNewCost || undefined
+        costo: restockNewCost,
+        idempotencyKey: restockIdempotencyKey.current.key,
       });
     }
   };
@@ -597,7 +622,7 @@ export default function Inventory() {
                           onClick={() => handleSort('costo')}
                           className="flex items-center gap-1 hover:text-foreground"
                         >
-                          Costo
+                          Costo iniziale
                           {getSortIcon('costo')}
                         </button>
                       </TableHead>
@@ -611,7 +636,6 @@ export default function Inventory() {
                         </button>
                       </TableHead>
                       <TableHead>Vendute</TableHead>
-                      <TableHead>Valore Totale</TableHead>
                       <TableHead>Azioni</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -649,11 +673,18 @@ export default function Inventory() {
                             {soldQuantities.get(`${item.nomeArticolo}-${item.taglia}`) || 0}
                           </span>
                         </TableCell>
-                        <TableCell className="font-semibold">
-                          {formatCurrency(Number(item.costo) * item.quantita)}
-                        </TableCell>
                         <TableCell>
                           <div className="flex space-x-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setBatchHistoryItem(item)}
+                              title="Storico carichi"
+                              aria-label={`Storico carichi ${item.nomeArticolo}`}
+                              className="min-w-[36px] h-9 p-2"
+                            >
+                              <History className="h-5 w-5 text-slate-600" />
+                            </Button>
                             <Button
                               size="sm"
                               variant="outline"
@@ -781,7 +812,7 @@ export default function Inventory() {
               <DialogDescription>
                 Aggiungi quantità per "{restockItem?.nomeArticolo} - {restockItem?.taglia}".
                 <br />
-                Costo attuale per pezzo: {restockItem && formatCurrency(restockItem.costo)}
+                Inserisci il costo unitario di questo nuovo lotto.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -807,7 +838,6 @@ export default function Inventory() {
                   type="number"
                   step="0.01"
                   min="0"
-                  placeholder={restockItem?.costo}
                   value={restockNewCost}
                   onChange={(e) => setRestockNewCost(e.target.value)}
                   className="col-span-3"
@@ -817,8 +847,8 @@ export default function Inventory() {
                 <div className="text-sm text-muted-foreground">
                   <p>Quantità attuale: {restockItem.quantita}</p>
                   <p>Nuova quantità: {restockItem.quantita + parseInt(restockQuantity || "0")}</p>
-                  <p>Costo per pezzo: {formatCurrency(Number(restockNewCost || restockItem.costo))}</p>
-                  <p>Costo rifornimento: {formatCurrency(Number(restockNewCost || restockItem.costo) * parseInt(restockQuantity || "0"))}</p>
+                  <p>Costo per pezzo: {restockNewCost ? formatCurrency(restockNewCost) : "—"}</p>
+                  <p>Costo rifornimento: {restockNewCost ? formatCurrency(Number(restockNewCost) * parseInt(restockQuantity || "0")) : "—"}</p>
                 </div>
               )}
             </div>
@@ -828,10 +858,49 @@ export default function Inventory() {
               </Button>
               <Button 
                 onClick={handleRestock}
-                disabled={restockMutation.isPending || !restockQuantity || parseInt(restockQuantity) <= 0}
+                disabled={restockMutation.isPending || !restockQuantity || parseInt(restockQuantity) <= 0 || !restockNewCost}
               >
                 {restockMutation.isPending ? "Rifornendo..." : "Rifornisci"}
               </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={!!batchHistoryItem} onOpenChange={() => setBatchHistoryItem(null)}>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>Storico carichi — {batchHistoryItem?.nomeArticolo} {batchHistoryItem?.taglia}</DialogTitle>
+              <DialogDescription>Ogni riga rappresenta un lotto e la relativa spesa, quando presente.</DialogDescription>
+            </DialogHeader>
+            {isBatchHistoryLoading ? (
+              <p className="py-4 text-sm text-muted-foreground">Caricamento...</p>
+            ) : batchHistory.length === 0 ? (
+              <p className="py-4 text-sm text-muted-foreground">Nessun lotto registrato.</p>
+            ) : (
+              <div className="max-h-[60vh] space-y-3 overflow-y-auto">
+                {batchHistory.map((batch) => (
+                  <div key={batch.id} className="rounded-md border p-3 text-sm">
+                    <p className="font-medium">
+                      {new Date(batch.dataAcquisto).toLocaleDateString("it-IT")} · {batch.quantitaIniziale} pezzi
+                    </p>
+                    <p>
+                      {formatCurrency(batch.costo)} / pezzo · Totale lotto: {formatCurrency(Number(batch.costo) * batch.quantitaIniziale)}
+                    </p>
+                    <p className="text-muted-foreground">Disponibili: {batch.quantitaRimanente}</p>
+                    {batch.importoSpesa != null && (
+                      <p className="text-muted-foreground">
+                        Spesa: {batch.descrizioneSpesa} · {formatCurrency(batch.importoSpesa)}
+                      </p>
+                    )}
+                    {batch.spesaId && (
+                      <p className="text-xs text-muted-foreground">ID spesa: {batch.spesaId}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setBatchHistoryItem(null)}>Chiudi</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

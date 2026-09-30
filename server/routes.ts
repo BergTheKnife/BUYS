@@ -9,11 +9,12 @@ import { db } from "./db";
 import bcrypt from "bcrypt";
 import { randomBytes } from "crypto";
 import { eq, sql, and, asc } from "drizzle-orm";
-import { activities, activityUsers, vendite, spese, inventario, users, financialHistory, fundTransfers, productionBatches } from "@shared/schema";
+import { activities, activityUsers, vendite, spese, inventario, inventoryBatches, users, financialHistory, fundTransfers, productionBatches } from "@shared/schema";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import { createInitialInventoryPurchase, restockInventoryPurchase } from "./inventory-purchases";
 import { DataProtectionService, dataProtectionMiddleware } from './dataProtection';
 import { z } from "zod";
 import {
@@ -2299,6 +2300,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/inventario', requireActivity, upload.single('immagine'), async (req, res) => {
     try {
+      const idempotencyKey = req.get("Idempotency-Key");
+      if (!idempotencyKey || !z.string().uuid().safeParse(idempotencyKey).success) {
+        return res.status(400).json({ message: "Chiave di idempotenza non valida" });
+      }
+
       // Convert form data types
       const formData = {
         nomeArticolo: req.body.nomeArticolo,
@@ -2345,11 +2351,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const item = await storage.createInventoryItem({
+      const item = await createInitialInventoryPurchase({
         ...itemData,
         userId: req.session.userId!,
         activityId: req.session.activityId!,
         immagineUrl: immagineUrl,
+        idempotencyKey,
       } as any);
 
       res.json(item);
@@ -2363,12 +2370,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
 
+      if (req.body.costo !== undefined || req.body.quantita !== undefined) {
+        return res.status(400).json({
+          message: "Costo e quantità dei carichi non sono modificabili; usa Rifornisci per registrare un nuovo lotto.",
+        });
+      }
+
       // Convert form data types properly for updates
       const formData: any = {};
       if (req.body.nomeArticolo !== undefined) formData.nomeArticolo = req.body.nomeArticolo;
       if (req.body.taglia !== undefined) formData.taglia = req.body.taglia;
-      if (req.body.costo !== undefined) formData.costo = req.body.costo;
-      if (req.body.quantita !== undefined) formData.quantita = parseInt(req.body.quantita);
 
       const updates = insertInventarioSchema.partial().parse(formData);
 
@@ -2445,6 +2456,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/inventario/:id/permanent-delete', requireActivity, async (req, res) => {
     try {
       const { id } = req.params;
+      const [linkedPurchase] = await db.select({ id: inventoryBatches.id })
+        .from(inventoryBatches)
+        .where(and(
+          eq(inventoryBatches.inventarioId, id),
+          eq(inventoryBatches.activityId, req.session.activityId!),
+          sql`${inventoryBatches.spesaId} IS NOT NULL`,
+        ))
+        .limit(1);
+      if (linkedPurchase) {
+        return res.status(400).json({
+          message: "Questo articolo ha acquisti registrati. Archivialo per conservare lo storico di lotti e spese.",
+          type: "blocked",
+          suggestArchive: true,
+        });
+      }
+
       const result = await storage.permanentlyDeleteInventoryItem(id, req.session.activityId!);
 
       if (!result.success) {
@@ -2489,60 +2516,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const { quantita, costo } = req.body;
+      const idempotencyKey = req.get("Idempotency-Key");
 
-      if (!quantita || quantita <= 0) {
+      if (!Number.isSafeInteger(quantita) || quantita <= 0) {
         return res.status(400).json({ message: "Quantità non valida" });
       }
-
-      const item = await storage.getInventoryItem(id, req.session.activityId!);
-      if (!item) {
-        return res.status(404).json({ message: "Articolo non trovato" });
+      if (costo === undefined || costo === null || costo === "") {
+        return res.status(400).json({ message: "Il costo unitario del rifornimento è obbligatorio" });
+      }
+      if (!idempotencyKey || !z.string().uuid().safeParse(idempotencyKey).success) {
+        return res.status(400).json({ message: "Chiave di idempotenza non valida" });
       }
 
-      const newCost = costo || item.costo;
-      const totalCost = Number(newCost) * parseInt(quantita);
-
-      // La scala dalla cassa reinvestimento verrà gestita automaticamente da createExpense
-
-      // Crea nuovo lotto di inventario
-      await storage.createInventoryBatch({
+      const updatedItem = await restockInventoryPurchase({
         inventarioId: id,
-        activityId: req.session.activityId!,
-        userId: req.session.userId!,
-        costo: newCost,
-        quantita: parseInt(quantita),
-      });
-
-      // Update inventory quantity
-      const newQuantity = item.quantita + parseInt(quantita);
-      await storage.updateInventoryQuantity(id, newQuantity);
-
-      // Aggiorna costo medio nell'inventario se diverso
-      if (Number(newCost) !== Number(item.costo)) {
-        const totalValue = (Number(item.costo) * item.quantita) + (Number(newCost) * parseInt(quantita));
-        const avgCost = totalValue / newQuantity;
-
-        await storage.updateInventoryItem(id, req.session.activityId!, {
-          costo: avgCost.toFixed(2)
-        });
-      }
-
-      // Crea la spesa (con scala automatica dalla cassa reinvestimento se disponibile)
-      await storage.createExpense({
         userId: req.session.userId!,
         activityId: req.session.activityId!,
-        voce: `Rifornimento: ${item.nomeArticolo} - ${item.taglia} (${quantita} pz)`,
-        importo: totalCost.toString(),
-        categoria: "Inventario",
-        data: new Date(),
+        quantita,
+        costo,
+        idempotencyKey,
       });
-
-      // Get updated item
-      const updatedItem = await storage.getInventoryItem(id, req.session.activityId!);
       res.json(updatedItem);
     } catch (error: any) {
       console.error('Restock error:', error);
       res.status(500).json({ message: error.message || "Errore nel rifornimento" });
+    }
+  });
+
+  app.get('/api/inventario/:id/batches', requireActivity, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const batches = await db.select({
+        id: inventoryBatches.id,
+        quantitaIniziale: inventoryBatches.quantitaIniziale,
+        quantitaRimanente: inventoryBatches.quantitaRimanente,
+        costo: inventoryBatches.costo,
+        dataAcquisto: inventoryBatches.dataAcquisto,
+        spesaId: inventoryBatches.spesaId,
+        descrizioneSpesa: spese.voce,
+        importoSpesa: spese.importo,
+      }).from(inventoryBatches)
+        .leftJoin(spese, eq(inventoryBatches.spesaId, spese.id))
+        .innerJoin(inventario, eq(inventoryBatches.inventarioId, inventario.id))
+        .where(and(
+          eq(inventoryBatches.inventarioId, id),
+          eq(inventoryBatches.activityId, req.session.activityId!),
+          eq(inventario.activityId, req.session.activityId!),
+        ))
+        .orderBy(inventoryBatches.dataAcquisto, inventoryBatches.createdAt, inventoryBatches.id);
+
+      res.json(batches);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nel recupero dello storico dei lotti" });
     }
   });
 
@@ -2893,6 +2918,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/spese/:id', requireActivity, async (req, res) => {
     try {
       const { id } = req.params;
+      const [linkedBatch] = await db.select({ id: inventoryBatches.id })
+        .from(inventoryBatches)
+        .where(and(
+          eq(inventoryBatches.spesaId, id),
+          eq(inventoryBatches.activityId, req.session.activityId!),
+        ))
+        .limit(1);
+      if (linkedBatch) {
+        return res.status(400).json({
+          message: "Questa spesa è collegata a un lotto e non può essere modificata. Archivia l'articolo per conservarne lo storico.",
+        });
+      }
       
       // Extend schema to accept both string and Date for data field
       const updateSchema = insertSpesaSchema.partial().extend({
@@ -2922,6 +2959,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/spese/:id', requireActivity, async (req, res) => {
     try {
       const { id } = req.params;
+      const [linkedBatch] = await db.select({ id: inventoryBatches.id })
+        .from(inventoryBatches)
+        .where(and(
+          eq(inventoryBatches.spesaId, id),
+          eq(inventoryBatches.activityId, req.session.activityId!),
+        ))
+        .limit(1);
+      if (linkedBatch) {
+        return res.status(400).json({
+          message: "Questa spesa è collegata a un lotto e non può essere eliminata. Archivia l'articolo per conservarne lo storico.",
+        });
+      }
+
       const deleted = await storage.deleteExpense(id, req.session.activityId!);
 
       if (!deleted) {
