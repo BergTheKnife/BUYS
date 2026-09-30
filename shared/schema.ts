@@ -202,6 +202,7 @@ export const inventoryBatches = pgTable("inventory_batches", {
   quantitaIniziale: integer("quantita_iniziale").notNull(),
   quantitaRimanente: integer("quantita_rimanente").notNull(),
   dataAcquisto: timestamp("data_acquisto").defaultNow().notNull(),
+  quotaCassa: numeric("quota_cassa", { precision: 10, scale: 2 }).default("0").notNull(),
   spesaId: uuid("spesa_id").references(() => spese.id, { onDelete: "set null" }),
   idempotencyKey: uuid("idempotency_key").unique(),
   createdAt: timestamp("created_at").defaultNow(),

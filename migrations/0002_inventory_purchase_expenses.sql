@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS "inventory_batches" (
   "quantita_iniziale" integer NOT NULL,
   "quantita_rimanente" integer NOT NULL,
   "data_acquisto" timestamp DEFAULT now() NOT NULL,
+  "quota_cassa" numeric(10, 2) DEFAULT 0 NOT NULL,
   "spesa_id" uuid,
   "idempotency_key" uuid,
   "created_at" timestamp DEFAULT now(),
@@ -17,7 +18,8 @@ CREATE TABLE IF NOT EXISTS "inventory_batches" (
 
 ALTER TABLE "inventory_batches"
   ADD COLUMN IF NOT EXISTS "spesa_id" uuid,
-  ADD COLUMN IF NOT EXISTS "idempotency_key" uuid;
+  ADD COLUMN IF NOT EXISTS "idempotency_key" uuid,
+  ADD COLUMN IF NOT EXISTS "quota_cassa" numeric(10, 2) DEFAULT 0 NOT NULL;
 --> statement-breakpoint
 
 ALTER TABLE "spese" ADD COLUMN IF NOT EXISTS "item_id" uuid;
