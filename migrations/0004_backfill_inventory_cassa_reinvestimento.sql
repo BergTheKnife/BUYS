@@ -25,7 +25,8 @@ BEGIN
     FOR ev IN
       SELECT * FROM (
         SELECT
-          ft.data AS ts, ft.created_at AS created_at,
+          ft.data AS ts, ft.data AS created_at,
+          0 AS kind_priority,
           CAST(ft.importo AS numeric) AS amount,
           'deposit'::text AS kind,
           NULL::uuid AS batch_id, NULL::uuid AS inventario_id,
@@ -37,6 +38,7 @@ BEGIN
 
         SELECT
           fh.data AS ts, fh.created_at AS created_at,
+          0 AS kind_priority,
           CAST(fh.importo AS numeric) AS amount,
           'adjustment'::text AS kind,
           NULL::uuid, NULL::uuid, NULL::uuid, NULL::text
@@ -47,6 +49,7 @@ BEGIN
 
         SELECT
           ib.data_acquisto AS ts, ib.created_at AS created_at,
+          1 AS kind_priority,
           CAST(s.importo AS numeric) AS amount,
           'stockin'::text AS kind,
           ib.id AS batch_id, ib.inventario_id, ib.user_id, s.voce
@@ -56,7 +59,7 @@ BEGIN
           AND ib.spesa_id IS NOT NULL
           AND COALESCE(ib.quota_cassa, 0) = 0
       ) events
-      ORDER BY ts, created_at
+      ORDER BY ts, kind_priority, created_at
     LOOP
       IF ev.kind IN ('deposit', 'adjustment') THEN
         v_balance := v_balance + ev.amount;
