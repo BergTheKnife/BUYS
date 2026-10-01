@@ -73,7 +73,7 @@ BEGIN
             'Cassa Reinvestimento',
             'Riconciliazione storica: spesa coperta da cassa reinvestimento: ' || ev.voce,
             (-v_coverage)::numeric,
-            now()
+            ev.ts
           );
 
           v_balance := v_balance - v_coverage;

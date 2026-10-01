@@ -93,6 +93,11 @@ function isUniqueViolation(error: unknown) {
     (error as { code?: string }).code === "23505";
 }
 
+/** Rounds a decimal amount to its integer-cent representation. */
+function toCents(amount: unknown): number {
+  return Math.round(Number(amount || 0) * 100);
+}
+
 /**
  * Withdraws as much as possible of an inventory stock-in expense from the
  * "Cassa Reinvestimento" available balance, mirroring the manual expense
@@ -101,16 +106,33 @@ function isUniqueViolation(error: unknown) {
  */
 async function coverExpenseFromCassa(
   tx: any,
-  params: { activityId: string; userId: string; amount: number; descrizione: string },
+  params: { activityId: string; userId: string; amount: number; expenseVoce: string },
 ): Promise<number> {
   const balance = await storage.getCassaReinvestimentoBalance(params.activityId, tx);
-  const fromCassa = Math.min(Math.max(balance, 0), params.amount);
+  const fromCassaCents = Math.min(Math.max(toCents(balance), 0), toCents(params.amount));
+  const fromCassa = fromCassaCents / 100;
 
-  if (fromCassa > 0) {
-    await storage.updateCassaReinvestimento(params.activityId, -fromCassa, params.descrizione, params.userId, tx);
+  if (fromCassaCents > 0) {
+    await storage.updateCassaReinvestimento(
+      params.activityId,
+      -fromCassa,
+      `Spesa coperta da cassa reinvestimento: ${params.expenseVoce}`,
+      params.userId,
+      tx,
+    );
   }
 
   return fromCassa;
+}
+
+/**
+ * Sums a stored decimal amount with a fresh amount using integer-cent
+ * arithmetic (consistent with normalizeUnitCost/totalAmount above) to avoid
+ * floating point drift when accumulating cassa reinvestimento coverage
+ * across multiple restocks of the same item.
+ */
+function addCentsExact(existing: unknown, addend: number): string {
+  return ((toCents(existing) + toCents(addend)) / 100).toFixed(2);
 }
 
 export async function createInitialInventoryPurchase(
@@ -176,7 +198,7 @@ export async function createInitialInventoryPurchase(
         activityId: data.activityId,
         userId: data.userId,
         amount: Number(amount),
-        descrizione: `Spesa coperta da cassa reinvestimento: ${expense.voce}`,
+        expenseVoce: expense.voce,
       });
 
       await tx.insert(inventoryBatches).values({
@@ -275,7 +297,7 @@ export async function restockInventoryPurchase(data: PurchaseIdentity & {
         activityId: data.activityId,
         userId: data.userId,
         amount: Number(amount),
-        descrizione: `Spesa coperta da cassa reinvestimento: ${expense.voce}`,
+        expenseVoce: expense.voce,
       });
 
       await tx.insert(inventoryBatches).values({
@@ -294,7 +316,7 @@ export async function restockInventoryPurchase(data: PurchaseIdentity & {
         .set({
           quantita: item.quantita + data.quantita,
           ...(fromCassa > 0
-            ? { cassaCoverage: (Number(item.cassaCoverage || 0) + fromCassa).toFixed(2) }
+            ? { cassaCoverage: addCentsExact(item.cassaCoverage, fromCassa) }
             : {}),
         })
         .where(eq(inventario.id, item.id))
