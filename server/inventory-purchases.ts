@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "./db";
 import { inventoryBatches, inventario, spese } from "@shared/schema";
 import type { InsertInventario } from "@shared/schema";
+import { storage } from "./storage";
 
 const MAX_AMOUNT_CENTS = BigInt("9999999999");
 const CENTS_PER_UNIT = BigInt(100);
@@ -92,6 +93,48 @@ function isUniqueViolation(error: unknown) {
     (error as { code?: string }).code === "23505";
 }
 
+/** Rounds a decimal amount to its integer-cent representation. */
+function toCents(amount: unknown): number {
+  return Math.round(Number(amount || 0) * 100);
+}
+
+/**
+ * Withdraws as much as possible of an inventory stock-in expense from the
+ * "Cassa Reinvestimento" available balance, mirroring the manual expense
+ * route (/api/spese) and the production material purchase flow. Returns the
+ * amount actually covered by the cash box (0 if there was no balance).
+ */
+async function coverExpenseFromCassa(
+  tx: any,
+  params: { activityId: string; userId: string; amount: number; expenseVoce: string },
+): Promise<number> {
+  const balance = await storage.getCassaReinvestimentoBalance(params.activityId, tx);
+  const fromCassaCents = Math.min(Math.max(toCents(balance), 0), toCents(params.amount));
+  const fromCassa = fromCassaCents / 100;
+
+  if (fromCassaCents > 0) {
+    await storage.updateCassaReinvestimento(
+      params.activityId,
+      -fromCassa,
+      `Spesa coperta da cassa reinvestimento: ${params.expenseVoce}`,
+      params.userId,
+      tx,
+    );
+  }
+
+  return fromCassa;
+}
+
+/**
+ * Sums a stored decimal amount with a fresh amount using integer-cent
+ * arithmetic (consistent with normalizeUnitCost/totalAmount above) to avoid
+ * floating point drift when accumulating cassa reinvestimento coverage
+ * across multiple restocks of the same item.
+ */
+function addCentsExact(existing: unknown, addend: number): string {
+  return ((toCents(existing) + toCents(addend)) / 100).toFixed(2);
+}
+
 export async function createInitialInventoryPurchase(
   data: InsertInventario & { userId: string; activityId: string; immagineUrl: string | null; idempotencyKey: string },
   database: InventoryDatabase = db,
@@ -151,6 +194,13 @@ export async function createInitialInventoryPurchase(
         itemId: item.id,
       }).returning();
 
+      const fromCassa = await coverExpenseFromCassa(tx, {
+        activityId: data.activityId,
+        userId: data.userId,
+        amount: Number(amount),
+        expenseVoce: expense.voce,
+      });
+
       await tx.insert(inventoryBatches).values({
         inventarioId: item.id,
         activityId: data.activityId,
@@ -159,8 +209,18 @@ export async function createInitialInventoryPurchase(
         quantitaIniziale: quantity,
         quantitaRimanente: quantity,
         spesaId: expense.id,
+        quotaCassa: fromCassa.toFixed(2),
         idempotencyKey: data.idempotencyKey,
       });
+
+      if (fromCassa > 0) {
+        const [updatedItem] = await tx
+          .update(inventario)
+          .set({ cassaCoverage: fromCassa.toFixed(2) })
+          .where(eq(inventario.id, item.id))
+          .returning();
+        return updatedItem;
+      }
 
       return item;
     });
@@ -233,6 +293,13 @@ export async function restockInventoryPurchase(data: PurchaseIdentity & {
         itemId: item.id,
       }).returning();
 
+      const fromCassa = await coverExpenseFromCassa(tx, {
+        activityId: data.activityId,
+        userId: data.userId,
+        amount: Number(amount),
+        expenseVoce: expense.voce,
+      });
+
       await tx.insert(inventoryBatches).values({
         inventarioId: item.id,
         activityId: data.activityId,
@@ -241,11 +308,17 @@ export async function restockInventoryPurchase(data: PurchaseIdentity & {
         quantitaIniziale: data.quantita,
         quantitaRimanente: data.quantita,
         spesaId: expense.id,
+        quotaCassa: fromCassa.toFixed(2),
         idempotencyKey: data.idempotencyKey,
       });
 
       const [updatedItem] = await tx.update(inventario)
-        .set({ quantita: item.quantita + data.quantita })
+        .set({
+          quantita: item.quantita + data.quantita,
+          ...(fromCassa > 0
+            ? { cassaCoverage: addCentsExact(item.cassaCoverage, fromCassa) }
+            : {}),
+        })
         .where(eq(inventario.id, item.id))
         .returning();
       return updatedItem;
