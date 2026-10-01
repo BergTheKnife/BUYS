@@ -36,7 +36,7 @@ function getParameters(condition: any) {
 class FakeTransaction {
   constructor(private state: any, private failOnTable?: string) {}
 
-  select() {
+  select(columns?: Record<string, unknown>) {
     const query: any = {
       from: (table: any) => {
         query.table = getTableName(table);
@@ -53,6 +53,12 @@ class FakeTransaction {
         const matched = rows.filter((row: any) =>
           Object.entries(query.conditions || {}).every(([key, value]) => row[key] === value),
         );
+        // Mimics the single `SUM(importo)` aggregate queries used by
+        // storage.getCassaReinvestimentoBalance.
+        if (columns && "total" in columns) {
+          const total = matched.reduce((sum: number, row: any) => sum + Number(row.importo || 0), 0);
+          return Promise.resolve([{ total }]).then(resolve, reject);
+        }
         return Promise.resolve(matched).then(resolve, reject);
       },
     };
@@ -109,7 +115,13 @@ class FakeTransaction {
 }
 
 class FakeDatabase {
-  state = { inventario: [] as any[], spese: [] as any[], inventory_batches: [] as any[] };
+  state = {
+    inventario: [] as any[],
+    spese: [] as any[],
+    inventory_batches: [] as any[],
+    fund_transfers: [] as any[],
+    financial_history: [] as any[],
+  };
 
   constructor(private failOnTable?: string) {}
 
@@ -195,7 +207,13 @@ test("purchase writes roll back when an expense or lot insert fails", async () =
       ),
       new RegExp(`simulated ${failOnTable} insert failure`),
     );
-    assert.deepEqual(database.state, { inventario: [], spese: [], inventory_batches: [] });
+    assert.deepEqual(database.state, {
+      inventario: [],
+      spese: [],
+      inventory_batches: [],
+      fund_transfers: [],
+      financial_history: [],
+    });
   }
 });
 
@@ -244,4 +262,66 @@ test("legacy stock-in helper links the expense without a cash-box movement", asy
   assert.equal(result.batch.spesaId, result.expense.id);
   assert.equal(result.batch.quotaCassa, "0.00");
   assert.equal(database.state.spese.length, 1);
+});
+
+test("initial purchase withdraws available cassa reinvestimento balance", async () => {
+  const database = new FakeDatabase();
+  database.state.fund_transfers.push({
+    id: "transfer-1",
+    userId,
+    activityId,
+    fromMember: "Socio",
+    fromAccount: "Personale",
+    toAccount: "Cassa Reinvestimento",
+    importo: "100.00",
+  });
+
+  const item = await createInitialInventoryPurchase(
+    initialData("00000000-0000-4000-8000-000000000007"),
+    database as any,
+  );
+  const [batch] = database.state.inventory_batches;
+
+  // amount = 10 * 13.50 = 135.00, only 100.00 available in cassa
+  assert.equal(batch.quotaCassa, "100.00");
+  assert.equal(item.cassaCoverage, "100.00");
+  assert.equal(database.state.financial_history.length, 1);
+  assert.equal(database.state.financial_history[0].importo, "-100.00");
+  assert.equal(database.state.financial_history[0].azione, "Cassa Reinvestimento");
+});
+
+test("restock withdraws remaining cassa reinvestimento balance across purchases", async () => {
+  const database = new FakeDatabase();
+  database.state.fund_transfers.push({
+    id: "transfer-1",
+    userId,
+    activityId,
+    fromMember: "Socio",
+    fromAccount: "Personale",
+    toAccount: "Cassa Reinvestimento",
+    importo: "140.00",
+  });
+
+  const item = await createInitialInventoryPurchase(
+    initialData("00000000-0000-4000-8000-000000000008"),
+    database as any,
+  );
+  // amount = 135.00, fully covered; 5.00 left in cassa
+  assert.equal(database.state.inventory_batches[0].quotaCassa, "135.00");
+
+  const updatedItem = await restockInventoryPurchase({
+    inventarioId: item.id,
+    userId,
+    activityId,
+    quantita: 5,
+    costo: "10.00",
+    idempotencyKey: "00000000-0000-4000-8000-000000000009",
+  }, database as any);
+
+  const [, restockBatch] = database.state.inventory_batches;
+  // restock amount = 50.00, only 5.00 left in cassa
+  assert.equal(restockBatch.quotaCassa, "5.00");
+  assert.equal(updatedItem.cassaCoverage, "140.00");
+  assert.equal(database.state.financial_history.length, 2);
+  assert.equal(database.state.financial_history[1].importo, "-5.00");
 });

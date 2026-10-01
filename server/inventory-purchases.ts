@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "./db";
 import { inventoryBatches, inventario, spese } from "@shared/schema";
 import type { InsertInventario } from "@shared/schema";
+import { storage } from "./storage";
 
 const MAX_AMOUNT_CENTS = BigInt("9999999999");
 const CENTS_PER_UNIT = BigInt(100);
@@ -92,6 +93,26 @@ function isUniqueViolation(error: unknown) {
     (error as { code?: string }).code === "23505";
 }
 
+/**
+ * Withdraws as much as possible of an inventory stock-in expense from the
+ * "Cassa Reinvestimento" available balance, mirroring the manual expense
+ * route (/api/spese) and the production material purchase flow. Returns the
+ * amount actually covered by the cash box (0 if there was no balance).
+ */
+async function coverExpenseFromCassa(
+  tx: any,
+  params: { activityId: string; userId: string; amount: number; descrizione: string },
+): Promise<number> {
+  const balance = await storage.getCassaReinvestimentoBalance(params.activityId, tx);
+  const fromCassa = Math.min(Math.max(balance, 0), params.amount);
+
+  if (fromCassa > 0) {
+    await storage.updateCassaReinvestimento(params.activityId, -fromCassa, params.descrizione, params.userId, tx);
+  }
+
+  return fromCassa;
+}
+
 export async function createInitialInventoryPurchase(
   data: InsertInventario & { userId: string; activityId: string; immagineUrl: string | null; idempotencyKey: string },
   database: InventoryDatabase = db,
@@ -151,6 +172,13 @@ export async function createInitialInventoryPurchase(
         itemId: item.id,
       }).returning();
 
+      const fromCassa = await coverExpenseFromCassa(tx, {
+        activityId: data.activityId,
+        userId: data.userId,
+        amount: Number(amount),
+        descrizione: `Spesa coperta da cassa reinvestimento: ${expense.voce}`,
+      });
+
       await tx.insert(inventoryBatches).values({
         inventarioId: item.id,
         activityId: data.activityId,
@@ -159,8 +187,18 @@ export async function createInitialInventoryPurchase(
         quantitaIniziale: quantity,
         quantitaRimanente: quantity,
         spesaId: expense.id,
+        quotaCassa: fromCassa.toFixed(2),
         idempotencyKey: data.idempotencyKey,
       });
+
+      if (fromCassa > 0) {
+        const [updatedItem] = await tx
+          .update(inventario)
+          .set({ cassaCoverage: fromCassa.toFixed(2) })
+          .where(eq(inventario.id, item.id))
+          .returning();
+        return updatedItem;
+      }
 
       return item;
     });
@@ -233,6 +271,13 @@ export async function restockInventoryPurchase(data: PurchaseIdentity & {
         itemId: item.id,
       }).returning();
 
+      const fromCassa = await coverExpenseFromCassa(tx, {
+        activityId: data.activityId,
+        userId: data.userId,
+        amount: Number(amount),
+        descrizione: `Spesa coperta da cassa reinvestimento: ${expense.voce}`,
+      });
+
       await tx.insert(inventoryBatches).values({
         inventarioId: item.id,
         activityId: data.activityId,
@@ -241,11 +286,17 @@ export async function restockInventoryPurchase(data: PurchaseIdentity & {
         quantitaIniziale: data.quantita,
         quantitaRimanente: data.quantita,
         spesaId: expense.id,
+        quotaCassa: fromCassa.toFixed(2),
         idempotencyKey: data.idempotencyKey,
       });
 
       const [updatedItem] = await tx.update(inventario)
-        .set({ quantita: item.quantita + data.quantita })
+        .set({
+          quantita: item.quantita + data.quantita,
+          ...(fromCassa > 0
+            ? { cassaCoverage: (Number(item.cassaCoverage || 0) + fromCassa).toFixed(2) }
+            : {}),
+        })
         .where(eq(inventario.id, item.id))
         .returning();
       return updatedItem;
