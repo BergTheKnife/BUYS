@@ -1515,7 +1515,7 @@ class DatabaseStorage {
     const totalSales = Number(salesStats?.totalSales || 0);
     const totalMargin = Number(salesStats?.totalMargin || 0);
     const totalExpenses = Number(expenseStats?.totalExpenses || 0);
-    const netMargin = totalMargin - totalExpenses;
+    const netMargin = totalSales - totalExpenses;
 
     return {
       inventoryCount: Number(inventoryStats?.inventoryCount || 0),
