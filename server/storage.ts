@@ -6,6 +6,7 @@ import {
   activities,
   activityUsers,
   inventario,
+  inventarioImmagini,
   vendite,
   spese,
   fundTransfers,
@@ -24,6 +25,33 @@ import {
 } from "@shared/schema";
 
 class DatabaseStorage {
+  /**
+   * Persists an uploaded inventory photo as bytes directly in the database
+   * (Neon), instead of the server's local filesystem. Render recreates the
+   * container filesystem on every deploy, so images written only to disk at
+   * runtime disappear after the next deploy; storing them in the DB keeps
+   * them durable without any extra external storage service.
+   */
+  async saveInventoryImage(dati: Buffer, mimeType: string): Promise<string> {
+    const [row] = await db
+      .insert(inventarioImmagini)
+      .values({ dati, mimeType })
+      .returning({ id: inventarioImmagini.id });
+    return row.id;
+  }
+
+  async getInventoryImage(id: string): Promise<{ dati: Buffer; mimeType: string } | undefined> {
+    const [row] = await db
+      .select({ dati: inventarioImmagini.dati, mimeType: inventarioImmagini.mimeType })
+      .from(inventarioImmagini)
+      .where(eq(inventarioImmagini.id, id));
+    return row;
+  }
+
+  async deleteInventoryImage(id: string): Promise<void> {
+    await db.delete(inventarioImmagini).where(eq(inventarioImmagini.id, id));
+  }
+
   private stripUndefined<T extends Record<string, any>>(value: T): Partial<T> {
     return Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined)) as Partial<T>;
   }
@@ -537,6 +565,14 @@ class DatabaseStorage {
       .where(eq(inventario.id, id))
       .returning();
     return updated ?? null;
+  }
+
+  async getInventoryItemImageUrl(id: string, activityId: string): Promise<string | null> {
+    const [row] = await db
+      .select({ immagineUrl: inventario.immagineUrl })
+      .from(inventario)
+      .where(and(eq(inventario.id, id), eq(inventario.activityId, activityId)));
+    return row?.immagineUrl ?? null;
   }
 
   /**

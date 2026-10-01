@@ -1,9 +1,17 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, decimal, integer, timestamp, uuid, index, numeric, jsonb, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, decimal, integer, timestamp, uuid, index, numeric, jsonb, unique, customType } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import { z } from "zod";
+
+// Binary column type for storing image bytes directly in Postgres (Neon),
+// so uploaded photos survive Render's ephemeral filesystem across deploys.
+const bytea = customType<{ data: Buffer }>({
+  dataType() {
+    return "bytea";
+  },
+});
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -154,6 +162,16 @@ export const inventario = pgTable("inventario", {
   archiviato: integer("archiviato").default(0).notNull(), // 0 = attivo, 1 = archiviato (soft-deleted)
   // Nuovo campo per vendite da vetrina
   vetrinaId: uuid("vetrina_id").references(() => vetrina.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Contenuto binario delle foto articolo, salvato direttamente nel database
+// (Neon) invece che sul filesystem del server, che su Render viene
+// ricreato da zero ad ogni deploy e non conserva i file caricati a runtime.
+export const inventarioImmagini = pgTable("inventario_immagini", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  dati: bytea("dati").notNull(),
+  mimeType: text("mime_type").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
