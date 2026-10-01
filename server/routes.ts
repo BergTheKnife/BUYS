@@ -2285,6 +2285,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Inventory routes
+  // Serve le immagini articolo salvate come bytea in database (Neon),
+  // così restano disponibili anche dopo un deploy su Render che azzera il
+  // filesystem del server.
+  app.get('/api/inventario-immagine/:id', requireActivity, async (req, res) => {
+    try {
+      const image = await storage.getInventoryImage(req.params.id);
+      if (!image) {
+        return res.sendStatus(404);
+      }
+      res.setHeader('Content-Type', image.mimeType);
+      res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+      res.send(image.dati);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Errore nel recupero dell'immagine" });
+    }
+  });
+
   app.get('/api/inventario', requireActivity, async (req, res) => {
     try {
       const inventory = await storage.getInventoryByActivity(req.session.activityId!);
@@ -2318,36 +2335,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let immagineUrl = null;
       if (req.file) {
         try {
-          // Use Object Storage for inventory images
-          const objectStorageService = new ObjectStorageService();
-          const uploadURL = await objectStorageService.getInventoryImageUploadURL();
-
-          // Upload file to Object Storage
+          // Store the image bytes directly in the database (Neon). Render
+          // recreates the server filesystem from the repo on every deploy,
+          // so a file saved only to local disk at runtime would be lost
+          // after the next deploy; the database is the durable store we
+          // already depend on.
           const fileBuffer = fs.readFileSync(req.file.path);
-          const uploadResponse = await fetch(uploadURL, {
-            method: 'PUT',
-            body: fileBuffer,
-            headers: {
-              'Content-Type': req.file.mimetype,
-            }
-          });
-
-          if (uploadResponse.ok) {
-            // Normalize the URL for our system
-            immagineUrl = objectStorageService.normalizeObjectEntityPath(uploadURL.split('?')[0]);
-          } else {
-            console.error('Failed to upload to Object Storage:', uploadResponse.status);
-          }
-
-          // Clean up temp file
+          const imageId = await storage.saveInventoryImage(fileBuffer, req.file.mimetype);
+          immagineUrl = `/api/inventario-immagine/${imageId}`;
+        } finally {
+          // Clean up temp file written by multer regardless of outcome
           fs.unlinkSync(req.file.path);
-        } catch (storageError) {
-          console.error('Object Storage error:', storageError);
-          // Fallback to local storage for now
-          const filename = `${Date.now()}-${req.file.originalname}`;
-          const filepath = path.join(uploadDir, filename);
-          fs.renameSync(req.file.path, filepath);
-          immagineUrl = `/uploads/${filename}`;
         }
       }
 
@@ -2384,38 +2382,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updates = insertInventarioSchema.partial().parse(formData);
 
       // Solo aggiorna l'immagine se è stata fornita una nuova immagine
+      let oldImmagineUrl: string | null | undefined;
       if (req.file) {
         try {
-          // Use Object Storage for inventory images
-          const objectStorageService = new ObjectStorageService();
-          const uploadURL = await objectStorageService.getInventoryImageUploadURL();
-
-          // Upload file to Object Storage
+          // Store the image bytes directly in the database (Neon), see the
+          // comment in the create route above for why.
           const fileBuffer = fs.readFileSync(req.file.path);
-          const uploadResponse = await fetch(uploadURL, {
-            method: 'PUT',
-            body: fileBuffer,
-            headers: {
-              'Content-Type': req.file.mimetype,
-            }
-          });
-
-          if (uploadResponse.ok) {
-            // Normalize the URL for our system
-            (updates as any).immagineUrl = objectStorageService.normalizeObjectEntityPath(uploadURL.split('?')[0]);
-          } else {
-            console.error('Failed to upload to Object Storage:', uploadResponse.status);
-          }
-
-          // Clean up temp file
+          const imageId = await storage.saveInventoryImage(fileBuffer, req.file.mimetype);
+          (updates as any).immagineUrl = `/api/inventario-immagine/${imageId}`;
+          oldImmagineUrl = await storage.getInventoryItemImageUrl(id, req.session.activityId!);
+        } finally {
           fs.unlinkSync(req.file.path);
-        } catch (storageError) {
-          console.error('Object Storage error:', storageError);
-          // Fallback to local storage for now
-          const filename = `${Date.now()}-${req.file.originalname}`;
-          const filepath = path.join(uploadDir, filename);
-          fs.renameSync(req.file.path, filepath);
-          (updates as any).immagineUrl = `/uploads/${filename}`;
         }
       }
       // Se non è stata fornita una nuova immagine, l'immagineUrl esistente rimane invariata
@@ -2423,6 +2400,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const item = await storage.updateInventoryItem(id, req.session.activityId!, updates);
       if (!item) {
         return res.status(404).json({ message: "Articolo non trovato" });
+      }
+
+      // Pulisce il vecchio blob immagine ormai sostituito, per evitare righe orfane
+      if (oldImmagineUrl) {
+        const oldImageId = oldImmagineUrl.match(/^\/api\/inventario-immagine\/([^/]+)$/)?.[1];
+        if (oldImageId) {
+          await storage.deleteInventoryImage(oldImageId);
+        }
       }
 
       // Invalidate expenses query to reflect the automatic expense update
